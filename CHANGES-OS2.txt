@@ -1,0 +1,10 @@
+History of OS/2-specific changes for Zint
+===========================================
+
+This file contains only OS/2-specific changes. 
+Version 2.13.0 
+----------------------
+
+- Update to latest version
+- Add ico to exe file
+- Add bldlevel to exe and dlls
