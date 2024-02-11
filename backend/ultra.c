@@ -1,7 +1,7 @@
 /*  ultra.c - Ultracode */
 /*
     libzint - the open source barcode library
-    Copyright (C) 2020-2022 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2020-2023 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -592,7 +592,7 @@ static float ult_look_ahead_c43(const unsigned char source[], const int length, 
     if (debug_print) {
         printf("C43 codewords %.*s: (%d)", length, source + in_locn, subcodeword_count);
         for (i = 0; i < subcodeword_count; i++) printf( " %d", subcw[i]);
-        printf("\n");
+        fputc('\n', stdout);
     }
 
     letters_encoded = sublocn - in_locn;
@@ -945,11 +945,11 @@ INTERNAL int ultra(struct zint_symbol *symbol, struct zint_seg segs[], const int
         int link2 = 2; /* Draft Table 7, Structured Append Group (SAG) with no File Number */
 
         if (symbol->structapp.count < 2 || symbol->structapp.count > 8) {
-            strcpy(symbol->errtxt, "558: Structured Append count out of range (2-8)");
+            strcpy(symbol->errtxt, "596: Structured Append count out of range (2-8)");
             return ZINT_ERROR_INVALID_OPTION;
         }
         if (symbol->structapp.index < 1 || symbol->structapp.index > symbol->structapp.count) {
-            sprintf(symbol->errtxt, "559: Structured Append index out of range (1-%d)", symbol->structapp.count);
+            sprintf(symbol->errtxt, "597: Structured Append index out of range (1-%d)", symbol->structapp.count);
             return ZINT_ERROR_INVALID_OPTION;
         }
         scr_cw_count = 1;
@@ -957,20 +957,20 @@ INTERNAL int ultra(struct zint_symbol *symbol, struct zint_seg segs[], const int
         if (symbol->structapp.id[0]) {
             int id, id_len;
 
-            for (id_len = 0; id_len < 32 && symbol->structapp.id[id_len]; id_len++);
+            for (id_len = 1; id_len < 6 && symbol->structapp.id[id_len]; id_len++);
 
             if (id_len > 5) { /* 282 * 283 + 282 = 80088 */
-                strcpy(symbol->errtxt, "727: Structured Append ID too long (5 digit maximum)");
+                strcpy(symbol->errtxt, "593: Structured Append ID too long (5 digit maximum)");
                 return ZINT_ERROR_INVALID_OPTION;
             }
 
             id = to_int((const unsigned char *) symbol->structapp.id, id_len);
             if (id == -1) {
-                strcpy(symbol->errtxt, "728: Invalid Structured Append ID (digits only)");
+                strcpy(symbol->errtxt, "594: Invalid Structured Append ID (digits only)");
                 return ZINT_ERROR_INVALID_OPTION;
             }
             if (id > 80088) {
-                sprintf(symbol->errtxt, "729: Structured Append ID '%d' out of range (1-80088)", id);
+                sprintf(symbol->errtxt, "595: Structured Append ID '%d' out of range (1-80088)", id);
                 return ZINT_ERROR_INVALID_OPTION;
             }
             if (id) {
@@ -998,7 +998,7 @@ INTERNAL int ultra(struct zint_symbol *symbol, struct zint_seg segs[], const int
         for (i = 0; i < data_cw_count; i++) {
             printf(" %d", data_codewords[i]);
         }
-        printf("\n");
+        fputc('\n', stdout);
     }
 #ifdef ZINT_TEST
     if (symbol->debug & ZINT_DEBUG_TEST) {
@@ -1037,7 +1037,7 @@ INTERNAL int ultra(struct zint_symbol *symbol, struct zint_seg segs[], const int
 
     }
     if (debug_print) {
-        printf("EC%d codewords: %d\n", ecc_level + 1, qcc);
+        printf("EC%d codewords: %d\n", ecc_level, qcc);
     }
 
     acc = qcc - 3;
@@ -1052,7 +1052,7 @@ INTERNAL int ultra(struct zint_symbol *symbol, struct zint_seg segs[], const int
                 printf(", SCR1: %d, SCR2: %d", scr[1], scr[2]);
             }
         }
-        printf("\n");
+        fputc('\n', stdout);
     }
 
     /* Maximum capacity is 282 codewords */
@@ -1102,7 +1102,7 @@ INTERNAL int ultra(struct zint_symbol *symbol, struct zint_seg segs[], const int
         for (i = 0; i < qcc; i++) {
             printf(" %d", data_codewords[(282 - qcc) + i]);
         }
-        printf("\n");
+        fputc('\n', stdout);
     }
 
     /* Rearrange to make final codeword sequence */
@@ -1128,11 +1128,11 @@ INTERNAL int ultra(struct zint_symbol *symbol, struct zint_seg segs[], const int
     codeword[locn++] = qcc; /* QCC */
 
     if (debug_print) {
-        printf("Rearranged codewords with ECC:\n");
+        printf("Rearranged codewords with ECC (%d):\n", locn);
         for (i = 0; i < locn; i++) {
-            printf("%d ", codeword[i]);
+            printf(" %d", codeword[i]);
         }
-        printf("\n");
+        fputc('\n', stdout);
     }
 
     total_height = (rows * 6) + 1;
@@ -1228,7 +1228,7 @@ INTERNAL int ultra(struct zint_symbol *symbol, struct zint_seg segs[], const int
         for (i = 0; i < (total_height * total_width); i++) {
             printf("%c", pattern[i]);
             if ((i + 1) % total_width == 0) {
-                printf("\n");
+                fputc('\n', stdout);
             }
         }
     }

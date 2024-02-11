@@ -1,7 +1,7 @@
 /* dotcode.c - Handles DotCode */
 /*
     libzint - the open source barcode library
-    Copyright (C) 2017-2022 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2017-2023 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -409,21 +409,12 @@ static int dc_datum_c(const unsigned char source[], const int length, const int 
     return is_twodigits(source, length, position);
 }
 
-/* Returns how many consecutive digits lie immediately ahead (Annex F.II.A) */
-static int dc_n_digits(const unsigned char source[], const int length, const int position, const int max) {
-    int i;
-
-    for (i = position; (i < length) && z_isdigit(source[i]) && (i < position + max); i++);
-
-    return i - position;
-}
-
 /* Checks ahead for 10 or more digits starting "17xxxxxx10..." (Annex F.II.B) */
 static int dc_seventeen_ten(const unsigned char source[], const int length, const int position) {
 
     if (position + 9 < length && source[position] == '1' && source[position + 1] == '7'
             && source[position + 8] == '1' && source[position + 9] == '0'
-            && dc_n_digits(source, length, position + 2, 6) >= 6) {
+            && cnt_digits(source, length, position + 2, 6) >= 6) {
         return 1;
     }
 
@@ -447,7 +438,7 @@ static int dc_ahead_c(const unsigned char source[], const int length, const int 
 /* Annex F.II.F */
 static int dc_try_c(const unsigned char source[], const int length, const int position) {
 
-    if (position < length && z_isdigit(source[position])) { /* dc_n_digits(position) > 0 */
+    if (position < length && z_isdigit(source[position])) { /* cnt_digits(position) > 0 */
         const int ahead_c_position = dc_ahead_c(source, length, position);
         if (ahead_c_position > dc_ahead_c(source, length, position + 1)) {
             return ahead_c_position;
@@ -642,7 +633,7 @@ static int dc_encode_message(struct zint_symbol *symbol, const unsigned char sou
         if (last_seg && (position == length - 2) && (inside_macro != 0) && (inside_macro != 100)) {
             /* inside_macro only gets set to 97, 98 or 99 if the last two characters are RS/EOT */
             position += 2;
-            if (debug_print) printf("A ");
+            if (debug_print) fputs("A ", stdout);
             continue;
         }
 
@@ -650,7 +641,7 @@ static int dc_encode_message(struct zint_symbol *symbol, const unsigned char sou
         if (last_seg && (position == length - 1) && (inside_macro == 100)) {
             /* inside_macro only gets set to 100 if the last character is EOT */
             position++;
-            if (debug_print) printf("B ");
+            if (debug_print) fputs("B ", stdout);
             continue;
         }
 
@@ -663,7 +654,7 @@ static int dc_encode_message(struct zint_symbol *symbol, const unsigned char sou
                 codeword_array[ap++] = to_int(source + position + 4, 2);
                 codeword_array[ap++] = to_int(source + position + 6, 2);
                 position += 10;
-                if (debug_print) printf("C2/1 ");
+                if (debug_print) fputs("C2/1 ", stdout);
                 continue;
             }
 
@@ -675,13 +666,13 @@ static int dc_encode_message(struct zint_symbol *symbol, const unsigned char sou
                     codeword_array[ap++] = to_int(source + position, 2);
                     position += 2;
                 }
-                if (debug_print) printf("C2/2 ");
+                if (debug_print) fputs("C2/2 ", stdout);
                 continue;
             }
 
             /* Step C3 */
             if (dc_binary(source, length, position)) {
-                /* dc_n_digits(position + 1) > 0 */
+                /* cnt_digits(position + 1) > 0 */
                 if (position + 1 < length && z_isdigit(source[position + 1])) {
                     if ((source[position] - 128) < 32) {
                         codeword_array[ap++] = 110; /* Upper Shift A */
@@ -695,7 +686,7 @@ static int dc_encode_message(struct zint_symbol *symbol, const unsigned char sou
                     codeword_array[ap++] = 112; /* Bin Latch */
                     encoding_mode = 'X';
                 }
-                if (debug_print) printf("C3 ");
+                if (debug_print) fputs("C3 ", stdout);
                 continue;
             }
 
@@ -731,7 +722,7 @@ static int dc_encode_message(struct zint_symbol *symbol, const unsigned char sou
                         encoding_mode = 'B';
                     }
                 }
-                if (debug_print) printf("C4 ");
+                if (debug_print) fputs("C4 ", stdout);
                 continue;
             }
         } /* encoding_mode == 'C' */
@@ -751,7 +742,7 @@ static int dc_encode_message(struct zint_symbol *symbol, const unsigned char sou
                     codeword_array[ap++] = 106; /* Latch C */
                     encoding_mode = 'C';
                 }
-                if (debug_print) printf("D1 ");
+                if (debug_print) fputs("D1 ", stdout);
                 continue;
             }
 
@@ -759,7 +750,7 @@ static int dc_encode_message(struct zint_symbol *symbol, const unsigned char sou
             if ((source[position] == '[') && gs1) {
                 codeword_array[ap++] = 107; /* FNC1 */
                 position++;
-                if (debug_print) printf("D2/1 ");
+                if (debug_print) fputs("D2/1 ", stdout);
                 continue;
             }
 
@@ -790,7 +781,7 @@ static int dc_encode_message(struct zint_symbol *symbol, const unsigned char sou
 
                 if (done == 1) {
                     position++;
-                    if (debug_print) printf("D2/2 ");
+                    if (debug_print) fputs("D2/2 ", stdout);
                     continue;
                 }
             }
@@ -810,7 +801,7 @@ static int dc_encode_message(struct zint_symbol *symbol, const unsigned char sou
                     codeword_array[ap++] = 112; /* Bin Latch */
                     encoding_mode = 'X';
                 }
-                if (debug_print) printf("D3 ");
+                if (debug_print) fputs("D3 ", stdout);
                 continue;
             }
 
@@ -827,7 +818,7 @@ static int dc_encode_message(struct zint_symbol *symbol, const unsigned char sou
                 codeword_array[ap++] = 102; /* Latch A */
                 encoding_mode = 'A';
             }
-            if (debug_print) printf("D4 ");
+            if (debug_print) fputs("D4 ", stdout);
             continue;
         } /* encoding_mode == 'B' */
 
@@ -845,7 +836,7 @@ static int dc_encode_message(struct zint_symbol *symbol, const unsigned char sou
                     codeword_array[ap++] = 106; /* Latch C */
                     encoding_mode = 'C';
                 }
-                if (debug_print) printf("E1 ");
+                if (debug_print) fputs("E1 ", stdout);
                 continue;
             }
 
@@ -854,7 +845,7 @@ static int dc_encode_message(struct zint_symbol *symbol, const unsigned char sou
                 /* Note: this branch probably never reached as no reason to be in Code Set A for GS1 data */
                 codeword_array[ap++] = 107; /* FNC1 */
                 position++;
-                if (debug_print) printf("E2/1 ");
+                if (debug_print) fputs("E2/1 ", stdout);
                 continue;
             }
             if (dc_datum_a(source, length, position)) {
@@ -864,7 +855,7 @@ static int dc_encode_message(struct zint_symbol *symbol, const unsigned char sou
                     codeword_array[ap++] = source[position] - 32;
                 }
                 position++;
-                if (debug_print) printf("E2/2 ");
+                if (debug_print) fputs("E2/2 ", stdout);
                 continue;
             }
 
@@ -883,7 +874,7 @@ static int dc_encode_message(struct zint_symbol *symbol, const unsigned char sou
                     codeword_array[ap++] = 112; /* Bin Latch */
                     encoding_mode = 'X';
                 }
-                if (debug_print) printf("E3 ");
+                if (debug_print) fputs("E3 ", stdout);
                 continue;
             }
 
@@ -912,7 +903,7 @@ static int dc_encode_message(struct zint_symbol *symbol, const unsigned char sou
                 codeword_array[ap++] = 102; /* Latch B */
                 encoding_mode = 'B';
             }
-            if (debug_print) printf("E4 ");
+            if (debug_print) fputs("E4 ", stdout);
             continue;
         } /* encoding_mode == 'A' */
 
@@ -933,7 +924,7 @@ static int dc_encode_message(struct zint_symbol *symbol, const unsigned char sou
                     codeword_array[ap++] = 111; /* Terminate with Latch to C */
                     encoding_mode = 'C';
                 }
-                if (debug_print) printf("F1 ");
+                if (debug_print) fputs("F1 ", stdout);
                 continue;
             }
 
@@ -948,7 +939,7 @@ static int dc_encode_message(struct zint_symbol *symbol, const unsigned char sou
                     || dc_binary(source, length, position + 3)) {
                 ap = dc_append_to_bin_buf(codeword_array, ap, source[position], &bin_buf, &bin_buf_size);
                 position++;
-                if (debug_print) printf("F2 ");
+                if (debug_print) fputs("F2 ", stdout);
                 continue;
             }
 
@@ -962,7 +953,7 @@ static int dc_encode_message(struct zint_symbol *symbol, const unsigned char sou
                 codeword_array[ap++] = 110; /* Terminate with Latch to B */
                 encoding_mode = 'B';
             }
-            if (debug_print) printf("F3 ");
+            if (debug_print) fputs("F3 ", stdout);
         } /* encoding_mode == 'X' */
     }
 
@@ -996,7 +987,7 @@ static int dc_encode_message(struct zint_symbol *symbol, const unsigned char sou
     }
 
     if (debug_print) {
-        printf("\n");
+        fputc('\n', stdout);
     }
 
     *p_encoding_mode = encoding_mode;
@@ -1213,6 +1204,7 @@ static void dc_force_corners(const int width, const int height, char *dot_array)
 }
 
 INTERNAL int dotcode(struct zint_symbol *symbol, struct zint_seg segs[], const int seg_count) {
+    int warn_number = 0;
     int i, j, k;
     int jc, n_dots;
     int data_length, ecc_length;
@@ -1226,6 +1218,7 @@ INTERNAL int dotcode(struct zint_symbol *symbol, struct zint_seg segs[], const i
     unsigned char structapp_array[5];
     int structapp_size = 0;
     int padding_dots;
+    const int gs1 = (symbol->input_mode & 0x07) == GS1_MODE;
     const int debug_print = (symbol->debug & ZINT_DEBUG_PRINT);
     /* Allow 4 codewords per input + 2 (FNC) + seg_count * 4 (ECI) + 2 (special char 1st position)
        + 5 (Structured Append) + 10 (PAD) */
@@ -1260,8 +1253,21 @@ INTERNAL int dotcode(struct zint_symbol *symbol, struct zint_seg segs[], const i
         }
     }
 
-    /* TODO: GS1 General Specifications 22.0 section 5.8.2 says Structured Append and ECIs not supported
-       for GS1 DotCode so should check and return ZINT_WARN_NONCOMPLIANT if either true */
+    /* GS1 General Specifications 22.0 section 5.8.2 says Structured Append and ECIs not supported
+       for GS1 DotCode so check and return ZINT_WARN_NONCOMPLIANT if either true */
+    if (gs1 && warn_number == 0) {
+        for (i = 0; i < seg_count; i++) {
+            if (segs[i].eci) {
+                strcpy(symbol->errtxt, "733: Using ECI in GS1 mode not supported by GS1 standards");
+                warn_number = ZINT_WARN_NONCOMPLIANT;
+                break;
+            }
+        }
+        if (warn_number == 0 && symbol->structapp.count) {
+            strcpy(symbol->errtxt, "734: Using Structured Append in GS1 mode not supported by GS1 standards");
+            warn_number = ZINT_WARN_NONCOMPLIANT;
+        }
+    }
 
     data_length = dc_encode_message_segs(symbol, segs, seg_count, codeword_array, &binary_finish, structapp_array,
                     &structapp_size);
@@ -1398,11 +1404,11 @@ INTERNAL int dotcode(struct zint_symbol *symbol, struct zint_seg segs[], const i
 
     if (debug_print) {
         printf("Codeword length = %d, ECC length = %d\n", data_length, ecc_length);
-        printf("Codewords:");
+        fputs("Codewords:", stdout);
         for (i = 0; i < data_length; i++) {
             printf(" %d", codeword_array[i]);
         }
-        printf("\n");
+        fputc('\n', stdout);
     }
 #ifdef ZINT_TEST
     if (symbol->debug & ZINT_DEBUG_TEST) {
@@ -1501,12 +1507,12 @@ INTERNAL int dotcode(struct zint_symbol *symbol, struct zint_seg segs[], const i
         for (i = 1; i < data_length + 1; i++) {
             printf(" [%d]", masked_codeword_array[i]);
         }
-        printf("\n");
+        fputc('\n', stdout);
         printf("Masked ECCs (%d):", ecc_length);
         for (i = data_length + 1; i < data_length + ecc_length + 1; i++) {
             printf(" [%d]", masked_codeword_array[i]);
         }
-        printf("\n");
+        fputc('\n', stdout);
     }
 
     dot_stream_length = dc_make_dotstream(masked_codeword_array, (data_length + ecc_length + 1), dot_stream);
@@ -1539,7 +1545,7 @@ INTERNAL int dotcode(struct zint_symbol *symbol, struct zint_seg segs[], const i
 
     symbol->output_options |= BARCODE_DOTTY_MODE;
 
-    return 0;
+    return warn_number;
 }
 
 /* vim: set ts=4 sw=4 et : */

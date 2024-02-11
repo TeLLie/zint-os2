@@ -1,6 +1,6 @@
 /*
     libzint - the open source barcode library
-    Copyright (C) 2019-2022 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2019-2023 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -51,7 +51,111 @@ static int is_sane_orig(const char test_string[], const unsigned char source[], 
     return 0;
 }
 
-static void test_is_sane(int index) {
+static void test_to_int(const testCtx *const p_ctx) {
+
+    struct item {
+        char *data;
+        int length;
+        int ret;
+    };
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
+    struct item data[] = {
+        /*  0*/ { "", -1, 0 },
+        /*  1*/ { "1234", -1, 1234 },
+        /*  2*/ { "-1234", -1, -1 },
+        /*  3*/ { "A123A", -1, -1 },
+        /*  4*/ { " ", -1, -1 },
+        /*  5*/ { "999999999", -1, 999999999 },
+    };
+    int data_size = ARRAY_SIZE(data);
+    int i, length, ret;
+
+    testStart("test_to_int");
+
+    for (i = 0; i < data_size; i++) {
+
+        if (testContinue(p_ctx, i)) continue;
+
+        length = data[i].length == -1 ? (int) strlen(data[i].data) : data[i].length;
+
+        ret = to_int((const unsigned char *) data[i].data, length);
+        assert_equal(ret, data[i].ret, "i:%d ret %d != %d\n", i, ret, data[i].ret);
+    }
+
+    testFinish();
+}
+
+static void test_to_upper(const testCtx *const p_ctx) {
+
+    struct item {
+        char *data;
+        int length;
+        char *expected;
+    };
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
+    struct item data[] = {
+        /*  0*/ { "", -1, "" },
+        /*  1*/ { "abcefghijklmnopqrstuvwxyz", -1, "ABCEFGHIJKLMNOPQRSTUVWXYZ" },
+        /*  2*/ { ".a[b`cA~B\177C;\200", -1, ".A[B`CA~B\177C;\200" },
+        /*  3*/ { "é", -1, "é" },
+    };
+    int data_size = ARRAY_SIZE(data);
+    int i, length;
+
+    unsigned char buf[512];
+
+    testStart("test_to_upper");
+
+    for (i = 0; i < data_size; i++) {
+
+        if (testContinue(p_ctx, i)) continue;
+
+        length = data[i].length == -1 ? (int) strlen(data[i].data) : data[i].length;
+
+        buf[0] = '\0';
+        memcpy(buf, data[i].data, length);
+        buf[length] = '\0';
+
+        to_upper(buf, length);
+        assert_zero(strcmp((const char *) buf, data[i].expected), "i:%d strcmp(%s,%s) != 0\n", i, buf, data[i].expected);
+    }
+
+    testFinish();
+}
+
+static void test_chr_cnt(const testCtx *const p_ctx) {
+
+    struct item {
+        char *data;
+        int length;
+        char c;
+        int ret;
+    };
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
+    struct item data[] = {
+        /*  0*/ { "", -1, 'a', 0 },
+        /*  1*/ { "BDAaED", -1, 'a', 1 },
+        /*  1*/ { "aBDAaaaEaDa", -1, 'a', 6 },
+    };
+    int data_size = ARRAY_SIZE(data);
+    int i, length, ret;
+
+    testStart("test_chr_cnt");
+
+    for (i = 0; i < data_size; i++) {
+
+        if (testContinue(p_ctx, i)) continue;
+
+        length = data[i].length == -1 ? (int) strlen(data[i].data) : data[i].length;
+
+        ret = chr_cnt((const unsigned char *) data[i].data, length, data[i].c);
+        assert_equal(ret, data[i].ret, "i:%d ret %d != %d\n", i, ret, data[i].ret);
+    }
+
+    testFinish();
+}
+
+static void test_is_sane(const testCtx *const p_ctx) {
 
     struct item {
         unsigned int flg;
@@ -156,7 +260,7 @@ static void test_is_sane(int index) {
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         length = data[i].length == -1 ? (int) strlen(data[i].data) : data[i].length;
 
@@ -185,7 +289,7 @@ static void test_is_sane(int index) {
     testFinish();
 }
 
-static void test_is_sane_lookup(int index) {
+static void test_is_sane_lookup(const testCtx *const p_ctx) {
 
     struct item {
         char *test_string;
@@ -210,7 +314,7 @@ static void test_is_sane_lookup(int index) {
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         test_length = data[i].test_length == -1 ? (int) strlen(data[i].test_string) : data[i].test_length;
         length = data[i].length == -1 ? (int) strlen(data[i].data) : data[i].length;
@@ -229,7 +333,43 @@ static void test_is_sane_lookup(int index) {
     testFinish();
 }
 
-static void test_is_valid_utf8(int index) {
+static void test_cnt_digits(const testCtx *const p_ctx) {
+
+    struct item {
+        char *data;
+        int length;
+        int position;
+        int max;
+        int ret;
+    };
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
+    struct item data[] = {
+        /*  0*/ { "", -1, 0, -1, 0 },
+        /*  1*/ { "asdf1", -1, 0, -1, 0 },
+        /*  2*/ { "asdf1asdf", -1, 4, -1, 1 },
+        /*  3*/ { "a12345asdf", -1, 1, -1, 5 },
+        /*  4*/ { "a12345asdf", -1, 1, 4, 4},
+        /*  5*/ { "a1234", -1, 1, 5, 4},
+    };
+    int data_size = ARRAY_SIZE(data);
+    int i, length, ret;
+
+    testStart("test_cnt_digits");
+
+    for (i = 0; i < data_size; i++) {
+
+        if (testContinue(p_ctx, i)) continue;
+
+        length = data[i].length == -1 ? (int) strlen(data[i].data) : data[i].length;
+
+        ret = cnt_digits((const unsigned char *) data[i].data, length, data[i].position, data[i].max);
+        assert_equal(ret, data[i].ret, "i:%d ret %d != %d\n", i, ret, data[i].ret);
+    }
+
+    testFinish();
+}
+
+static void test_is_valid_utf8(const testCtx *const p_ctx) {
 
     struct item {
         char *data;
@@ -257,7 +397,7 @@ static void test_is_valid_utf8(int index) {
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         length = data[i].length == -1 ? (int) strlen(data[i].data) : data[i].length;
 
@@ -268,7 +408,8 @@ static void test_is_valid_utf8(int index) {
     testFinish();
 }
 
-static void test_utf8_to_unicode(int index, int debug) {
+static void test_utf8_to_unicode(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         char *data;
@@ -300,7 +441,7 @@ static void test_utf8_to_unicode(int index, int debug) {
     for (i = 0; i < data_size; i++) {
         int ret_length;
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         length = data[i].length == -1 ? (int) strlen(data[i].data) : data[i].length;
         ret_length = length;
@@ -319,7 +460,79 @@ static void test_utf8_to_unicode(int index, int debug) {
     testFinish();
 }
 
-static void test_set_height(int index, int debug) {
+/* Note transferred from "test_code128.c" */
+static void test_hrt_cpy_iso8859_1(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
+
+    struct item {
+        char *data;
+        int length;
+        int ret;
+        char *expected;
+        char *comment;
+    };
+    /*
+       NBSP U+00A0 (\240, 160), UTF-8 C2A0 (\302\240)
+       ¡ U+00A1 (\241, 161), UTF-8 C2A1 (\302\241)
+       é U+00E9 (\351, 233), UTF-8 C3A9
+    */
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
+    struct item data[] = {
+        /*  0*/ { "", -1, 0, "", "" },
+        /*  1*/ { "abc", -1, 0, "abc", "" },
+        /*  2*/ { "\000A\001B\002\036\037C ~\177", 11, 0, " A B   C ~ ", "" },
+        /*  3*/ { "~\177\200\201\237\240", -1, 0, "~    \302\240", "" },
+        /*  4*/ { "\241\242\243\244\257\260", -1, 0, "¡¢£¤¯°", "" },
+        /*  5*/ { "\276\277\300\337\377", -1, 0, "¾¿Àßÿ", "" },
+        /*  6*/ { "\351", -1, 0, "é", "" },
+        /*  7*/ { "\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241", -1, 0, "¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡", "99 \241" },
+        /*  8*/ { "a\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241", -1, 0, "a¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡", "a + 99 \241" },
+        /*  9*/ { "\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241a", -1, 0, "¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡a", "99 \241 + a" },
+        /* 10*/ { "\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241", -1, 1, "¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡", "100 \241 (truncated)" },
+        /* 11*/ { "a\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241", -1, 1, "a¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡", "a + 100 \241 (truncated)" },
+        /* 12*/ { "\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241a", -1, 1, "¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡", "100 \241 + a (truncated)" },
+        /* 13*/ { "\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241", -1, 1, "¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡", "101 \241 (truncated)" },
+        /* 14*/ { "\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351", -1, 0, "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé", "99 \351" },
+        /* 15*/ { "a\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351", -1, 0, "aééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé", "a + 99 \351" },
+        /* 16*/ { "\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351a", -1, 0, "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééa", "99 \351 + a" },
+        /* 17*/ { "\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351", -1, 1, "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé", "100 \351 (truncated)" },
+        /* 18*/ { "a\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351", -1, 1, "aééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé", "a + 100 \351 (truncated)" },
+        /* 19*/ { "\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351a", -1, 1, "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé", "100 \351 + a (truncated)" },
+        /* 20*/ { "\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351", -1, 1, "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé", "101 \351 (truncated)" },
+        /* 21*/ { "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", -1, 1, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "200 A (truncated)" },
+    };
+    int data_size = ARRAY_SIZE(data);
+    int i, length, ret;
+
+    struct zint_symbol symbol = {0};
+
+    testStart("test_hrt_cpy_iso8859_1");
+
+    symbol.debug = debug;
+
+    for (i = 0; i < data_size; i++) {
+        int j;
+
+        if (testContinue(p_ctx, i)) continue;
+
+        length = data[i].length == -1 ? (int) strlen(data[i].data) : data[i].length;
+
+        ret = hrt_cpy_iso8859_1(&symbol, (unsigned char *) data[i].data, length);
+        if (p_ctx->index != -1 && (debug & ZINT_DEBUG_TEST_PRINT)) {
+            for (j = 0; j < ret; j++) {
+                fprintf(stderr, "symbol.text[%d] %2X\n", j, symbol.text[j]);
+            }
+        }
+        assert_equal(ret, data[i].ret, "i:%d ret %d != %d\n", i, ret, data[i].ret);
+        assert_nonzero(testUtilIsValidUTF8(symbol.text, (int) ustrlen(symbol.text)), "i:%d testUtilIsValidUTF8(%s) != 1\n", i, symbol.text);
+        assert_zero(strcmp((char *) symbol.text, data[i].expected), "i:%d symbol.text (%s) != expected (%s)\n", i, symbol.text, data[i].expected);
+    }
+
+    testFinish();
+}
+
+static void test_set_height(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int rows;
@@ -361,7 +574,7 @@ static void test_set_height(int index, int debug) {
     for (i = 0; i < data_size; i++) {
         int j;
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         memset(&symbol, 0, sizeof(symbol));
         symbol.rows = data[i].rows;
@@ -379,7 +592,10 @@ static void test_set_height(int index, int debug) {
     testFinish();
 }
 
-static void test_debug_test_codeword_dump_int(int index, int debug) {
+INTERNAL void debug_test_codeword_dump_int(struct zint_symbol *symbol, const int *codewords, const int length);
+
+static void test_debug_test_codeword_dump_int(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int codewords[50];
@@ -402,7 +618,7 @@ static void test_debug_test_codeword_dump_int(int index, int debug) {
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         debug_test_codeword_dump_int(&symbol, data[i].codewords, data[i].length);
         assert_nonzero(strlen(symbol.errtxt) < 92, "i:%d strlen(%s) >= 92 (%d)\n", i, symbol.errtxt, (int) strlen(symbol.errtxt));
@@ -414,13 +630,18 @@ static void test_debug_test_codeword_dump_int(int index, int debug) {
 
 int main(int argc, char *argv[]) {
 
-    testFunction funcs[] = { /* name, func, has_index, has_generate, has_debug */
-        { "test_is_sane", test_is_sane, 1, 0, 0 },
-        { "test_is_sane_lookup", test_is_sane_lookup, 1, 0, 0 },
-        { "test_is_valid_utf8", test_is_valid_utf8, 1, 0, 0 },
-        { "test_utf8_to_unicode", test_utf8_to_unicode, 1, 0, 1 },
-        { "test_set_height", test_set_height, 1, 0, 1 },
-        { "test_debug_test_codeword_dump_int", test_debug_test_codeword_dump_int, 1, 0, 1 },
+    testFunction funcs[] = { /* name, func */
+        { "test_chr_cnt", test_chr_cnt },
+        { "test_to_int", test_to_int },
+        { "test_to_upper", test_to_upper },
+        { "test_is_sane", test_is_sane },
+        { "test_is_sane_lookup", test_is_sane_lookup },
+        { "test_cnt_digits", test_cnt_digits },
+        { "test_is_valid_utf8", test_is_valid_utf8 },
+        { "test_utf8_to_unicode", test_utf8_to_unicode },
+        { "test_hrt_cpy_iso8859_1", test_hrt_cpy_iso8859_1 },
+        { "test_set_height", test_set_height },
+        { "test_debug_test_codeword_dump_int", test_debug_test_codeword_dump_int },
     };
 
     testRun(argc, argv, funcs, ARRAY_SIZE(funcs));

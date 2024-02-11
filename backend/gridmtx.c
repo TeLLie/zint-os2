@@ -1,7 +1,7 @@
 /*  gridmtx.c - Grid Matrix */
 /*
     libzint - the open source barcode library
-    Copyright (C) 2009-2022 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2009-2023 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -467,17 +467,17 @@ static int gm_encode(unsigned int ddata[], const int length, char binary[], cons
             }
             if (debug_print) {
                 switch (next_mode) {
-                    case GM_CHINESE: printf("CHIN ");
+                    case GM_CHINESE: fputs("CHIN ", stdout);
                         break;
-                    case GM_NUMBER: printf("NUMB ");
+                    case GM_NUMBER: fputs("NUMB ", stdout);
                         break;
-                    case GM_LOWER: printf("LOWR ");
+                    case GM_LOWER: fputs("LOWR ", stdout);
                         break;
-                    case GM_UPPER: printf("UPPR ");
+                    case GM_UPPER: fputs("UPPR ", stdout);
                         break;
-                    case GM_MIXED: printf("MIXD ");
+                    case GM_MIXED: fputs("MIXD ", stdout);
                         break;
-                    case GM_BYTE: printf("BYTE ");
+                    case GM_BYTE: fputs("BYTE ", stdout);
                         break;
                 }
             }
@@ -1079,7 +1079,7 @@ INTERNAL int gridmatrix(struct zint_symbol *symbol, struct zint_seg segs[], cons
         if (symbol->structapp.id[0]) {
             int id, id_len;
 
-            for (id_len = 0; id_len < 32 && symbol->structapp.id[id_len]; id_len++);
+            for (id_len = 1; id_len < 4 && symbol->structapp.id[id_len]; id_len++);
 
             if (id_len > 3) { /* 255 (8 bits) */
                 strcpy(symbol->errtxt, "538: Structured Append ID too long (3 digit maximum)");

@@ -1,7 +1,7 @@
 /* ps.c - Post Script output */
 /*
     libzint - the open source barcode library
-    Copyright (C) 2009-2022 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2009-2023 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -30,75 +30,47 @@
  */
 /* SPDX-License-Identifier: BSD-3-Clause */
 
+#include <assert.h>
 #include <errno.h>
-#include <locale.h>
 #include <math.h>
 #include <stdio.h>
 #include "common.h"
+#include "output.h"
 
-static void colour_to_pscolor(int option, int colour, char *output) {
-    *output = '\0';
-    if ((option & CMYK_COLOUR) == 0) {
+/* Output Ultracode rectangle colour as PostScript setrgbcolor/setcmykcolor */
+static void ps_put_colour(const int is_rgb, const int colour, FILE *feps) {
+    const int idx = colour >= 1 && colour <= 8 ? colour - 1 : 6 /*black*/;
+    if (is_rgb) {
         /* Use RGB colour space */
-        switch (colour) {
-            case 1: /* Cyan */
-                strcat(output, "0.00 1.00 1.00");
-                break;
-            case 2: /* Blue */
-                strcat(output, "0.00 0.00 1.00");
-                break;
-            case 3: /* Magenta */
-                strcat(output, "1.00 0.00 1.00");
-                break;
-            case 4: /* Red */
-                strcat(output, "1.00 0.00 0.00");
-                break;
-            case 5: /* Yellow */
-                strcat(output, "1.00 1.00 0.00");
-                break;
-            case 6: /* Green */
-                strcat(output, "0.00 1.00 0.00");
-                break;
-            case 8: /* White */
-                strcat(output, "1.00 1.00 1.00");
-                break;
-            default: /* Black */
-                strcat(output, "0.00 0.00 0.00");
-                break;
-        }
-        strcat(output, " setrgbcolor");
+        static const char ps_rgbs[8][6] = {
+            "0 1 1", /* 0: Cyan (1) */
+            "0 0 1", /* 1: Blue (2) */
+            "1 0 1", /* 2: Magenta (3) */
+            "1 0 0", /* 3: Red (4) */
+            "1 1 0", /* 4: Yellow (5) */
+            "0 1 0", /* 5: Green (6) */
+            "0 0 0", /* 6: Black (7) */
+            "1 1 1", /* 7: White (8) */
+        };
+        fputs(ps_rgbs[idx], feps);
+        fputs(" setrgbcolor\n", feps);
     } else {
-        /* Use CMYK colour space */
-        switch (colour) {
-            case 1: /* Cyan */
-                strcat(output, "1.00 0.00 0.00 0.00");
-                break;
-            case 2: /* Blue */
-                strcat(output, "1.00 1.00 0.00 0.00");
-                break;
-            case 3: /* Magenta */
-                strcat(output, "0.00 1.00 0.00 0.00");
-                break;
-            case 4: /* Red */
-                strcat(output, "0.00 1.00 1.00 0.00");
-                break;
-            case 5: /* Yellow */
-                strcat(output, "0.00 0.00 1.00 0.00");
-                break;
-            case 6: /* Green */
-                strcat(output, "1.00 0.00 1.00 0.00");
-                break;
-            case 8: /* White */
-                strcat(output, "0.00 0.00 0.00 0.00");
-                break;
-            default: /* Black */
-                strcat(output, "0.00 0.00 0.00 1.00");
-                break;
-        }
-        strcat(output, " setcmykcolor");
+        static const char ps_cmyks[8][8] = {
+            "1 0 0 0", /* 0: Cyan (1) */
+            "1 1 0 0", /* 1: Blue (2) */
+            "0 1 0 0", /* 2: Magenta (3) */
+            "0 1 1 0", /* 3: Red (4) */
+            "0 0 1 0", /* 4: Yellow (5) */
+            "1 0 1 0", /* 5: Green (6) */
+            "0 0 0 1", /* 6: Black (7) */
+            "0 0 0 0", /* 7: White (8) */
+        };
+        fputs(ps_cmyks[idx], feps);
+        fputs(" setcmykcolor\n", feps);
     }
 }
 
+/* Escape special PostScript chars. Assumes valid UTF-8-encoded ISO/IEC 8859-1 */
 static void ps_convert(const unsigned char *string, unsigned char *ps_string) {
     const unsigned char *s;
     unsigned char *p = ps_string;
@@ -111,14 +83,14 @@ static void ps_convert(const unsigned char *string, unsigned char *ps_string) {
                 *p++ = '\\';
                 *p++ = *s;
                 break;
-            case 0xC2: /* See `to_iso8859_1()` in raster.c */
-                *p++ = *++s;
+            case 0xC2:
+                *p++ = *++s; /* C2 80-BF -> 80-BF */
                 break;
             case 0xC3:
-                *p++ = *++s + 64;
+                *p++ = *++s + 0x40; /* C3 80-BF -> C0-FF */
                 break;
             default:
-                if (*s < 0x80) {
+                if (*s < 0x80) { /* ASCII - all other Unicode points > U+00FF ignored */
                     *p++ = *s;
                 }
                 break;
@@ -130,116 +102,136 @@ static void ps_convert(const unsigned char *string, unsigned char *ps_string) {
 
 #ifdef ZINT_TEST /* Wrapper for direct testing */
 INTERNAL void ps_convert_test(const unsigned char *string, unsigned char *ps_string) {
-	ps_convert(string, ps_string);
+    ps_convert(string, ps_string);
 }
 #endif
 
+/* Helper to output RGB colour */
+static void ps_put_rgbcolor(const float red, const float green, const float blue, FILE *feps) {
+    out_putsf("", 2, red, feps);
+    out_putsf(" ", 2, green, feps);
+    out_putsf(" ", 2, blue, feps);
+    fputs(" setrgbcolor\n", feps);
+}
+
+/* Helper to output CMYK colour */
+static void ps_put_cmykcolor(const float cyan, const float magenta, const float yellow, const float black,
+                FILE *feps) {
+    out_putsf("", 2, cyan, feps);
+    out_putsf(" ", 2, magenta, feps);
+    out_putsf(" ", 2, yellow, feps);
+    out_putsf(" ", 2, black, feps);
+    fputs(" setcmykcolor\n", feps);
+}
+
+/* Helper to output rectangle */
+static void ps_put_rect(const struct zint_symbol *symbol, const struct zint_vector_rect *rect, const int type,
+                FILE *feps) {
+    if (type == 0 || type == 1) {
+        out_putsf("", 2, rect->height, feps);
+        out_putsf(" ", 2, (symbol->vector->height - rect->y) - rect->height, feps);
+    }
+    out_putsf(type == 0 ? " " : type == 1 ? " I " : type == 2 ? "I " : "", 2, rect->x, feps);
+    out_putsf(" ", 2, rect->width, feps);
+    fputs(" R\n", feps);
+}
+
+/* Helper to output circle/disc */
+static void ps_put_circle(const struct zint_symbol *symbol, const struct zint_vector_circle *circle,
+                const float radius, const int type, FILE *feps) {
+    if (circle->width) {
+        out_putsf("", 2, circle->x, feps);
+        out_putsf(" ", 2, symbol->vector->height - circle->y, feps);
+        out_putsf(" ", 4, radius, feps);
+        out_putsf(" ", 4, circle->width, feps);
+        fputs(" C\n", feps);
+    } else {
+        if (type == 0 || type == 1) {
+            out_putsf("", 2, symbol->vector->height - circle->y, feps);
+            out_putsf(" ", 4, radius, feps);
+        }
+        out_putsf(type == 0 ? " " : type == 1 ? " I " : type == 2 ? "I " : "", 2, circle->x, feps);
+        fputs(" D\n", feps);
+    }
+}
+
+/* Helper to count rectangles */
+static int ps_count_rectangles(const struct zint_symbol *symbol) {
+    int rectangles = 0;
+    const struct zint_vector_rect *rect;
+
+    for (rect = symbol->vector->rectangles; rect; rect = rect->next) {
+        rectangles++;
+    }
+
+    return rectangles;
+}
+
 INTERNAL int ps_plot(struct zint_symbol *symbol) {
     FILE *feps;
-    int fgred, fggrn, fgblu, bgred, bggrn, bgblu;
-    float red_ink, green_ink, blue_ink, red_paper, green_paper, blue_paper;
-    float cyan_ink, magenta_ink, yellow_ink, black_ink;
-    float cyan_paper, magenta_paper, yellow_paper, black_paper;
+    unsigned char fgred, fggrn, fgblu, bgred, bggrn, bgblu, bgalpha;
+    int fgcyan, fgmagenta, fgyellow, fgblack, bgcyan, bgmagenta, bgyellow, bgblack;
+    float red_ink = 0.0f, green_ink = 0.0f, blue_ink = 0.0f; /* Suppress `-Wmaybe-uninitialized` */
+    float red_paper = 0.0f, green_paper = 0.0f, blue_paper = 0.0f;
+    float cyan_ink = 0.0f, magenta_ink = 0.0f, yellow_ink = 0.0f, black_ink = 0.0f;
+    float cyan_paper = 0.0f, magenta_paper = 0.0f, yellow_paper = 0.0f, black_paper = 0.0f;
     int error_number = 0;
-    float ax, ay, bx, by, cx, cy, dx, dy, ex, ey, fx, fy;
     float previous_diameter;
-    float radius, half_radius, half_sqrt3_radius;
-    int colour_index, colour_rect_flag;
-    char ps_color[33]; /* max "1.00 0.00 0.00 0.00 setcmykcolor" = 32 + 1 */
+    float radius;
+    int colour_rect_flag;
+    int type_latch;
     int draw_background = 1;
     struct zint_vector_rect *rect;
     struct zint_vector_hexagon *hex;
     struct zint_vector_circle *circle;
     struct zint_vector_string *string;
-    const char *locale = NULL;
-    const char *font;
     int i, len;
     int ps_len = 0;
     int iso_latin1 = 0;
     int have_circles_with_width = 0, have_circles_without_width = 0;
+    const int upcean = is_upcean(symbol->symbology);
     const int output_to_stdout = symbol->output_options & BARCODE_STDOUT;
-    unsigned char *ps_string;
+    const int is_rgb = (symbol->output_options & CMYK_COLOUR) == 0;
 
     if (symbol->vector == NULL) {
         strcpy(symbol->errtxt, "646: Vector header NULL");
         return ZINT_ERROR_INVALID_DATA;
     }
 
-    if (strlen(symbol->bgcolour) > 6) {
-        if ((ctoi(symbol->bgcolour[6]) == 0) && (ctoi(symbol->bgcolour[7]) == 0)) {
-            draw_background = 0;
-        }
-    }
-
     if (output_to_stdout) {
         feps = stdout;
     } else {
-        if (!(feps = fopen(symbol->outfile, "w"))) {
+        if (!(feps = out_fopen(symbol->outfile, "w"))) {
             sprintf(symbol->errtxt, "645: Could not open output file (%d: %.30s)", errno, strerror(errno));
             return ZINT_ERROR_FILE_ACCESS;
         }
     }
 
-    locale = setlocale(LC_ALL, "C");
+    if (is_rgb) {
+        (void) out_colour_get_rgb(symbol->fgcolour, &fgred, &fggrn, &fgblu, NULL /*alpha*/);
+        red_ink = fgred / 255.0f;
+        green_ink = fggrn / 255.0f;
+        blue_ink = fgblu / 255.0f;
 
-    fgred = (16 * ctoi(symbol->fgcolour[0])) + ctoi(symbol->fgcolour[1]);
-    fggrn = (16 * ctoi(symbol->fgcolour[2])) + ctoi(symbol->fgcolour[3]);
-    fgblu = (16 * ctoi(symbol->fgcolour[4])) + ctoi(symbol->fgcolour[5]);
-    bgred = (16 * ctoi(symbol->bgcolour[0])) + ctoi(symbol->bgcolour[1]);
-    bggrn = (16 * ctoi(symbol->bgcolour[2])) + ctoi(symbol->bgcolour[3]);
-    bgblu = (16 * ctoi(symbol->bgcolour[4])) + ctoi(symbol->bgcolour[5]);
-    red_ink = (float) (fgred / 256.0);
-    green_ink = (float) (fggrn / 256.0);
-    blue_ink = (float) (fgblu / 256.0);
-    red_paper = (float) (bgred / 256.0);
-    green_paper = (float) (bggrn / 256.0);
-    blue_paper = (float) (bgblu / 256.0);
+        (void) out_colour_get_rgb(symbol->bgcolour, &bgred, &bggrn, &bgblu, &bgalpha);
+        red_paper = bgred / 255.0f;
+        green_paper = bggrn / 255.0f;
+        blue_paper = bgblu / 255.0f;
+    } else {
+        (void) out_colour_get_cmyk(symbol->fgcolour, &fgcyan, &fgmagenta, &fgyellow, &fgblack, NULL /*rgb_alpha*/);
+        cyan_ink = fgcyan / 100.0f;
+        magenta_ink = fgmagenta / 100.0f;
+        yellow_ink = fgyellow / 100.0f;
+        black_ink = fgblack / 100.0f;
 
-    /* Convert RGB to CMYK */
-    if (red_ink > green_ink) {
-        if (blue_ink > red_ink) {
-            black_ink = 1.0f - blue_ink;
-        } else {
-            black_ink = 1.0f - red_ink;
-        }
-    } else {
-        if (blue_ink > red_ink) {
-            black_ink = 1.0f - blue_ink;
-        } else {
-            black_ink = 1.0f - green_ink;
-        }
+        (void) out_colour_get_cmyk(symbol->bgcolour, &bgcyan, &bgmagenta, &bgyellow, &bgblack, &bgalpha);
+        cyan_paper = bgcyan / 100.0f;
+        magenta_paper = bgmagenta / 100.0f;
+        yellow_paper = bgyellow / 100.0f;
+        black_paper = bgblack / 100.0f;
     }
-    if (black_ink < 1.0f) {
-        cyan_ink = (1.0f - red_ink - black_ink) / (1.0f - black_ink);
-        magenta_ink = (1.0f - green_ink - black_ink) / (1.0f - black_ink);
-        yellow_ink = (1.0f - blue_ink - black_ink) / (1.0f - black_ink);
-    } else {
-        cyan_ink = 0.0f;
-        magenta_ink = 0.0f;
-        yellow_ink = 0.0f;
-    }
-
-    if (red_paper > green_paper) {
-        if (blue_paper > red_paper) {
-            black_paper = 1.0f - blue_paper;
-        } else {
-            black_paper = 1.0f - red_paper;
-        }
-    } else {
-        if (blue_paper > red_paper) {
-            black_paper = 1.0f - blue_paper;
-        } else {
-            black_paper = 1.0f - green_paper;
-        }
-    }
-    if (black_paper < 1.0f) {
-        cyan_paper = (1.0f - red_paper - black_paper) / (1.0f - black_paper);
-        magenta_paper = (1.0f - green_paper - black_paper) / (1.0f - black_paper);
-        yellow_paper = (1.0f - blue_paper - black_paper) / (1.0f - black_paper);
-    } else {
-        cyan_paper = 0.0f;
-        magenta_paper = 0.0f;
-        yellow_paper = 0.0f;
+    if (bgalpha == 0) {
+        draw_background = 0;
     }
 
     for (i = 0, len = (int) ustrlen(symbol->text); i < len; i++) {
@@ -258,204 +250,203 @@ INTERNAL int ps_plot(struct zint_symbol *symbol) {
         }
     }
 
-    ps_string = (unsigned char *) z_alloca(ps_len + 1);
-
     /* Check for circle widths */
     for (circle = symbol->vector->circles; circle; circle = circle->next) {
         if (circle->width) {
             have_circles_with_width = 1;
+            if (have_circles_without_width) {
+                break;
+            }
         } else {
             have_circles_without_width = 1;
+            if (have_circles_with_width) {
+                break;
+            }
         }
     }
 
     /* Start writing the header */
-    fprintf(feps, "%%!PS-Adobe-3.0 EPSF-3.0\n");
+    fputs("%!PS-Adobe-3.0 EPSF-3.0\n", feps);
     if (ZINT_VERSION_BUILD) {
         fprintf(feps, "%%%%Creator: Zint %d.%d.%d.%d\n",
                 ZINT_VERSION_MAJOR, ZINT_VERSION_MINOR, ZINT_VERSION_RELEASE, ZINT_VERSION_BUILD);
     } else {
         fprintf(feps, "%%%%Creator: Zint %d.%d.%d\n", ZINT_VERSION_MAJOR, ZINT_VERSION_MINOR, ZINT_VERSION_RELEASE);
     }
-    fprintf(feps, "%%%%Title: Zint Generated Symbol\n");
-    fprintf(feps, "%%%%Pages: 0\n");
+    fputs("%%Title: Zint Generated Symbol\n"
+          "%%Pages: 0\n", feps);
     fprintf(feps, "%%%%BoundingBox: 0 0 %d %d\n",
             (int) ceilf(symbol->vector->width), (int) ceilf(symbol->vector->height));
-    fprintf(feps, "%%%%EndComments\n");
+    fputs("%%EndComments\n", feps);
 
     /* Definitions */
     if (have_circles_without_width) {
-        /* Disc: x y radius TD */
-        fprintf(feps, "/TD { newpath 0 360 arc fill } bind def\n");
+        /* Disc: y radius x D */
+        fputs("/D { newpath 3 1 roll 0 360 arc fill } bind def\n", feps);
     }
     if (have_circles_with_width) {
-        /* Circle (ring): x y radius width TC (adapted from BWIPP renmaxicode.ps) */
-        fprintf(feps, "/TC { newpath 4 1 roll 3 copy 0 360 arc closepath 4 -1 roll add 360 0 arcn closepath fill }"
-                        " bind def\n");
+        /* Circle (ring): x y radius width C (adapted from BWIPP renmaxicode.ps) */
+        fputs("/C { newpath 4 1 roll 3 copy 0 360 arc closepath 4 -1 roll add 360 0 arcn closepath fill }"
+                " bind def\n", feps);
     }
     if (symbol->vector->hexagons) {
-        fprintf(feps, "/TH { 0 setlinewidth moveto lineto lineto lineto lineto lineto closepath fill } bind def\n");
+        /* Hexagon: radius half_radius half_sqrt3_radius x y */
+        if (symbol->vector->hexagons->rotation == 0 || symbol->vector->hexagons->rotation == 180) {
+            fputs("/H { newpath moveto 2 copy exch neg exch rmoveto 2 index neg 0 exch rlineto 2 copy neg rlineto"
+                    " 2 copy rlineto 3 -1 roll 0 exch rlineto exch neg exch rlineto closepath fill }"
+                    " bind def\n", feps);
+        } else {
+            fputs("/H { newpath moveto 2 copy neg exch neg rmoveto 2 index 0 rlineto 2 copy exch rlineto"
+                    " 2 copy neg exch rlineto 3 -1 roll neg 0 rlineto neg exch neg rlineto closepath fill }"
+                    " bind def\n", feps);
+        }
+        /* Copy r hr hsr for repeat use without having to specify them subsequently */
+        fputs("/J { 3 copy } bind def\n", feps);
+        /* TODO: Save repeating x also */
     }
-    fprintf(feps, "/TB { 2 copy } bind def\n");
-    fprintf(feps, "/TR { newpath 4 1 roll exch moveto 1 index 0 rlineto 0 exch rlineto neg 0 rlineto closepath fill }"
-                    " bind def\n");
-    fprintf(feps, "/TE { pop pop } bind def\n");
-
-    fprintf(feps, "newpath\n");
+    if (symbol->vector->rectangles || draw_background) {
+        /* Rectangle: h y x w */
+        fputs("/R { newpath 4 1 roll exch moveto 1 index 0 rlineto 0 exch rlineto neg 0 rlineto closepath fill }"
+                " bind def\n", feps);
+    }
+    if (symbol->vector->rectangles || have_circles_without_width) {
+        /* Copy h y (rect) or y r (disc) for repeat use without having to specify them subsequently */
+        fputs("/I { 2 copy } bind def\n", feps);
+    }
 
     /* Now the actual representation */
 
     /* Background */
     if (draw_background) {
-        if ((symbol->output_options & CMYK_COLOUR) == 0) {
-            fprintf(feps, "%.2f %.2f %.2f setrgbcolor\n", red_paper, green_paper, blue_paper);
+        if (is_rgb) {
+            ps_put_rgbcolor(red_paper, green_paper, blue_paper, feps);
         } else {
-            fprintf(feps, "%.2f %.2f %.2f %.2f setcmykcolor\n", cyan_paper, magenta_paper, yellow_paper, black_paper);
+            ps_put_cmykcolor(cyan_paper, magenta_paper, yellow_paper, black_paper, feps);
         }
 
-        fprintf(feps, "%.2f 0.00 TB 0.00 %.2f TR\n", symbol->vector->height, symbol->vector->width);
-        fprintf(feps, "TE\n");
+        out_putsf("", 2, symbol->vector->height, feps);
+        out_putsf(" 0 0 ", 2, symbol->vector->width, feps); /* y x w */
+        fputs(" R\n", feps);
     }
 
     if (symbol->symbology != BARCODE_ULTRA) {
-        if ((symbol->output_options & CMYK_COLOUR) == 0) {
-            fprintf(feps, "%.2f %.2f %.2f setrgbcolor\n", red_ink, green_ink, blue_ink);
+        if (is_rgb) {
+            ps_put_rgbcolor(red_ink, green_ink, blue_ink, feps);
         } else {
-            fprintf(feps, "%.2f %.2f %.2f %.2f setcmykcolor\n", cyan_ink, magenta_ink, yellow_ink, black_ink);
+            ps_put_cmykcolor(cyan_ink, magenta_ink, yellow_ink, black_ink, feps);
         }
     }
 
     /* Rectangles */
     if (symbol->symbology == BARCODE_ULTRA) {
-        colour_rect_flag = 0;
-        rect = symbol->vector->rectangles;
-        while (rect) {
-            if (rect->colour == -1) { /* Foreground */
-                if (colour_rect_flag == 0) {
-                    /* Set foreground colour */
-                    if ((symbol->output_options & CMYK_COLOUR) == 0) {
-                        fprintf(feps, "%.2f %.2f %.2f setrgbcolor\n", red_ink, green_ink, blue_ink);
-                    } else {
-                        fprintf(feps, "%.2f %.2f %.2f %.2f setcmykcolor\n",
-                                cyan_ink, magenta_ink, yellow_ink, black_ink);
-                    }
-                    colour_rect_flag = 1;
+        /* Group rectangles by colour */
+        const int rect_cnt = ps_count_rectangles(symbol);
+        struct zint_vector_rect **ultra_rects
+            = (struct zint_vector_rect **) z_alloca(sizeof(struct zint_vector_rect *) * (rect_cnt ? rect_cnt : 1));
+        int u_i = 0;
+        for (i = 0; i <= 8; i++) {
+            for (rect = symbol->vector->rectangles; rect; rect = rect->next) {
+                if ((i == 0 && rect->colour == -1) || rect->colour == i) {
+                    ultra_rects[u_i++] = rect;
                 }
-                fprintf(feps, "%.2f %.2f TB %.2f %.2f TR\n",
-                        rect->height, (symbol->vector->height - rect->y) - rect->height, rect->x, rect->width);
-                fprintf(feps, "TE\n");
             }
-            rect = rect->next;
         }
-        for (colour_index = 1; colour_index <= 8; colour_index++) {
-            colour_rect_flag = 0;
-            rect = symbol->vector->rectangles;
-            while (rect) {
-                if (rect->colour == colour_index) {
+        assert(u_i == ps_count_rectangles(symbol));
+
+        colour_rect_flag = 0;
+        type_latch = 0;
+        for (i = 0; i < u_i; i++) {
+            rect = ultra_rects[i];
+            if (i == 0 || rect->colour != ultra_rects[i - 1]->colour) {
+                if (rect->colour == -1) {
                     if (colour_rect_flag == 0) {
-                        /* Set new colour */
-                        colour_to_pscolor(symbol->output_options, colour_index, ps_color);
-                        fprintf(feps, "%s\n", ps_color);
+                        /* Set foreground colour */
+                        if (is_rgb) {
+                            ps_put_rgbcolor(red_ink, green_ink, blue_ink, feps);
+                        } else {
+                            ps_put_cmykcolor(cyan_ink, magenta_ink, yellow_ink, black_ink, feps);
+                        }
                         colour_rect_flag = 1;
                     }
-                    fprintf(feps, "%.2f %.2f TB %.2f %.2f TR\n",
-                            rect->height, (symbol->vector->height - rect->y) - rect->height, rect->x, rect->width);
-                    fprintf(feps, "TE\n");
+                } else {
+                    /* Set new colour */
+                    ps_put_colour(is_rgb, rect->colour, feps);
                 }
-                rect = rect->next;
+            }
+            if (i + 1 < u_i && rect->height == ultra_rects[i + 1]->height && rect->y == ultra_rects[i + 1]->y) {
+                ps_put_rect(symbol, rect, type_latch ? 2 : 1, feps);
+                type_latch = 1;
+            } else {
+                ps_put_rect(symbol, rect, type_latch ? 3 : 0, feps);
+                type_latch = 0;
             }
         }
     } else {
-        rect = symbol->vector->rectangles;
-        while (rect) {
-            fprintf(feps, "%.2f %.2f TB %.2f %.2f TR\n",
-                    rect->height, (symbol->vector->height - rect->y) - rect->height, rect->x, rect->width);
-            fprintf(feps, "TE\n");
-            rect = rect->next;
+        type_latch = 0;
+        for (rect = symbol->vector->rectangles; rect; rect = rect->next) {
+            if (rect->next && rect->height == rect->next->height && rect->y == rect->next->y) {
+                ps_put_rect(symbol, rect, type_latch ? 2 : 1, feps);
+                type_latch = 1;
+            } else {
+                ps_put_rect(symbol, rect, type_latch ? 3 : 0, feps);
+                type_latch = 0;
+            }
         }
     }
 
     /* Hexagons */
-    previous_diameter = radius = half_radius = half_sqrt3_radius = 0.0f;
-    hex = symbol->vector->hexagons;
-    while (hex) {
+    previous_diameter = 0.0f;
+    for (hex = symbol->vector->hexagons; hex; hex = hex->next) {
+        float hy = symbol->vector->height - hex->y;
         if (previous_diameter != hex->diameter) {
             previous_diameter = hex->diameter;
-            radius = (float) (0.5 * previous_diameter);
-            half_radius = (float) (0.25 * previous_diameter);
-            half_sqrt3_radius = (float) (0.43301270189221932338 * previous_diameter);
+            out_putsf("", 4, 0.5f * previous_diameter /*radius*/, feps);
+            out_putsf(" ", 4, 0.43301270189221932338f * previous_diameter /*half_sqrt3_radius*/, feps);
+            out_putsf(" ", 4, 0.25f * previous_diameter /*half_radius*/, feps);
+            fputc('\n', feps);
         }
-        if ((hex->rotation == 0) || (hex->rotation == 180)) {
-            ay = (symbol->vector->height - hex->y) + radius;
-            by = (symbol->vector->height - hex->y) + half_radius;
-            cy = (symbol->vector->height - hex->y) - half_radius;
-            dy = (symbol->vector->height - hex->y) - radius;
-            ey = (symbol->vector->height - hex->y) - half_radius;
-            fy = (symbol->vector->height - hex->y) + half_radius;
-            ax = hex->x;
-            bx = hex->x + half_sqrt3_radius;
-            cx = hex->x + half_sqrt3_radius;
-            dx = hex->x;
-            ex = hex->x - half_sqrt3_radius;
-            fx = hex->x - half_sqrt3_radius;
+        if (hex->next) {
+            out_putsf("J ", 2, hex->x, feps);
         } else {
-            ay = (symbol->vector->height - hex->y);
-            by = (symbol->vector->height - hex->y) + half_sqrt3_radius;
-            cy = (symbol->vector->height - hex->y) + half_sqrt3_radius;
-            dy = (symbol->vector->height - hex->y);
-            ey = (symbol->vector->height - hex->y) - half_sqrt3_radius;
-            fy = (symbol->vector->height - hex->y) - half_sqrt3_radius;
-            ax = hex->x - radius;
-            bx = hex->x - half_radius;
-            cx = hex->x + half_radius;
-            dx = hex->x + radius;
-            ex = hex->x + half_radius;
-            fx = hex->x - half_radius;
+            out_putsf("", 2, hex->x, feps);
         }
-        fprintf(feps, "%.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f TH\n",
-                ax, ay, bx, by, cx, cy, dx, dy, ex, ey, fx, fy);
-        hex = hex->next;
+        out_putsf(" ", 2, hy, feps);
+        fputs(" H\n", feps);
     }
 
     /* Circles */
     previous_diameter = radius = 0.0f;
-    circle = symbol->vector->circles;
-    while (circle) {
+    type_latch = 0;
+    for (circle = symbol->vector->circles; circle; circle = circle->next) {
         if (previous_diameter != circle->diameter - circle->width) {
             previous_diameter = circle->diameter - circle->width;
-            radius = (float) (0.5 * previous_diameter);
+            radius = 0.5f * previous_diameter;
         }
-        if (circle->colour) {
+        if (circle->colour) { /* Legacy - no longer used */
             /* A 'white' circle */
-            if ((symbol->output_options & CMYK_COLOUR) == 0) {
-                fprintf(feps, "%.2f %.2f %.2f setrgbcolor\n", red_paper, green_paper, blue_paper);
+            if (is_rgb) {
+                ps_put_rgbcolor(red_paper, green_paper, blue_paper, feps);
             } else {
-                fprintf(feps, "%.2f %.2f %.2f %.2f setcmykcolor\n",
-                        cyan_paper, magenta_paper, yellow_paper, black_paper);
+                ps_put_cmykcolor(cyan_paper, magenta_paper, yellow_paper, black_paper, feps);
             }
-            if (circle->width) {
-                fprintf(feps, "%.2f %.2f %.3f %.3f TC\n",
-                        circle->x, (symbol->vector->height - circle->y), radius, circle->width);
-            } else {
-                fprintf(feps, "%.2f %.2f %.2f TD\n", circle->x, (symbol->vector->height - circle->y), radius);
-            }
+            ps_put_circle(symbol, circle, radius, 0 /*type*/, feps);
             if (circle->next) {
-                if ((symbol->output_options & CMYK_COLOUR) == 0) {
-                    fprintf(feps, "%.2f %.2f %.2f setrgbcolor\n", red_ink, green_ink, blue_ink);
+                if (is_rgb) {
+                    ps_put_rgbcolor(red_ink, green_ink, blue_ink, feps);
                 } else {
-                    fprintf(feps, "%.2f %.2f %.2f %.2f setcmykcolor\n", cyan_ink, magenta_ink, yellow_ink, black_ink);
+                    ps_put_cmykcolor(cyan_ink, magenta_ink, yellow_ink, black_ink, feps);
                 }
             }
         } else {
             /* A 'black' circle */
-            if (circle->width) {
-                fprintf(feps, "%.2f %.2f %.3f %.3f TC\n",
-                        circle->x, (symbol->vector->height - circle->y), radius, circle->width);
+            if (circle->next && circle->y == circle->next->y && circle->diameter == circle->next->diameter) {
+                ps_put_circle(symbol, circle, radius, type_latch ? 2 : 1, feps);
+                type_latch = 1;
             } else {
-                fprintf(feps, "%.2f %.2f %.2f TD\n", circle->x, (symbol->vector->height - circle->y), radius);
+                ps_put_circle(symbol, circle, radius, type_latch ? 3 : 0, feps);
+                type_latch = 0;
             }
         }
-        circle = circle->next;
     }
 
     /* Text */
@@ -463,8 +454,11 @@ INTERNAL int ps_plot(struct zint_symbol *symbol) {
     string = symbol->vector->strings;
 
     if (string) {
-        if ((symbol->output_options & BOLD_TEXT)
-                && (!is_extendable(symbol->symbology) || (symbol->output_options & SMALL_TEXT))) {
+        float previous_fsize = 0.0f;
+        const char *font;
+        unsigned char *ps_string = (unsigned char *) z_alloca(ps_len + 1);
+
+        if ((symbol->output_options & BOLD_TEXT) && !upcean) {
             font = "Helvetica-Bold";
         } else {
             font = "Helvetica";
@@ -472,49 +466,70 @@ INTERNAL int ps_plot(struct zint_symbol *symbol) {
         if (iso_latin1) {
             /* Change encoding to ISO 8859-1, see Postscript Language Reference Manual 2nd Edition Example 5.6 */
             fprintf(feps, "/%s findfont\n", font);
-            fprintf(feps, "dup length dict begin\n");
-            fprintf(feps, "{1 index /FID ne {def} {pop pop} ifelse} forall\n");
-            fprintf(feps, "/Encoding ISOLatin1Encoding def\n");
-            fprintf(feps, "currentdict\n");
-            fprintf(feps, "end\n");
-            fprintf(feps, "/Helvetica-ISOLatin1 exch definefont pop\n");
+            fputs("dup length dict begin\n"
+                  "{1 index /FID ne {def} {pop pop} ifelse} forall\n"
+                  "/Encoding ISOLatin1Encoding def\n"
+                  "currentdict\n"
+                  "end\n"
+                  "/Helvetica-ISOLatin1 exch definefont pop\n", feps);
             font = "Helvetica-ISOLatin1";
         }
         do {
             ps_convert(string->text, ps_string);
-            fprintf(feps, "matrix currentmatrix\n");
-            fprintf(feps, "/%s findfont\n", font);
-            fprintf(feps, "%.2f scalefont setfont\n", string->fsize);
-            fprintf(feps, " 0 0 moveto %.2f %.2f translate 0.00 rotate 0 0 moveto\n",
-                    string->x, (symbol->vector->height - string->y));
-            if (string->halign == 0 || string->halign == 2) { /* Need width for middle or right align */
-                fprintf(feps, " (%s) stringwidth\n", ps_string);
+            if (string->fsize != previous_fsize) {
+                fprintf(feps, "/%s findfont", font);
+                /* Compensate for Helvetica being smaller than Zint's OCR-B */
+                out_putsf( " ", 2, upcean ? string->fsize * 1.07f : string->fsize, feps);
+                fputs(" scalefont setfont\n", feps);
+                previous_fsize = string->fsize;
             }
+            /* Unhack the guard whitespace `gws_left_fudge`/`gws_right_fudge` hack */
+            if (upcean && string->halign == 1 && string->text[0] == '<') {
+                const float gws_left_fudge = symbol->scale < 0.1f ? 0.1f : symbol->scale; /* 0.5 * 2 * scale */
+                out_putsf(" ", 2, string->x + gws_left_fudge, feps);
+            } else if (upcean && string->halign == 2 && string->text[0] == '>') {
+                const float gws_right_fudge = symbol->scale < 0.1f ? 0.1f : symbol->scale; /* 0.5 * 2 * scale */
+                out_putsf(" ", 2, string->x - gws_right_fudge, feps);
+            } else {
+                out_putsf(" ", 2, string->x, feps);
+            }
+            out_putsf(" ", 2, symbol->vector->height - string->y, feps);
+            fputs(" moveto\n", feps);
             if (string->rotation != 0) {
-                fprintf(feps, "gsave\n");
-                fprintf(feps, "%d rotate\n", 360 - string->rotation);
+                fputs(" gsave\n", feps);
+                fprintf(feps, " %d rotate\n", 360 - string->rotation);
             }
-            if (string->halign == 0 || string->halign == 2) {
-                fprintf(feps, "pop\n");
-                fprintf(feps, "%s 0 rmoveto\n", string->halign == 2 ? "neg" : "-2 div");
+            if (string->halign == 0 || string->halign == 2) { /* Need width for middle or right align */
+                fprintf(feps, " (%s) stringwidth pop" /* Returns "width height" - discard "height" */
+                                " %s 0 rmoveto\n", ps_string, string->halign == 2 ? "neg" : "-2 div");
             }
             fprintf(feps, " (%s) show\n", ps_string);
             if (string->rotation != 0) {
-                fprintf(feps, "grestore\n");
+                fputs(" grestore\n", feps);
             }
-            fprintf(feps, "setmatrix\n");
             string = string->next;
         } while (string);
     }
 
-    if (output_to_stdout) {
-        fflush(feps);
-    } else {
-        fclose(feps);
+    if (ferror(feps)) {
+        sprintf(symbol->errtxt, "647: Incomplete write to output (%d: %.30s)", errno, strerror(errno));
+        if (!output_to_stdout) {
+            (void) fclose(feps);
+        }
+        return ZINT_ERROR_FILE_WRITE;
     }
 
-    if (locale)
-        setlocale(LC_ALL, locale);
+    if (output_to_stdout) {
+        if (fflush(feps) != 0) {
+            sprintf(symbol->errtxt, "648: Incomplete flush to output (%d: %.30s)", errno, strerror(errno));
+            return ZINT_ERROR_FILE_WRITE;
+        }
+    } else {
+        if (fclose(feps) != 0) {
+            sprintf(symbol->errtxt, "649: Failure on closing output file (%d: %.30s)", errno, strerror(errno));
+            return ZINT_ERROR_FILE_WRITE;
+        }
+    }
 
     return error_number;
 }

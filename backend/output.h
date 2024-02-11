@@ -1,7 +1,7 @@
-/*  output.h - Common routines for raster/vector
-
+/*  output.h - Common routines for raster/vector */
+/*
     libzint - the open source barcode library
-    Copyright (C) 2020 - 2021 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2020-2023 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -28,7 +28,7 @@
     OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
     SUCH DAMAGE.
  */
-/* vim: set ts=4 sw=4 et : */
+/* SPDX-License-Identifier: BSD-3-Clause */
 
 #ifndef Z_OUTPUT_H
 #define Z_OUTPUT_H
@@ -37,19 +37,52 @@
 extern "C" {
 #endif /* __cplusplus */
 
+#include <stdio.h> /* For FILE */
+
+/* Check colour options are good (`symbol->fgcolour`, `symbol->bgcolour`) */
 INTERNAL int out_check_colour_options(struct zint_symbol *symbol);
+
+/* Return RGB(A) from (well-formed) colour string. Returns 0 if RGB or converted CMYK, 1 if RGBA */
+INTERNAL int out_colour_get_rgb(const char *colour, unsigned char *red, unsigned char *green, unsigned char *blue,
+                unsigned char *alpha);
+/* Return CMYK from (well-formed) colour string. Returns 0 if CMYK, 1 if converted RBG, 2 if converted RGBA */
+INTERNAL int out_colour_get_cmyk(const char *colour, int *cyan, int *magenta, int *yellow, int *black,
+                unsigned char *rgb_alpha);
+
+/* Convert internal colour chars "WCBMRYGK" to RGB */
+INTERNAL int out_colour_char_to_rgb(const char ch, unsigned char *red, unsigned char *green, unsigned char *blue);
+
+/* Set left (x), top (y), right and bottom offsets for whitespace, also right quiet zone */
 INTERNAL void out_set_whitespace_offsets(const struct zint_symbol *symbol, const int hide_text,
-                float *xoffset, float *yoffset, float *roffset, float *boffset, const float scaler,
-                int *xoffset_si, int *yoffset_si, int *roffset_si, int *boffset_si);
-INTERNAL int out_process_upcean(const struct zint_symbol *symbol, int *p_main_width, int *p_comp_xoffset,
-                unsigned char addon[6], int *p_addon_gap);
-INTERNAL float out_large_bar_height(struct zint_symbol *symbol, int si, int *row_heights_si, int *symbol_height_si);
-INTERNAL void out_upcean_split_text(int upceanflag, unsigned char text[],
-                unsigned char textpart1[5], unsigned char textpart2[7], unsigned char textpart3[7],
-                unsigned char textpart4[2]);
+                const int comp_xoffset, float *p_xoffset, float *p_yoffset, float *p_roffset, float *p_boffset,
+                float *p_qz_right, const float scaler, int *p_xoffset_si, int *p_yoffset_si, int *p_roffset_si,
+                int *p_boffset_si, int *p_qz_right_si);
+
+/* Set composite offset and main width excluding add-on (for start of add-on calc) and add-on text, returning
+   EAN/UPC type */
+INTERNAL int out_process_upcean(const struct zint_symbol *symbol, const int comp_xoffset, int *p_main_width,
+                unsigned char addon[6], int *p_addon_len, int *p_addon_gap);
+
+/* Calculate large bar height i.e. linear bars with zero row height that respond to the symbol height.
+   If scaler `si` non-zero (raster), then large_bar_height if non-zero or else row heights will be rounded
+   to nearest pixel and symbol height adjusted */
+INTERNAL float out_large_bar_height(struct zint_symbol *symbol, const int si, int *row_heights_si,
+                int *symbol_height_si);
+
+/* Create output file, creating sub-directories if necessary. Returns `fopen()` FILE pointer */
+INTERNAL FILE *out_fopen(const char filename[256], const char *mode);
+
+#ifdef _WIN32
+/* Do `fopen()` on Windows, assuming `filename` is UTF-8 encoded. Props Marcel, ticket #288 */
+INTERNAL FILE *out_win_fopen(const char *filename, const char *mode);
+#endif
+
+/* Output float without trailing zeroes to `fp` with decimal pts `dp` (precision) */
+INTERNAL void out_putsf(const char *const prefix, const int dp, const float arg, FILE *fp);
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
+/* vim: set ts=4 sw=4 et : */
 #endif /* Z_OUTPUT_H */

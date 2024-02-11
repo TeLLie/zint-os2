@@ -1,7 +1,7 @@
 /* gif.c - Handles output to gif file */
 /*
     libzint - the open source barcode library
-    Copyright (C) 2009-2022 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2009-2023 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -32,18 +32,19 @@
 
 #include <errno.h>
 #include <stdio.h>
-#include "common.h"
 #ifdef _MSC_VER
 #include <io.h>
 #include <fcntl.h>
 #endif
+#include "common.h"
+#include "output.h"
 
 /* Limit initial LZW buffer size to this in expectation that compressed data will fit for typical scalings */
 #define GIF_LZW_PAGE_SIZE   0x100000 /* Megabyte */
 
 typedef struct s_statestruct {
     unsigned char *pOut;
-    unsigned char *pIn;
+    const unsigned char *pIn;
     unsigned int InLen;
     unsigned int OutLength;
     unsigned int OutPosCur;
@@ -296,6 +297,10 @@ INTERNAL int gif_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
     unsigned char backgroundColourIndex;
     unsigned char RGBCur[3];
     unsigned char RGBUnused[3] = {0,0,0};
+    unsigned char RGBfg[3];
+    unsigned char RGBbg[3];
+    unsigned char fgalpha;
+    unsigned char bgalpha;
 
     int colourIndex;
 
@@ -309,6 +314,9 @@ INTERNAL int gif_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
     if (lzoutbufSize > GIF_LZW_PAGE_SIZE) {
         lzoutbufSize = GIF_LZW_PAGE_SIZE;
     }
+
+    (void) out_colour_get_rgb(symbol->fgcolour, &RGBfg[0], &RGBfg[1], &RGBfg[2], &fgalpha);
+    (void) out_colour_get_rgb(symbol->bgcolour, &RGBbg[0], &RGBbg[1], &RGBbg[2], &bgalpha);
 
     /*
      * Build a table of the used palette items.
@@ -363,42 +371,17 @@ INTERNAL int gif_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
         /* Get RGB value */
         switch (pixelColour) {
             case '0': /* standard background */
-                RGBCur[0] = (unsigned char) (16 * ctoi(symbol->bgcolour[0])) + ctoi(symbol->bgcolour[1]);
-                RGBCur[1] = (unsigned char) (16 * ctoi(symbol->bgcolour[2])) + ctoi(symbol->bgcolour[3]);
-                RGBCur[2] = (unsigned char) (16 * ctoi(symbol->bgcolour[4])) + ctoi(symbol->bgcolour[5]);
+                RGBCur[0] = RGBbg[0]; RGBCur[1] = RGBbg[1]; RGBCur[2] = RGBbg[2];
                 break;
             case '1': /* standard foreground */
-                RGBCur[0] = (unsigned char) (16 * ctoi(symbol->fgcolour[0])) + ctoi(symbol->fgcolour[1]);
-                RGBCur[1] = (unsigned char) (16 * ctoi(symbol->fgcolour[2])) + ctoi(symbol->fgcolour[3]);
-                RGBCur[2] = (unsigned char) (16 * ctoi(symbol->fgcolour[4])) + ctoi(symbol->fgcolour[5]);
+                RGBCur[0] = RGBfg[0]; RGBCur[1] = RGBfg[1]; RGBCur[2] = RGBfg[2];
                 break;
-            case 'W': /* white */
-                RGBCur[0] = 255; RGBCur[1] = 255; RGBCur[2] = 255;
+            default: /* Colour or error case */
+                if (!out_colour_char_to_rgb(pixelColour, &RGBCur[0], &RGBCur[1], &RGBCur[2])) {
+                    strcpy(symbol->errtxt, "612: unknown pixel colour");
+                    return ZINT_ERROR_INVALID_DATA;
+                }
                 break;
-            case 'C': /* cyan */
-                RGBCur[0] = 0; RGBCur[1] = 255; RGBCur[2] = 255;
-                break;
-            case 'B': /* blue */
-                RGBCur[0] = 0; RGBCur[1] = 0; RGBCur[2] = 255;
-                break;
-            case 'M': /* magenta */
-                RGBCur[0] = 255; RGBCur[1] = 0; RGBCur[2] = 255;
-                break;
-            case 'R': /* red */
-                RGBCur[0] = 255; RGBCur[1] = 0; RGBCur[2] = 0;
-                break;
-            case 'Y': /* yellow */
-                RGBCur[0] = 255; RGBCur[1] = 255; RGBCur[2] = 0;
-                break;
-            case 'G': /* green */
-                RGBCur[0] = 0; RGBCur[1] = 255; RGBCur[2] = 0;
-                break;
-            case 'K': /* black */
-                RGBCur[0] = 0; RGBCur[1] = 0; RGBCur[2] = 0;
-                break;
-            default: /* error case - return  */
-                strcpy(symbol->errtxt, "612: unknown pixel colour");
-                return ZINT_ERROR_INVALID_DATA;
         }
         /* Search, if RGB value is already present */
         fFound = 0;
@@ -435,17 +418,12 @@ INTERNAL int gif_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
     /* Note: does not allow both transparent foreground and background -
      * background takes priority */
     transparent_index = -1;
-    if (strlen(symbol->fgcolour) > 6) {
-        if ((symbol->fgcolour[6] == '0') && (symbol->fgcolour[7] == '0')) {
-            /* Transparent foreground */
-            transparent_index = fgindex;
-        }
-    }
-    if (strlen(symbol->bgcolour) > 6) {
-        if ((symbol->bgcolour[6] == '0') && (symbol->bgcolour[7] == '0')) {
-            /* Transparent background */
-            transparent_index = bgindex;
-        }
+    if (bgalpha == 0) {
+        /* Transparent background */
+        transparent_index = bgindex;
+    } else if (fgalpha == 0) {
+        /* Transparent foreground */
+        transparent_index = fgindex;
     }
 
     /* find palette bit size from palette size*/
@@ -474,7 +452,7 @@ INTERNAL int gif_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
 #endif
         gif_file = stdout;
     } else {
-        if (!(gif_file = fopen(symbol->outfile, "wb"))) {
+        if (!(gif_file = out_fopen(symbol->outfile, "wb"))) {
             sprintf(symbol->errtxt, "611: Could not open output file (%d: %.30s)", errno, strerror(errno));
             return ZINT_ERROR_FILE_ACCESS;
         }
@@ -583,7 +561,7 @@ INTERNAL int gif_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
     State.InLen = bitmapSize;
     if (!(State.pOut = (unsigned char *) malloc(lzoutbufSize))) {
         if (!output_to_stdout) {
-            fclose(gif_file);
+            (void) fclose(gif_file);
         }
         strcpy(symbol->errtxt, "614: Insufficient memory for LZW buffer");
         return ZINT_ERROR_MEMORY;
@@ -595,7 +573,7 @@ INTERNAL int gif_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
     if (byte_out <= 0) {
         free(State.pOut);
         if (!output_to_stdout) {
-            fclose(gif_file);
+            (void) fclose(gif_file);
         }
         strcpy(symbol->errtxt, "613: Insufficient memory for LZW buffer");
         return ZINT_ERROR_MEMORY;
@@ -605,10 +583,25 @@ INTERNAL int gif_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
 
     /* GIF terminator */
     fputc('\x3b', gif_file);
+
+    if (ferror(gif_file)) {
+        sprintf(symbol->errtxt, "615: Incomplete write to output (%d: %.30s)", errno, strerror(errno));
+        if (!output_to_stdout) {
+            (void) fclose(gif_file);
+        }
+        return ZINT_ERROR_FILE_WRITE;
+    }
+
     if (output_to_stdout) {
-        fflush(gif_file);
+        if (fflush(gif_file) != 0) {
+            sprintf(symbol->errtxt, "616: Incomplete flush to output (%d: %.30s)", errno, strerror(errno));
+            return ZINT_ERROR_FILE_WRITE;
+        }
     } else {
-        fclose(gif_file);
+        if (fclose(gif_file) != 0) {
+            sprintf(symbol->errtxt, "617: Failure on closing output file (%d: %.30s)", errno, strerror(errno));
+            return ZINT_ERROR_FILE_WRITE;
+        }
     }
 
     return 0;

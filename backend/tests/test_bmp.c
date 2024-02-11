@@ -1,6 +1,6 @@
 /*
     libzint - the open source barcode library
-    Copyright (C) 2020 - 2021 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2020-2022 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -27,14 +27,15 @@
     OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
     SUCH DAMAGE.
  */
-/* vim: set ts=4 sw=4 et : */
+/* SPDX-License-Identifier: BSD-3-Clause */
 
 #include "testcommon.h"
 #include <sys/stat.h>
 
 INTERNAL int bmp_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf);
 
-static void test_pixel_plot(int index, int debug) {
+static void test_pixel_plot(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int width;
@@ -43,7 +44,7 @@ static void test_pixel_plot(int index, int debug) {
         int repeat;
         int ret;
     };
-    // s/\/\*[ 0-9]*\*\//\=printf("\/*%3d*\/", line(".") - line("'<"))
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
     struct item data[] = {
         /*  0*/ { 1, 1, "1", 0, 0 },
         /*  1*/ { 2, 1, "11", 0, 0 },
@@ -64,14 +65,14 @@ static void test_pixel_plot(int index, int debug) {
 
     char data_buf[8 * 2 + 1];
 
-    int have_identify = testUtilHaveIdentify();
+    const char *const have_identify = testUtilHaveIdentify();
 
     testStart("test_pixel_plot");
 
     for (i = 0; i < data_size; i++) {
         int size;
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -103,15 +104,15 @@ static void test_pixel_plot(int index, int debug) {
 
         if (ret < ZINT_ERROR) {
             if (have_identify) {
-                ret = testUtilVerifyIdentify(symbol->outfile, debug);
+                ret = testUtilVerifyIdentify(have_identify, symbol->outfile, debug);
                 assert_zero(ret, "i:%d identify %s ret %d != 0\n", i, symbol->outfile, ret);
             }
             if (!(debug & ZINT_DEBUG_TEST_KEEP_OUTFILE)) {
-                assert_zero(remove(symbol->outfile), "i:%d remove(%s) != 0\n", i, symbol->outfile);
+                assert_zero(testUtilRemove(symbol->outfile), "i:%d testUtilRemove(%s) != 0\n", i, symbol->outfile);
             }
         } else {
             if (!(debug & ZINT_DEBUG_TEST_KEEP_OUTFILE)) {
-                (void) remove(symbol->outfile);
+                (void) testUtilRemove(symbol->outfile);
             }
         }
 
@@ -123,7 +124,8 @@ static void test_pixel_plot(int index, int debug) {
     testFinish();
 }
 
-static void test_print(int index, int generate, int debug) {
+static void test_print(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int symbology;
@@ -154,11 +156,11 @@ static void test_print(int index, int generate, int debug) {
     char escaped[1024];
     int escaped_size = 1024;
 
-    int have_identify = testUtilHaveIdentify();
+    const char *const have_identify = testUtilHaveIdentify();
 
     testStart("test_print");
 
-    if (generate) {
+    if (p_ctx->generate) {
         char data_dir_path[1024];
         assert_nonzero(testUtilDataPath(data_dir_path, sizeof(data_dir_path), data_dir, NULL), "testUtilDataPath(%s) == 0\n", data_dir);
         if (!testUtilDirExists(data_dir_path)) {
@@ -169,7 +171,7 @@ static void test_print(int index, int generate, int debug) {
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -200,7 +202,7 @@ static void test_print(int index, int generate, int debug) {
 
         assert_nonzero(testUtilDataPath(expected_file, sizeof(expected_file), data_dir, data[i].expected_file), "i:%d testUtilDataPath == 0\n", i);
 
-        if (generate) {
+        if (p_ctx->generate) {
             printf("        /*%3d*/ { %s, %d, %s, %d, %d, %d, %d, \"%s\", \"%s\", \"%s\", \"%s\"},\n",
                     i, testUtilBarcodeName(data[i].symbology), data[i].border_width, testUtilOutputOptionsName(data[i].output_options),
                     data[i].whitespace_width, data[i].whitespace_height,
@@ -209,7 +211,7 @@ static void test_print(int index, int generate, int debug) {
             ret = testUtilRename(symbol->outfile, expected_file);
             assert_zero(ret, "i:%d testUtilRename(%s, %s) ret %d != 0 (%d: %s)\n", i, symbol->outfile, expected_file, ret, errno, strerror(errno));
             if (have_identify) {
-                ret = testUtilVerifyIdentify(expected_file, debug);
+                ret = testUtilVerifyIdentify(have_identify, expected_file, debug);
                 assert_zero(ret, "i:%d %s identify %s ret %d != 0\n", i, testUtilBarcodeName(data[i].symbology), expected_file, ret);
             }
         } else {
@@ -218,7 +220,7 @@ static void test_print(int index, int generate, int debug) {
 
             ret = testUtilCmpBins(symbol->outfile, expected_file);
             assert_zero(ret, "i:%d %s testUtilCmpBins(%s, %s) %d != 0\n", i, testUtilBarcodeName(data[i].symbology), symbol->outfile, expected_file, ret);
-            assert_zero(remove(symbol->outfile), "i:%d remove(%s) != 0\n", i, symbol->outfile);
+            assert_zero(testUtilRemove(symbol->outfile), "i:%d testUtilRemove(%s) != 0\n", i, symbol->outfile);
         }
 
         ZBarcode_Delete(symbol);
@@ -227,10 +229,13 @@ static void test_print(int index, int generate, int debug) {
     testFinish();
 }
 
-static void test_outfile(void) {
+static void test_outfile(const testCtx *const p_ctx) {
     int ret;
+    int skip_readonly_test = 0;
     struct zint_symbol symbol = {0};
     unsigned char data[] = { "1" };
+
+    (void)p_ctx;
 
     testStart("test_outfile");
 
@@ -238,10 +243,18 @@ static void test_outfile(void) {
     symbol.bitmap = data;
     symbol.bitmap_width = symbol.bitmap_height = 1;
 
-    strcpy(symbol.outfile, "nosuch_dir/out.bmp");
+    strcpy(symbol.outfile, "test_bmp_out.bmp");
+#ifndef _WIN32
+    skip_readonly_test = getuid() == 0; /* Skip if running as root on Unix as can't create read-only file */
+#endif
+    if (!skip_readonly_test) {
+        (void) testUtilRmROFile(symbol.outfile); /* In case lying around from previous fail */
+        assert_nonzero(testUtilCreateROFile(symbol.outfile), "bmp_pixel_plot testUtilCreateROFile(%s) fail (%d: %s)\n", symbol.outfile, errno, strerror(errno));
 
-    ret = bmp_pixel_plot(&symbol, data);
-    assert_equal(ret, ZINT_ERROR_FILE_ACCESS, "bmp_pixel_plot ret %d != ZINT_ERROR_FILE_ACCESS (%d) (%s)\n", ret, ZINT_ERROR_FILE_ACCESS, symbol.errtxt);
+        ret = bmp_pixel_plot(&symbol, data);
+        assert_equal(ret, ZINT_ERROR_FILE_ACCESS, "bmp_pixel_plot ret %d != ZINT_ERROR_FILE_ACCESS (%d) (%s)\n", ret, ZINT_ERROR_FILE_ACCESS, symbol.errtxt);
+        assert_zero(testUtilRmROFile(symbol.outfile), "bmp_pixel_plot testUtilRmROFile(%s) != 0 (%d: %s)\n", symbol.outfile, errno, strerror(errno));
+    }
 
     symbol.output_options |= BARCODE_STDOUT;
 
@@ -254,10 +267,10 @@ static void test_outfile(void) {
 
 int main(int argc, char *argv[]) {
 
-    testFunction funcs[] = { /* name, func, has_index, has_generate, has_debug */
-        { "test_pixel_plot", test_pixel_plot, 1, 0, 1 },
-        { "test_print", test_print, 1, 1, 1 },
-        { "test_outfile", test_outfile, 0, 0, 0 },
+    testFunction funcs[] = { /* name, func */
+        { "test_pixel_plot", test_pixel_plot },
+        { "test_print", test_print },
+        { "test_outfile", test_outfile },
     };
 
     testRun(argc, argv, funcs, ARRAY_SIZE(funcs));
@@ -266,3 +279,5 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+
+/* vim: set ts=4 sw=4 et : */

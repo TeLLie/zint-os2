@@ -116,8 +116,8 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\..\..\zlib\;..\..\..\lpng\;..\..\..\lpng\build;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;ZINT_VERSION="2.11.0.9";NO_PNG;BUILD_ZINT_DLL;ZLIB_DLL;PNG_DLL;DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\..\zlib;..\..\..\lpng;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;ZINT_VERSION="2.13.0";ZINT_NO_PNG;BUILD_ZINT_DLL;ZLIB_DLL;PNG_DLL;DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <ExceptionHandling />
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -127,7 +127,6 @@
       <PrecompiledHeader />
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <CompileAs>CompileAsCpp</CompileAs>
       <DisableSpecificWarnings>4018;4244;4305;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <ResourceCompile>
@@ -139,7 +138,7 @@
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)zintd.dll</OutputFile>
-      <AdditionalLibraryDirectories>..\..\..\lpng\build\Release;..\..\..\zlib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\..\..\lpng;..\..\..\zlib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>libcmtd.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
@@ -149,8 +148,8 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\..\..\zlib\;..\..\..\lpng\;..\..\..\lpng\build;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>NO_PNG;WIN32;_DEBUG;_WINDOWS;_USRDLL;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;ZINT_VERSION="2.11.0.9";BUILD_ZINT_DLL;ZLIB_DLL;PNG_DLL;DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\..\zlib;..\..\..\lpng;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>ZINT_NO_PNG;WIN32;_DEBUG;_WINDOWS;_USRDLL;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;ZINT_VERSION="2.13.0";BUILD_ZINT_DLL;ZLIB_DLL;PNG_DLL;DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ExceptionHandling>
       </ExceptionHandling>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -161,7 +160,6 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <CompileAs>CompileAsCpp</CompileAs>
       <DisableSpecificWarnings>4018;4244;4305;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <ResourceCompile>
@@ -173,7 +171,7 @@
     <Link>
       <AdditionalDependencies>zlibd.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)zintd.dll</OutputFile>
-      <AdditionalLibraryDirectories>..\..\..\lpng\build\Release;..\..\..\zlib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\..\..\lpng;..\..\..\zlib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>libcmtd.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
@@ -183,8 +181,8 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>false</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>..\..\..\zlib\;..\..\..\lpng\;..\..\..\lpng\build;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;ZINT_VERSION="2.11.0.9";BUILD_ZINT_DLL;ZLIB_DLL;PNG_DLL;NO_PNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\..\zlib;..\..\..\lpng;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;ZINT_VERSION="2.13.0";BUILD_ZINT_DLL;ZLIB_DLL;PNG_DLL;ZINT_NO_PNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <ExceptionHandling />
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
@@ -193,7 +191,6 @@
       <PrecompiledHeader />
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat />
-      <CompileAs>CompileAsCpp</CompileAs>
       <DisableSpecificWarnings>4018;4244;4305;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <ResourceCompile>
@@ -203,9 +200,9 @@
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
     </ProjectReference>
     <Link>
-      <AdditionalDependencies>libpng16_static.lib;zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libpng.lib;zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)zint.dll</OutputFile>
-      <AdditionalLibraryDirectories>..\..\..\lpng\build\Release;..\..\..\zlib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\..\..\lpng;..\..\..\zlib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
@@ -217,8 +214,8 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>false</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>..\..\..\zlib\;..\..\..\lpng\;..\..\..\lpng\build;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;ZINT_VERSION="2.11.0.9";BUILD_ZINT_DLL;NO_PNG;ZLIB_DLL;PNG_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\..\zlib;..\..\..\lpng;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;ZINT_VERSION="2.13.0";BUILD_ZINT_DLL;ZINT_NO_PNG;ZLIB_DLL;PNG_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <ExceptionHandling>
       </ExceptionHandling>
@@ -230,7 +227,6 @@
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>
       </DebugInformationFormat>
-      <CompileAs>CompileAsCpp</CompileAs>
       <DisableSpecificWarnings>4018;4244;4305;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <ResourceCompile>
@@ -240,9 +236,9 @@
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
     </ProjectReference>
     <Link>
-      <AdditionalDependencies>libpng16_static.lib;zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libpng.lib;zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)zint.dll</OutputFile>
-      <AdditionalLibraryDirectories>..\..\..\lpng\build\Release;..\..\..\zlib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\..\..\lpng;..\..\..\zlib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
@@ -253,8 +249,8 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>false</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>..\..\..\zlib\;..\..\..\lpng\;..\..\..\lpng\build;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;ZINT_VERSION="2.11.0.9";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\..\zlib;..\..\..\lpng;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;ZINT_VERSION="2.13.0";%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <ExceptionHandling />
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
@@ -263,7 +259,6 @@
       <PrecompiledHeader />
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat />
-      <CompileAs>CompileAsCpp</CompileAs>
       <DisableSpecificWarnings>4018;4244;4305;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <ResourceCompile>
@@ -277,8 +272,8 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>false</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>..\..\..\zlib\;..\..\..\lpng\;..\..\..\lpng\build;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;ZINT_VERSION="2.11.0.9";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\..\zlib;..\..\..\lpng;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;ZINT_VERSION="2.13.0";%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <ExceptionHandling>
       </ExceptionHandling>
@@ -290,7 +285,6 @@
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>
       </DebugInformationFormat>
-      <CompileAs>CompileAsCpp</CompileAs>
       <DisableSpecificWarnings>4018;4244;4305;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <ResourceCompile>
@@ -366,7 +360,7 @@
     <ClInclude Include="..\..\backend\eci.h" />
     <ClInclude Include="..\..\backend\eci_sb.h" />
     <ClInclude Include="..\..\backend\emf.h" />
-    <ClInclude Include="..\..\backend\font.h" />
+    <ClInclude Include="..\..\backend\raster_font.h" />
     <ClInclude Include="..\..\backend\gb18030.h" />
     <ClInclude Include="..\..\backend\gb2312.h" />
     <ClInclude Include="..\..\backend\gbk.h" />
@@ -384,6 +378,7 @@
     <ClInclude Include="..\..\backend\pcx.h" />
     <ClInclude Include="..\..\backend\pdf417.h" />
     <ClInclude Include="..\..\backend\pdf417_tabs.h" />
+    <ClInclude Include="..\..\backend\pdf417_trace.h" />
     <ClInclude Include="..\..\backend\qr.h" />
     <ClInclude Include="..\..\backend\reedsol.h" />
     <ClInclude Include="..\..\backend\reedsol_logs.h" />

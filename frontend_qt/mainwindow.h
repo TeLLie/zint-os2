@@ -1,6 +1,6 @@
 /***************************************************************************
  *   Copyright (C) 2008 by BogDan Vatra <bogdan@licentia.eu>               *
- *   Copyright (C) 2009-2022 by Robin Stuart <rstuart114@gmail.com>        *
+ *   Copyright (C) 2009-2023 by Robin Stuart <rstuart114@gmail.com>        *
  *                                                                         *
  *   This program is free software: you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -24,13 +24,16 @@
 #include <QGraphicsScene>
 #include <QButtonGroup>
 
-#include "ui_mainWindow.h"
-#include "barcodeitem.h"
-
 class QLabel;
 class QShortcut;
 class QDoubleSpinBox;
 class QPushButton;
+class QToolButton;
+
+#include "ui_mainWindow.h"
+#include "barcodeitem.h"
+
+class ScaleWindow;
 
 class MainWindow : public QWidget, private Ui::mainWindow
 {
@@ -43,7 +46,6 @@ public:
     static QString get_zint_version(void);
 
 #ifdef Q_OS_MACOS
-    static void mac_hack(QWidget *win);
     static void mac_hack_vLayouts(QWidget *win);
     static void mac_hack_statusBars(QWidget *win, const char *name = nullptr);
 #endif
@@ -64,22 +66,28 @@ public slots:
     void composite_ean_check();
     void maxi_scm_ui_set();
     void msi_plessey_ui_set();
-    void change_print_scale();
     void change_cmyk();
     void autoheight_ui_set();
     void HRTShow_ui_set();
+    void text_gap_ui_set();
     void dotty_ui_set();
     void codeone_ui_set();
+    void upcean_no_quiet_zones_ui_set();
+    void upcae_no_quiet_zones_ui_set();
     void structapp_ui_set();
+    void clear_text_gap();
     void on_encoded();
     void on_errored();
     void on_dataChanged(const QString& text, bool escaped, int seg_no);
+    void on_scaleChanged(double scale);
     void filter_symbologies();
 
     bool save();
     void factory_reset();
     void about();
     void help();
+    void preview_bg();
+    void previewbgcolor_changed(const QColor& color);
     void quit_now();
     void menu();
 
@@ -97,12 +105,13 @@ public slots:
     void clear_composite();
     void zap();
     void open_cli_dialog();
+    void open_scale_dialog();
 
     void copy_to_clipboard_bmp();
     void copy_to_clipboard_emf();
     void copy_to_clipboard_eps();
     void copy_to_clipboard_gif();
-    void copy_to_clipboard_png(); // Note Qt can't handle #ifndef NO_PNG in slots
+    void copy_to_clipboard_png();
     void copy_to_clipboard_pcx();
     void copy_to_clipboard_svg();
     void copy_to_clipboard_tif();
@@ -112,8 +121,11 @@ public slots:
     void height_per_row_disable();
     void height_per_row_default();
 
-    void guard_reset_upcean();
-    void guard_reset_upca();
+    void guard_default_upcean();
+    void guard_default_upca();
+
+    void daft_ui_set();
+    void daft_tracker_default();
 
     void view_context_menu(const QPoint &pos);
     void errtxtBar_context_menu(const QPoint &pos);
@@ -123,20 +135,22 @@ protected:
 
     bool clear_data_eci_seg(int seg_no);
 
-    void color_clicked(QColor &color, QLineEdit *txt, QPushButton *btn, const QString& title, QByteArray& geometry,
-            const char *color_changed);
-    void color_edited(QColor &color, QLineEdit *txt, QPushButton *btn);
-    QString getColorStr(const QColor color, bool alpha_always = false);
-    void setColorTxtBtn(const QColor color, QLineEdit *txt, QPushButton* btn);
+    void color_clicked(QString &colorStr, QLineEdit *txt, QToolButton *btn, const QString& title,
+            QByteArray& geometry, const char *color_changed);
+    void color_edited(QString &colorStr, QLineEdit *txt, QToolButton *btn);
+    void setColorTxtBtn(const QString &colorStr, QLineEdit *txt, QToolButton* btn);
 
     virtual void resizeEvent(QResizeEvent *event) override;
     virtual bool event(QEvent *event) override;
     virtual bool eventFilter(QObject *watched, QEvent *event) override;
 
     void combobox_item_enabled(QComboBox *comboBox, int index, bool enabled);
-    void upcean_addon_gap(const QString &comboBoxName, const QString &labelName, int base);
-    void upcean_guard_descent(const QString &spnBoxName, const QString &labelName);
-    void guard_reset(const QString &spnBoxName);
+    bool upcean_addon_gap(const QString &comboBoxName, const QString &labelName, int base);
+    void upcean_guard_descent(const QString &spnBoxName, const QString &labelName, const QString &btnDefaultName,
+            bool enabled = true);
+    void guard_default(const QString &spnBoxName);
+    double get_height_per_row_default();
+    bool have_addon();
     void set_gs1_mode(bool gs1_mode);
     void set_smaller_font(const QString &labelName);
 
@@ -144,12 +158,14 @@ protected:
 
     void createActions();
     void createMenu();
-    void enableActions(bool enabled);
+    void enableActions();
 
     void copy_to_clipboard(const QString &filename, const QString &name, const char *mimeType = nullptr);
 
     void errtxtBar_clear();
-    void errtxtBar_set(bool isError);
+    void errtxtBar_set();
+
+    void automatic_info_set();
 
     QLineEdit *get_seg_textbox(int seg_no);
     QComboBox *get_seg_eci(int seg_no);
@@ -185,10 +201,16 @@ protected:
     void save_sub_settings(QSettings &settings, int symbology);
     void load_sub_settings(QSettings &settings, int symbology);
 
+    void size_msg_ui_set();
+
+    float get_dpmm(const struct Zint::QZintXdimDpVars *vars) const;
+    const char *getFileType(const struct Zint::QZintXdimDpVars *vars, bool msg = false) const;
+
 private:
-    QColor m_fgcolor, m_bgcolor;
-    QByteArray m_fgcolor_geometry, m_bgcolor_geometry;
+    QString m_fgstr, m_bgstr;
+    QByteArray m_fgcolor_geometry, m_bgcolor_geometry, m_previewbgcolor_geometry;
     BarcodeItem m_bc;
+    QColor m_previewBgColor;
     QWidget *m_optionWidget;
     QGraphicsScene *scene;
     int m_symbology;
@@ -199,9 +221,7 @@ private:
     QShortcut *m_copyBMPShortcut;
     QShortcut *m_copyEMFShortcut;
     QShortcut *m_copyGIFShortcut;
-#ifndef NO_PNG
     QShortcut *m_copyPNGShortcut;
-#endif
     QShortcut *m_copySVGShortcut;
     QShortcut *m_copyTIFShortcut;
     QAction *m_copyBMPAct;
@@ -214,6 +234,7 @@ private:
     QAction *m_copyTIFAct;
     QAction *m_openCLIAct;
     QAction *m_saveAsAct;
+    QAction *m_previewBgColorAct;
     QAction *m_factoryResetAct;
     QAction *m_aboutAct;
     QAction *m_helpAct;
@@ -223,6 +244,8 @@ private:
     QDoubleSpinBox *m_spnHeightPerRow;
     QPushButton *m_btnHeightPerRowDisable;
     QPushButton *m_btnHeightPerRowDefault;
+    struct Zint::QZintXdimDpVars m_xdimdpVars;
+    ScaleWindow *m_scaleWindow;
 };
 
 /* vim: set ts=4 sw=4 et : */

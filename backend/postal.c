@@ -1,7 +1,7 @@
-/* postal.c - Handles PostNet, PLANET, FIM. RM4SCC and Flattermarken */
+/* postal.c - Handles POSTNET, PLANET, CEPNet, FIM. RM4SCC and Flattermarken */
 /*
     libzint - the open source barcode library
-    Copyright (C) 2008-2022 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2008-2023 Robin Stuart <rstuart114@gmail.com>
     Including bug fixes by Bryan Hatton
 
     Redistribution and use in source and binary forms, with or without
@@ -88,7 +88,7 @@ static const char JapanTable[19][3] = {
     {'2','4','3'}, {'4','2','3'}, {'4','4','1'}, {'1','1','1'}
 };
 
-/* Set height for POSTNET/PLANET codes, maintaining ratio */
+/* Set height for POSTNET/PLANET/CEPNet codes, maintaining ratio */
 static int usps_set_height(struct zint_symbol *symbol, const int no_errtxt) {
     /* USPS Domestic Mail Manual (USPS DMM 300) Jan 8, 2006 (updated 2011) 708.4.2.5 POSTNET Barcode Dimensions and
        Spacing
@@ -97,10 +97,12 @@ static int usps_set_height(struct zint_symbol *symbol, const int no_errtxt) {
        Half bar height 0.05" +- 0.01;  0.040" (min) / 0.025" (X max) = 1.6 min, 0.060" (max) / 0.015" (X min) = 4 max
        Full bar height 0.125" +- 0.01; 0.115" (min) / 0.025" (X max) = 4.6 min, 0.135" (max) / 0.015" (X min) = 9 max
      */
+     /* CEPNet e Código Bidimensional Datamatrix 2D (26/05/2021) 3.3.2 Arquitetura das barras - same as POSTNET */
     int error_number = 0;
     float h_ratio; /* Half ratio */
 
-    if (symbol->output_options & COMPLIANT_HEIGHT) {
+    /* No legacy for CEPNet as new */
+    if ((symbol->output_options & COMPLIANT_HEIGHT) || symbol->symbology == BARCODE_CEPNET) {
         symbol->row_height[0] = stripf(0.075f * 43); /* 3.225 */
         symbol->row_height[1] = stripf(0.05f * 43); /* 2.15 */
     } else {
@@ -131,7 +133,10 @@ static int usps_set_height(struct zint_symbol *symbol, const int no_errtxt) {
     return error_number;
 }
 
-/* Handles the PostNet system used for Zip codes in the US */
+/* Handles the POSTNET system used for Zip codes in the US */
+/* Also handles Brazilian CEPNet - more information CEPNet e Código Bidimensional Datamatrix 2D (26/05/2021) at
+ * https://www.correios.com.br/enviar/correspondencia/arquivos/nacional/guia-tecnico-cepnet-e-2d-triagem-enderecamento-27-04-2021.pdf/view
+ */
 static int postnet_enc(struct zint_symbol *symbol, const unsigned char source[], char *d, const int length) {
     int i, sum, check_digit;
     int error_number = 0;
@@ -140,9 +145,17 @@ static int postnet_enc(struct zint_symbol *symbol, const unsigned char source[],
         strcpy(symbol->errtxt, "480: Input too long (38 character maximum)");
         return ZINT_ERROR_TOO_LONG;
     }
-    if (length != 5 && length != 9 && length != 11) {
-        strcpy(symbol->errtxt, "479: Input length is not standard (5, 9 or 11 characters)");
-        error_number = ZINT_WARN_NONCOMPLIANT;
+
+    if (symbol->symbology == BARCODE_CEPNET) {
+        if (length != 8) {
+            strcpy(symbol->errtxt, "780: Input is wrong length (should be 8 digits)");
+            error_number = ZINT_WARN_NONCOMPLIANT;
+        }
+    } else {
+        if (length != 5 && length != 9 && length != 11) {
+            strcpy(symbol->errtxt, "479: Input length is not standard (5, 9 or 11 characters)");
+            error_number = ZINT_WARN_NONCOMPLIANT;
+        }
     }
     if (!is_sane(NEON_F, source, length)) {
         strcpy(symbol->errtxt, "481: Invalid character in data (digits only)");
@@ -163,13 +176,15 @@ static int postnet_enc(struct zint_symbol *symbol, const unsigned char source[],
     memcpy(d, PNTable[check_digit], 5);
     d += 5;
 
+    if (symbol->debug & ZINT_DEBUG_PRINT) printf("Check digit: %d\n", check_digit);
+
     /* stop character */
     strcpy(d, "L");
 
     return error_number;
 }
 
-/* Puts PostNet barcodes into the pattern matrix */
+/* Puts POSTNET barcodes into the pattern matrix */
 INTERNAL int postnet(struct zint_symbol *symbol, unsigned char source[], int length) {
     char height_pattern[256]; /* 5 + 38 * 5 + 5 + 5 + 1 = 206 */
     unsigned int loopey, h;
@@ -228,6 +243,8 @@ static int planet_enc(struct zint_symbol *symbol, const unsigned char source[], 
     check_digit = (10 - (sum % 10)) % 10;
     memcpy(d, PLTable[check_digit], 5);
     d += 5;
+
+    if (symbol->debug & ZINT_DEBUG_PRINT) printf("Check digit: %d\n", check_digit);
 
     /* stop character */
     strcpy(d, "L");
@@ -394,7 +411,7 @@ INTERNAL int daft_set_height(struct zint_symbol *symbol, const float min_height,
 }
 
 /* Handles the 4 State barcodes used in the UK by Royal Mail */
-static void rm4scc_enc(const int *posns, char *d, const int length) {
+static void rm4scc_enc(const struct zint_symbol *symbol, const int *posns, char *d, const int length) {
     int i;
     int top, bottom, row, column, check_digit;
 
@@ -424,6 +441,8 @@ static void rm4scc_enc(const int *posns, char *d, const int length) {
     memcpy(d, RoyalTable[check_digit], 4);
     d += 4;
 
+    if (symbol->debug & ZINT_DEBUG_PRINT) printf("Check digit: %d\n", check_digit);
+
     /* stop character */
     strcpy(d, "0");
 }
@@ -445,7 +464,7 @@ INTERNAL int rm4scc(struct zint_symbol *symbol, unsigned char source[], int leng
         strcpy(symbol->errtxt, "489: Invalid character in data (alphanumerics only)");
         return ZINT_ERROR_INVALID_DATA;
     }
-    rm4scc_enc(posns, height_pattern, length);
+    rm4scc_enc(symbol, posns, height_pattern, length);
 
     writer = 0;
     h = (int) strlen(height_pattern);
@@ -540,12 +559,12 @@ INTERNAL int kix(struct zint_symbol *symbol, unsigned char source[], int length)
 
 /* Handles DAFT Code symbols */
 INTERNAL int daft(struct zint_symbol *symbol, unsigned char source[], int length) {
-    int posns[100];
+    int posns[576];
     int loopey;
     int writer;
 
-    if (length > 100) {
-        strcpy(symbol->errtxt, "492: Input too long (100 character maximum)");
+    if (length > 576) { /* 576 * 2 = 1152 */
+        strcpy(symbol->errtxt, "492: Input too long (576 character maximum)");
         return ZINT_ERROR_TOO_LONG;
     }
     to_upper(source, length);
@@ -574,7 +593,7 @@ INTERNAL int daft(struct zint_symbol *symbol, unsigned char source[], int length
             symbol->height = 8.0f;
         }
         symbol->row_height[1] = stripf(symbol->height * t_ratio);
-        symbol->row_height[0] = stripf((symbol->height - symbol->row_height[1]) / 2.0);
+        symbol->row_height[0] = stripf((symbol->height - symbol->row_height[1]) / 2.0f);
     } else {
         symbol->row_height[0] = 3.0f;
         symbol->row_height[1] = 2.0f;
@@ -591,11 +610,11 @@ INTERNAL int daft(struct zint_symbol *symbol, unsigned char source[], int length
 /* Flattermarken - Not really a barcode symbology! */
 INTERNAL int flat(struct zint_symbol *symbol, unsigned char source[], int length) {
     int loop, error_number = 0;
-    char dest[512]; /* 90 * 4 + 1 ~ */
+    char dest[512]; /* 128 * 4 = 512 */
     char *d = dest;
 
-    if (length > 90) {
-        strcpy(symbol->errtxt, "494: Input too long (90 character maximum)");
+    if (length > 128) { /* 128 * 9 = 1152 */
+        strcpy(symbol->errtxt, "494: Input too long (128 character maximum)");
         return ZINT_ERROR_TOO_LONG;
     }
     if (!is_sane(NEON_F, source, length)) {

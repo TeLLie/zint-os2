@@ -27,10 +27,12 @@
     OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
     SUCH DAMAGE.
  */
+/* SPDX-License-Identifier: BSD-3-Clause */
 
 #include "testcommon.h"
 
-static void test_large(int index, int debug) {
+static void test_large(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         char *pattern;
@@ -39,11 +41,11 @@ static void test_large(int index, int debug) {
         int expected_rows;
         int expected_width;
     };
-    // s/\/\*[ 0-9]*\*\//\=printf("\/*%3d*\/", line(".") - line("'<"))
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
     struct item data[] = {
-        /*  0*/ { "A", 49, 0, 8, 70 }, // ANSI/AIM BC6-2000 Table 1
+        /*  0*/ { "A", 49, 0, 8, 70 }, /* ANSI/AIM BC6-2000 Table 1 */
         /*  1*/ { "A", 50, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*  2*/ { "0", 81, 0, 8, 70 }, // ANSI/AIM BC6-2000 Table 1
+        /*  2*/ { "0", 81, 0, 8, 70 }, /* ANSI/AIM BC6-2000 Table 1 */
         /*  3*/ { "0", 82, ZINT_ERROR_TOO_LONG, -1, -1 },
     };
     int data_size = ARRAY_SIZE(data);
@@ -56,7 +58,7 @@ static void test_large(int index, int debug) {
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -80,7 +82,8 @@ static void test_large(int index, int debug) {
     testFinish();
 }
 
-static void test_input(int index, int generate, int debug) {
+static void test_input(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int input_mode;
@@ -93,10 +96,12 @@ static void test_input(int index, int generate, int debug) {
         char *expected;
         char *comment;
     };
-    // NUL U+0000, S1 SP (39)
-    // US U+001F (\037, 31), S1 5
+    /*
+       NUL U+0000, S1 SP (39)
+       US U+001F (\037, 31), S1 5
+    */
     struct item data[] = {
-        /*  0*/ { UNICODE_MODE, -1, "é", -1, ZINT_ERROR_INVALID_DATA, 0, 0, "Error 431: Invalid character in input data", "ASCII only" },
+        /*  0*/ { UNICODE_MODE, -1, "é", -1, ZINT_ERROR_INVALID_DATA, 0, 0, "Error 431: Invalid character in input data, extended ASCII not allowed", "ASCII only" },
         /*  1*/ { UNICODE_MODE, -1, "EXAMPLE 2", -1, 0, 2, 70, "(16) 14 33 10 22 25 21 14 41 38 2 35 14 18 13 0 22", "2.3.7 Symbol Example" },
         /*  2*/ { UNICODE_MODE, -1, "12345", -1, 0, 2, 70, "(16) 5 17 9 48 48 48 48 27 48 48 13 23 0 13 2 0", "2.3 Example 1: Numeric Encodation (Start 2, Numeric)" },
         /*  3*/ { UNICODE_MODE, -1, "123456", -1, 0, 2, 70, "(16) 5 17 9 6 48 48 48 34 48 48 36 9 23 41 2 11", "2.3 Example 1: Numeric Encodation" },
@@ -112,8 +117,8 @@ static void test_input(int index, int generate, int debug) {
         /* 13*/ { GS1_MODE, -1, "[90]12345[91]AB12345", -1, 0, 4, 70, "(32) 45 48 47 15 4 7 9 28 48 45 9 1 10 11 48 25 5 17 9 48 48 48 48 27 48 48 37 39 26 8 14", "FNC1 NS 9012345 (C18 28) NS FNC1 9 1 A B NS (C28 25) 12345 Pad (4) (C38 27) (Start 0, Alpha)" },
         /* 14*/ { GS1_MODE | GS1PARENS_MODE, -1, "(90)12345(91)AB12345", -1, 0, 4, 70, "(32) 45 48 47 15 4 7 9 28 48 45 9 1 10 11 48 25 5 17 9 48 48 48 48 27 48 48 37 39 26 8 14", "FNC1 NS 9012345 (C18 28) NS FNC1 9 1 A B NS (C28 25) 12345 Pad (4) (C38 27) (Start 0, Alpha)" },
         /* 15*/ { UNICODE_MODE, -1, "1234567890123456789012345678901234567890", -1, 0, 5, 70, "(40) 5 17 9 29 22 18 5 7 17 9 29 22 18 5 17 19 9 29 22 18 5 17 9 11 29 22 18 48 48 48 48 16", "" },
-        /* 16*/ { UNICODE_MODE, 1, "1234567890123456789012345678901234567890", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 424: Minimum number of rows out of range (2 to 8)", "" },
-        /* 17*/ { UNICODE_MODE, 9, "1234567890123456789012345678901234567890", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 424: Minimum number of rows out of range (2 to 8)", "" },
+        /* 16*/ { UNICODE_MODE, 1, "1234567890123456789012345678901234567890", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 433: Minimum number of rows out of range (2 to 8)", "" },
+        /* 17*/ { UNICODE_MODE, 9, "1234567890123456789012345678901234567890", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 433: Minimum number of rows out of range (2 to 8)", "" },
         /* 18*/ { UNICODE_MODE, 2, "1234567890123456789012345678901234567890", -1, 0, 5, 70, "(40) 5 17 9 29 22 18 5 7 17 9 29 22 18 5 17 19 9 29 22 18 5 17 9 11 29 22 18 48 48 48 48 16", "" },
         /* 19*/ { UNICODE_MODE, 3, "1234567890123456789012345678901234567890", -1, 0, 5, 70, "(40) 5 17 9 29 22 18 5 7 17 9 29 22 18 5 17 19 9 29 22 18 5 17 9 11 29 22 18 48 48 48 48 16", "" },
         /* 20*/ { UNICODE_MODE, 4, "1234567890123456789012345678901234567890", -1, 0, 5, 70, "(40) 5 17 9 29 22 18 5 7 17 9 29 22 18 5 17 19 9 29 22 18 5 17 9 11 29 22 18 48 48 48 48 16", "" },
@@ -127,33 +132,48 @@ static void test_input(int index, int generate, int debug) {
     struct zint_symbol *symbol;
 
     char escaped[1024];
+    char cmp_buf[8192];
+    char cmp_msg[1024];
+
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
 
     testStart("test_input");
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
 
-        symbol->debug = ZINT_DEBUG_TEST; // Needed to get codeword dump in errtxt
+        symbol->debug = ZINT_DEBUG_TEST; /* Needed to get codeword dump in errtxt */
 
         length = testUtilSetSymbol(symbol, BARCODE_CODE49, data[i].input_mode, -1 /*eci*/, data[i].option_1, -1, -1, -1 /*output_options*/, data[i].data, data[i].length, debug);
 
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
-        if (generate) {
+        if (p_ctx->generate) {
             printf("        /*%3d*/ { %s, %d, \"%s\", %d, %s, %d, %d, \"%s\", \"%s\" },\n",
                     i, testUtilInputModeName(data[i].input_mode), data[i].option_1,
                     testUtilEscape(data[i].data, length, escaped, sizeof(escaped)), data[i].length,
                     testUtilErrorName(data[i].ret), symbol->rows, symbol->width, symbol->errtxt, data[i].comment);
         } else {
+            assert_zero(strcmp((char *) symbol->errtxt, data[i].expected), "i:%d strcmp(%s, %s) != 0\n", i, symbol->errtxt, data[i].expected);
             if (ret < ZINT_ERROR) {
                 assert_equal(symbol->rows, data[i].expected_rows, "i:%d symbol->rows %d != %d (%s)\n", i, symbol->rows, data[i].expected_rows, data[i].data);
                 assert_equal(symbol->width, data[i].expected_width, "i:%d symbol->width %d != %d (%s)\n", i, symbol->width, data[i].expected_width, data[i].data);
-                assert_zero(strcmp((char *) symbol->errtxt, data[i].expected), "i:%d strcmp(%s, %s) != 0\n", i, symbol->errtxt, data[i].expected);
+
+                if (do_bwipp && testUtilCanBwipp(i, symbol, data[i].option_1, -1, -1, debug)) {
+                    char modules_dump[4096];
+                    assert_notequal(testUtilModulesDump(symbol, modules_dump, sizeof(modules_dump)), -1, "i:%d testUtilModulesDump == -1\n", i);
+                    ret = testUtilBwipp(i, symbol, data[i].option_1, -1, -1, data[i].data, length, NULL, cmp_buf, sizeof(cmp_buf), NULL);
+                    assert_zero(ret, "i:%d %s testUtilBwipp ret %d != 0\n", i, testUtilBarcodeName(symbol->symbology), ret);
+
+                    ret = testUtilBwippCmp(symbol, cmp_msg, cmp_buf, modules_dump);
+                    assert_zero(ret, "i:%d %s testUtilBwippCmp %d != 0 %s\n  actual: %s\nexpected: %s\n",
+                                   i, testUtilBarcodeName(symbol->symbology), ret, cmp_msg, cmp_buf, modules_dump);
+                }
             }
         }
 
@@ -163,7 +183,8 @@ static void test_input(int index, int generate, int debug) {
     testFinish();
 }
 
-static void test_encode(int index, int generate, int debug) {
+static void test_encode(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int input_mode;
@@ -212,13 +233,13 @@ static void test_encode(int index, int generate, int debug) {
     char bwipp_buf[8192];
     char bwipp_msg[1024];
 
-    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); // Only do BWIPP test if asked, too slow otherwise
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
 
     testStart("test_encode");
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -228,7 +249,7 @@ static void test_encode(int index, int generate, int debug) {
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
-        if (generate) {
+        if (p_ctx->generate) {
             printf("        /*%3d*/ { %s, %d, \"%s\", %s, %d, %d, \"%s\",\n",
                     i, testUtilInputModeName(data[i].input_mode), data[i].option_1,
                     testUtilEscape(data[i].data, length, escaped, sizeof(escaped)),
@@ -264,10 +285,10 @@ static void test_encode(int index, int generate, int debug) {
 
 int main(int argc, char *argv[]) {
 
-    testFunction funcs[] = { /* name, func, has_index, has_generate, has_debug */
-        { "test_large", test_large, 1, 0, 1 },
-        { "test_input", test_input, 1, 1, 1 },
-        { "test_encode", test_encode, 1, 1, 1 },
+    testFunction funcs[] = { /* name, func */
+        { "test_large", test_large },
+        { "test_input", test_input },
+        { "test_encode", test_encode },
     };
 
     testRun(argc, argv, funcs, ARRAY_SIZE(funcs));

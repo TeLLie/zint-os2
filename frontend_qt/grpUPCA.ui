@@ -25,7 +25,7 @@
      <item row="0" column="0">
       <widget class="QLabel" name="lblUPCAAddonGap">
        <property name="text">
-        <string>A&amp;dd-on Gap:</string>
+        <string>Add-o&amp;n Gap:</string>
        </property>
        <property name="toolTip">
         <string>Horizontal space in X-dimensions between
@@ -129,13 +129,13 @@ descend below the main bars (default 5X)
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="btnUPCAGuardReset">
+        <widget class="QPushButton" name="btnUPCAGuardDefault">
          <property name="toolTip">
           <string>Reset guard bars descent height
 to default 5X</string>
          </property>
          <property name="text">
-          <string>&amp;Reset</string>
+          <string>De&amp;fault</string>
          </property>
          <property name="sizePolicy">
           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
@@ -165,6 +165,20 @@ to default 5X</string>
      </property>
      <property name="toolTip">
       <string>Do not add quiet zones to whitespace</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QCheckBox" name="chkUPCAGuardWhitespace">
+     <property name="text">
+      <string>Guard Whitespace</string>
+     </property>
+     <property name="checked">
+      <bool>false</bool>
+     </property>
+     <property name="toolTip">
+      <string>Add quiet zone indicators ("&lt;", "&gt;") to Human Readable Text (HRT)
+(ignored if disabled)</string>
      </property>
     </widget>
    </item>

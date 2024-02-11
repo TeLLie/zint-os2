@@ -1,4 +1,4 @@
-% Tested on Ubuntu 20.04.4 LTS, Ubuntu 22.04 LTS and Fedora Linux 36 (Workstation Edition)
+% Tested on Ubuntu 20.04.4 LTS, Ubuntu 22.04 LTS and Fedora Linux 38 (Workstation Edition)
 
 1. Prerequisites for building zint
 ==================================
@@ -21,10 +21,10 @@ or Fedora
 
 Then either download the source code tarball
 
-    wget -O zint-2.11.0-src.tar.gz \
-        https://sourceforge.net/projects/zint/files/zint/2.11.0/zint-2.11.0-src.tar.gz/download
-    tar xf zint-2.11.0-src.tar.gz
-    cd zint-2.11.0-src
+    wget -O zint-2.13.0-src.tar.gz \
+        https://sourceforge.net/projects/zint/files/zint/2.13.0/zint-2.13.0-src.tar.gz/download
+    tar xf zint-2.13.0-src.tar.gz
+    cd zint-2.13.0-src
 
 or clone the latest source
 
@@ -60,7 +60,7 @@ or Ubuntu 20.04
 
     sudo apt install qt5-default qt5-uitools
 
-or Fedora 36 (not recommended)
+or Fedora 38 (not recommended)
 
      sudo dnf install qt5-qtbase-devel qt5-qttools-devel qt5-qttools-static qt5-qtsvg-devel
 
@@ -73,8 +73,8 @@ e.g. CMAKE_MODULE_PATH=/usr/lib/x86_64-linux-gnu/cmake/Qt5
 2.2. Using the Qt Maintenance Tool
 ----------------------------------
 
-Alternatively, for a more consistent, dependable, flexible experience, sign up and download the
-Qt Maintenance Tool from
+Alternatively, for a more consistent experience, sign up and download the Qt Maintenance Tool
+from
 
     https://www.qt.io/download-qt-installer
 
@@ -82,8 +82,8 @@ On Ubuntu/Debian you may need to install xinerama to run the tool:
 
     sudo apt install libxcb-xinerama0
 
-Launch the tool and install the "Desktop gcc 64-bit" component for either Qt 5.15.2 or Qt 6
-(>= 6.1, and not 6.3.0).
+Launch the tool and install the "Desktop gcc 64-bit" component for either Qt 5.15.2 (preferred)
+or Qt 6 (>= 6.1, 6.2.4 preferably, and not >= 6.3 which are incompatible).
 
 Once Qt is installed you may need to tell CMake where it is:
 
@@ -114,6 +114,7 @@ ZINT_COVERAGE:BOOL=OFF # Set code coverage flags
 ZINT_DEBUG:BOOL=OFF    # Set debug compile flags
 ZINT_NOOPT:BOOL=OFF    # Set no optimize compile flags
 ZINT_SANITIZE:BOOL=OFF # Set sanitize compile/link flags
+ZINT_SHARED:BOOL=ON    # Build shared library
 ZINT_STATIC:BOOL=OFF   # Build static library
 ZINT_TEST:BOOL=OFF     # Set test compile flag
 ZINT_USE_PNG:BOOL=ON   # Build with PNG support

@@ -8,21 +8,21 @@ project(zint-qt)
 set(CMAKE_AUTORCC ON)
 
 set(${PROJECT_NAME}_SRCS barcodeitem.cpp main.cpp mainwindow.cpp
-                            cliwindow.cpp datawindow.cpp sequencewindow.cpp exportwindow.cpp)
+                            cliwindow.cpp datawindow.cpp scalewindow.cpp sequencewindow.cpp exportwindow.cpp)
 
 if(USE_QT6)
-    qt6_wrap_cpp(zint-qt_SRCS mainwindow.h cliwindow.h datawindow.h sequencewindow.h exportwindow.h)
-    qt6_wrap_ui(zint-qt_SRCS mainWindow.ui extCLI.ui extData.ui extSequence.ui extExport.ui)
+    qt6_wrap_cpp(zint-qt_SRCS mainwindow.h cliwindow.h datawindow.h scalewindow.h sequencewindow.h exportwindow.h)
+    qt6_wrap_ui(zint-qt_SRCS mainWindow.ui extCLI.ui extData.ui extScale.ui extSequence.ui extExport.ui)
 else()
-    qt5_wrap_cpp(zint-qt_SRCS mainwindow.h cliwindow.h datawindow.h sequencewindow.h exportwindow.h)
-    qt5_wrap_ui(zint-qt_SRCS mainWindow.ui extCLI.ui extData.ui extSequence.ui extExport.ui)
+    qt5_wrap_cpp(zint-qt_SRCS mainwindow.h cliwindow.h datawindow.h scalewindow.h sequencewindow.h exportwindow.h)
+    qt5_wrap_ui(zint-qt_SRCS mainWindow.ui extCLI.ui extData.ui extScale.ui extSequence.ui extExport.ui)
 endif()
 
-#               grpAztec.ui  grpC39.ui      grpCodablockF.ui  grpDotCode.ui   grpMicroPDF.ui  grpRMQR.ui    grpVIN.ui
-#               grpC11.ui    grpC49.ui      grpCodeOne.ui     grpGrid.ui      grpMQR.ui       grpUltra.ui
-#               grpC128.ui   grpC93.ui      grpDAFT.ui        grpHX.ui        grpMSICheck.ui  grpUPCA.ui
-#               grpC16k.ui   grpChannel.ui  grpDBExtend.ui    grpITF14.ui     grpPDF417.ui    grpUPCEAN.ui
-#               grpC25.ui    grpCodabar.ui  grpDM.ui          grpMaxicode.ui  grpQR.ui        grpUPNQR.ui
+#           grpAztec.ui  grpC39.ui      grpCodablockF.ui  grpDotCode.ui  grpMailmark2D.ui  grpPDF417.ui  grpUPCA.ui
+#           grpC11.ui    grpC49.ui      grpCodeOne.ui     grpDPD.ui      grpMaxicode.ui    grpPZN.ui     grpUPCEAN.ui
+#           grpC128.ui   grpC93.ui      grpDAFT.ui        grpGrid.ui     grpMicroPDF.ui    grpQR.ui      grpUPNQR.ui
+#           grpC16k.ui   grpChannel.ui  grpDBExtend.ui    grpHX.ui       grpMQR.ui         grpRMQR.ui    grpVIN.ui
+#           grpC25.ui    grpCodabar.ui  grpDM.ui          grpITF14.ui    grpMSICheck.ui    grpUltra.ui
 
 if(APPLE)
     # https://doc.qt.io/qt-5/appicon.html
@@ -46,9 +46,14 @@ if(WIN32)
     target_sources(${PROJECT_NAME} PRIVATE res/qtZint.rc)
 endif()
 
-target_include_directories(${PROJECT_NAME} PUBLIC "${CMAKE_SOURCE_DIR}/backend" "${CMAKE_SOURCE_DIR}/backend_qt")
+target_include_directories(${PROJECT_NAME} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../backend" "${CMAKE_CURRENT_SOURCE_DIR}/../backend_qt")
 
-target_link_libraries(${PROJECT_NAME} zint QZint
+if(ZINT_SHARED)
+    target_link_libraries(${PROJECT_NAME} zint)
+else()
+    target_link_libraries(${PROJECT_NAME} zint-static)
+endif()
+target_link_libraries(${PROJECT_NAME} QZint
                         Qt${QT_VERSION_MAJOR}::UiTools Qt${QT_VERSION_MAJOR}::Gui Qt${QT_VERSION_MAJOR}::Svg
                         Qt${QT_VERSION_MAJOR}::Core)
 

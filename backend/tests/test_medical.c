@@ -1,6 +1,6 @@
 /*
     libzint - the open source barcode library
-    Copyright (C) 2020-2022 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2020-2023 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -27,10 +27,12 @@
     OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
     SUCH DAMAGE.
  */
+/* SPDX-License-Identifier: BSD-3-Clause */
 
 #include "testcommon.h"
 
-static void test_large(int index, int debug) {
+static void test_large(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int symbology;
@@ -41,12 +43,12 @@ static void test_large(int index, int debug) {
         int expected_rows;
         int expected_width;
     };
-    // s/\/\*[ 0-9]*\*\//\=printf("\/*%3d*\/", line(".") - line("'<"))
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
     struct item data[] = {
-        /*  0*/ { BARCODE_CODABAR, -1, "A1234567890123456789012345678901234567890123456789012345678B", 60, 0, 1, 602 },
-        /*  1*/ { BARCODE_CODABAR, -1, "A12345678901234567890123456789012345678901234567890123456789B", 61, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*  2*/ { BARCODE_CODABAR, 1, "A1234567890123456789012345678901234567890123456789012345678B", 60, 0, 1, 612 },
-        /*  3*/ { BARCODE_CODABAR, 1, "A12345678901234567890123456789012345678901234567890123456789B", 61, ZINT_ERROR_TOO_LONG, -1, -1 },
+        /*  0*/ { BARCODE_CODABAR, -1, "A+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++B", 103, 0, 1, 1133 },
+        /*  1*/ { BARCODE_CODABAR, -1, "A++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++B", 104, ZINT_ERROR_TOO_LONG, -1, -1 },
+        /*  2*/ { BARCODE_CODABAR, 1, "A+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++B", 103, 0, 1, 1143 },
+        /*  3*/ { BARCODE_CODABAR, 1, "A++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++B", 104, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*  4*/ { BARCODE_PHARMA, -1, "131070", 6, 0, 1, 78 },
         /*  5*/ { BARCODE_PHARMA, -1, "1", 7, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*  6*/ { BARCODE_PHARMA_TWO, -1, "64570080", 8, 0, 2, 31 },
@@ -56,15 +58,15 @@ static void test_large(int index, int debug) {
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
-    char data_buf[64];
+    char data_buf[128];
 
-    testStart("test_large");
+    testStartSymbol("test_large", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -88,7 +90,8 @@ static void test_large(int index, int debug) {
     testFinish();
 }
 
-static void test_hrt(int index, int debug) {
+static void test_hrt(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int symbology;
@@ -97,28 +100,28 @@ static void test_hrt(int index, int debug) {
 
         char *expected;
     };
-    // s/\/\*[ 0-9]*\*\//\=printf("\/*%3d*\/", line(".") - line("'<"))
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
     struct item data[] = {
         /*  0*/ { BARCODE_CODABAR, -1, "A1234B", "A1234B" },
-        /*  1*/ { BARCODE_CODABAR, -1, "a1234c", "A1234C" }, // Converts to upper
-        /*  2*/ { BARCODE_CODABAR, 1, "A1234B", "A1234B" }, // Check not included
-        /*  3*/ { BARCODE_CODABAR, 2, "A1234B", "A12345B" }, // Check included
-        /*  4*/ { BARCODE_CODABAR, 1, "A123456A", "A123456A" }, // Check not included
-        /*  5*/ { BARCODE_CODABAR, 2, "A123456A", "A123456$A" }, // Check included
-        /*  6*/ { BARCODE_PHARMA, -1, "123456", "" }, // None
-        /*  7*/ { BARCODE_PHARMA_TWO, -1, "123456", "" }, // None
+        /*  1*/ { BARCODE_CODABAR, -1, "a1234c", "A1234C" }, /* Converts to upper */
+        /*  2*/ { BARCODE_CODABAR, 1, "A1234B", "A1234B" }, /* Check not included */
+        /*  3*/ { BARCODE_CODABAR, 2, "A1234B", "A12345B" }, /* Check included */
+        /*  4*/ { BARCODE_CODABAR, 1, "A123456A", "A123456A" }, /* Check not included */
+        /*  5*/ { BARCODE_CODABAR, 2, "A123456A", "A123456$A" }, /* Check included */
+        /*  6*/ { BARCODE_PHARMA, -1, "123456", "" }, /* None */
+        /*  7*/ { BARCODE_PHARMA_TWO, -1, "123456", "" }, /* None */
         /*  8*/ { BARCODE_CODE32, -1, "123456", "A001234564" },
         /*  9*/ { BARCODE_CODE32, -1, "12345678", "A123456788" },
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
-    testStart("test_hrt");
+    testStartSymbol("test_hrt", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -136,7 +139,8 @@ static void test_hrt(int index, int debug) {
     testFinish();
 }
 
-static void test_input(int index, int debug) {
+static void test_input(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int symbology;
@@ -145,45 +149,52 @@ static void test_input(int index, int debug) {
         int expected_rows;
         int expected_width;
         const char *expected_errtxt;
+        int bwipp_cmp;
+        const char *comment;
     };
-    // s/\/\*[ 0-9]*\*\//\=printf("\/*%3d*\/", line(".") - line("'<"))
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
     struct item data[] = {
-        /*  0*/ { BARCODE_CODABAR, "A1234B", 0, 1, 62, "" },
-        /*  1*/ { BARCODE_CODABAR, "1234B", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 358: Does not begin with \"A\", \"B\", \"C\" or \"D\"" },
-        /*  2*/ { BARCODE_CODABAR, "A1234", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 359: Does not end with \"A\", \"B\", \"C\" or \"D\"" },
-        /*  3*/ { BARCODE_CODABAR, "A1234E", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 359: Does not end with \"A\", \"B\", \"C\" or \"D\"" },
-        /*  4*/ { BARCODE_CODABAR, "C123.D", 0, 1, 63, "" },
-        /*  5*/ { BARCODE_CODABAR, "C123,D", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 357: Invalid character in data (\"0123456789-$:/.+ABCD\" only)" },
-        /*  6*/ { BARCODE_CODABAR, "D:C", 0, 1, 33, "" },
-        /*  7*/ { BARCODE_CODABAR, "DCC", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 363: Cannot contain \"A\", \"B\", \"C\" or \"D\"" },
-        /*  8*/ { BARCODE_CODABAR, "AB", ZINT_ERROR_TOO_LONG, -1, -1, "Error 362: Input too short (3 character minimum)" },
-        /*  9*/ { BARCODE_PHARMA, "131070", 0, 1, 78, "" },
-        /* 10*/ { BARCODE_PHARMA, "131071", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 352: Data out of range (3 to 131070)" },
-        /* 11*/ { BARCODE_PHARMA, "3", 0, 1, 4, "" },
-        /* 12*/ { BARCODE_PHARMA, "2", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 352: Data out of range (3 to 131070)" },
-        /* 13*/ { BARCODE_PHARMA, "1", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 352: Data out of range (3 to 131070)" },
-        /* 14*/ { BARCODE_PHARMA, "12A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 351: Invalid character in data (digits only)" },
-        /* 15*/ { BARCODE_PHARMA_TWO, "64570080", 0, 2, 31, "" },
-        /* 16*/ { BARCODE_PHARMA_TWO, "64570081", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 353: Data out of range (4 to 64570080)" },
-        /* 17*/ { BARCODE_PHARMA_TWO, "4", 0, 2, 3, "" },
-        /* 18*/ { BARCODE_PHARMA_TWO, "3", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 353: Data out of range (4 to 64570080)" },
-        /* 19*/ { BARCODE_PHARMA_TWO, "2", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 353: Data out of range (4 to 64570080)" },
-        /* 20*/ { BARCODE_PHARMA_TWO, "1", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 353: Data out of range (4 to 64570080)" },
-        /* 21*/ { BARCODE_PHARMA_TWO, "123A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 355: Invalid character in data (digits only)" },
-        /* 22*/ { BARCODE_CODE32, "12345678", 0, 1, 103, "" },
-        /* 23*/ { BARCODE_CODE32, "9", 0, 1, 103, "" },
-        /* 24*/ { BARCODE_CODE32, "0", 0, 1, 103, "" },
-        /* 25*/ { BARCODE_CODE32, "A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 361: Invalid character in data (digits only)" },
+        /*  0*/ { BARCODE_CODABAR, "A1234B", 0, 1, 62, "", 1, "" },
+        /*  1*/ { BARCODE_CODABAR, "1234B", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 358: Does not begin with \"A\", \"B\", \"C\" or \"D\"", 1, "" },
+        /*  2*/ { BARCODE_CODABAR, "A1234", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 359: Does not end with \"A\", \"B\", \"C\" or \"D\"", 1, "" },
+        /*  3*/ { BARCODE_CODABAR, "A1234E", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 359: Does not end with \"A\", \"B\", \"C\" or \"D\"", 1, "" },
+        /*  4*/ { BARCODE_CODABAR, "C123.D", 0, 1, 63, "", 1, "" },
+        /*  5*/ { BARCODE_CODABAR, "C123,D", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 357: Invalid character in data (\"0123456789-$:/.+ABCD\" only)", 1, "" },
+        /*  6*/ { BARCODE_CODABAR, "D:C", 0, 1, 33, "", 1, "" },
+        /*  7*/ { BARCODE_CODABAR, "DCC", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 363: Cannot contain \"A\", \"B\", \"C\" or \"D\"", 1, "" },
+        /*  8*/ { BARCODE_CODABAR, "AB", ZINT_ERROR_TOO_LONG, -1, -1, "Error 362: Input too short (3 character minimum)", 1, "" },
+        /*  9*/ { BARCODE_PHARMA, "131070", 0, 1, 78, "", 1, "" },
+        /* 10*/ { BARCODE_PHARMA, "131071", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 352: Data out of range (3 to 131070)", 1, "" },
+        /* 11*/ { BARCODE_PHARMA, "3", 0, 1, 4, "", 1, "" },
+        /* 12*/ { BARCODE_PHARMA, "2", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 352: Data out of range (3 to 131070)", 1, "" },
+        /* 13*/ { BARCODE_PHARMA, "1", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 352: Data out of range (3 to 131070)", 1, "" },
+        /* 14*/ { BARCODE_PHARMA, "12A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 351: Invalid character in data (digits only)", 1, "" },
+        /* 15*/ { BARCODE_PHARMA_TWO, "64570080", 0, 2, 31, "", 1, "" },
+        /* 16*/ { BARCODE_PHARMA_TWO, "64570081", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 353: Data out of range (4 to 64570080)", 1, "" },
+        /* 17*/ { BARCODE_PHARMA_TWO, "4", 0, 2, 3, "", 1, "" },
+        /* 18*/ { BARCODE_PHARMA_TWO, "3", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 353: Data out of range (4 to 64570080)", 1, "" },
+        /* 19*/ { BARCODE_PHARMA_TWO, "2", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 353: Data out of range (4 to 64570080)", 1, "" },
+        /* 20*/ { BARCODE_PHARMA_TWO, "1", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 353: Data out of range (4 to 64570080)", 1, "" },
+        /* 21*/ { BARCODE_PHARMA_TWO, "123A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 355: Invalid character in data (digits only)", 1, "" },
+        /* 22*/ { BARCODE_CODE32, "12345678", 0, 1, 103, "", 1, "" },
+        /* 23*/ { BARCODE_CODE32, "9", 0, 1, 103, "", 0, "BWIPP requires length 8 or 9" },
+        /* 24*/ { BARCODE_CODE32, "0", 0, 1, 103, "", 0, "BWIPP requires length 8 or 9" },
+        /* 25*/ { BARCODE_CODE32, "A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 361: Invalid character in data (digits only)", 1, "" },
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
-    testStart("test_input");
+    char cmp_buf[8192];
+    char cmp_msg[1024];
+
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
+
+    testStartSymbol("test_input", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -192,12 +203,27 @@ static void test_input(int index, int debug) {
 
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
+        assert_zero(strcmp(symbol->errtxt, data[i].expected_errtxt), "i:%d symbol->errtxt %s != %s\n", i, symbol->errtxt, data[i].expected_errtxt);
 
         if (ret < ZINT_ERROR) {
             assert_equal(symbol->rows, data[i].expected_rows, "i:%d symbol->rows %d != %d\n", i, symbol->rows, data[i].expected_rows);
             assert_equal(symbol->width, data[i].expected_width, "i:%d symbol->width %d != %d\n", i, symbol->width, data[i].expected_width);
+
+            if (do_bwipp && testUtilCanBwipp(i, symbol, -1, -1, -1, debug)) {
+                if (!data[i].bwipp_cmp) {
+                    if (debug & ZINT_DEBUG_TEST_PRINT) printf("i:%d %s not BWIPP compatible (%s)\n", i, testUtilBarcodeName(symbol->symbology), data[i].comment);
+                } else {
+                    char modules_dump[4096];
+                    assert_notequal(testUtilModulesDump(symbol, modules_dump, sizeof(modules_dump)), -1, "i:%d testUtilModulesDump == -1\n", i);
+                    ret = testUtilBwipp(i, symbol, -1, -1, -1, data[i].data, length, NULL, cmp_buf, sizeof(cmp_buf), NULL);
+                    assert_zero(ret, "i:%d %s testUtilBwipp ret %d != 0\n", i, testUtilBarcodeName(symbol->symbology), ret);
+
+                    ret = testUtilBwippCmp(symbol, cmp_msg, cmp_buf, modules_dump);
+                    assert_zero(ret, "i:%d %s testUtilBwippCmp %d != 0 %s\n  actual: %s\nexpected: %s\n",
+                                   i, testUtilBarcodeName(symbol->symbology), ret, cmp_msg, cmp_buf, modules_dump);
+                }
+            }
         }
-        assert_zero(strcmp(symbol->errtxt, data[i].expected_errtxt), "i:%d symbol->errtxt %s != %s\n", i, symbol->errtxt, data[i].expected_errtxt);
 
         ZBarcode_Delete(symbol);
     }
@@ -205,7 +231,8 @@ static void test_input(int index, int debug) {
     testFinish();
 }
 
-static void test_encode(int index, int generate, int debug) {
+static void test_encode(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int symbology;
@@ -254,20 +281,20 @@ static void test_encode(int index, int generate, int debug) {
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char escaped[1024];
     char cmp_buf[8192];
     char cmp_msg[1024];
 
-    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); // Only do BWIPP test if asked, too slow otherwise
-    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); // Only do ZXing-C++ test if asked, too slow otherwise
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
 
-    testStart("test_encode");
+    testStartSymbol("test_encode", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -277,7 +304,7 @@ static void test_encode(int index, int generate, int debug) {
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
-        if (generate) {
+        if (p_ctx->generate) {
             printf("        /*%3d*/ { %s, %d, \"%s\", %s, %d, %d, \"%s\",\n",
                     i, testUtilBarcodeName(data[i].symbology), data[i].option_2, testUtilEscape(data[i].data, length, escaped, sizeof(escaped)),
                     testUtilErrorName(data[i].ret), symbol->rows, symbol->width, data[i].comment);
@@ -323,11 +350,11 @@ static void test_encode(int index, int generate, int debug) {
 
 int main(int argc, char *argv[]) {
 
-    testFunction funcs[] = { /* name, func, has_index, has_generate, has_debug */
-        { "test_large", test_large, 1, 0, 1 },
-        { "test_hrt", test_hrt, 1, 0, 1 },
-        { "test_input", test_input, 1, 0, 1 },
-        { "test_encode", test_encode, 1, 1, 1 },
+    testFunction funcs[] = { /* name, func */
+        { "test_large", test_large },
+        { "test_hrt", test_hrt },
+        { "test_input", test_input },
+        { "test_encode", test_encode },
     };
 
     testRun(argc, argv, funcs, ARRAY_SIZE(funcs));

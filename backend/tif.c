@@ -1,7 +1,7 @@
 /* tif.c - Aldus Tagged Image File Format support */
 /*
     libzint - the open source barcode library
-    Copyright (C) 2016-2022 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2016-2023 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -32,14 +32,16 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <math.h>
 #include <stdio.h>
-#include "common.h"
-#include "tif.h"
-#include "tif_lzw.h"
 #ifdef _MSC_VER
 #include <io.h>
 #include <fcntl.h>
 #endif
+#include "common.h"
+#include "output.h"
+#include "tif.h"
+#include "tif_lzw.h"
 
 /* PhotometricInterpretation */
 #define TIF_PMI_WHITEISZERO     0
@@ -58,20 +60,16 @@ static void to_color_map(const unsigned char rgb[4], tiff_color_t *color_map_ent
     color_map_entry->blue = (rgb[2] << 8) | rgb[2];
 }
 
-static void to_cmyk(const unsigned char rgb[3], const unsigned char alpha, unsigned char *cmyk) {
-    unsigned char max = rgb[0];
-    if (rgb[1] > max) {
-        max = rgb[1];
-    }
-    if (rgb[2] > max) {
-        max = rgb[2];
-    }
-    cmyk[0] = max - rgb[0];
-    cmyk[1] = max - rgb[1];
-    cmyk[2] = max - rgb[2];
-    cmyk[3] = 0xff - max;
-    cmyk[4] = alpha;
+static void to_cmyk(const char *colour, unsigned char *cmyk) {
+    int cyan, magenta, yellow, black;
+    unsigned char alpha;
 
+    (void) out_colour_get_cmyk(colour, &cyan, &magenta, &yellow, &black, &alpha);
+    cmyk[0] = (unsigned char) roundf(cyan * 0xFF / 100.0f);
+    cmyk[1] = (unsigned char) roundf(magenta * 0xFF / 100.0f);
+    cmyk[2] = (unsigned char) roundf(yellow * 0xFF / 100.0f);
+    cmyk[3] = (unsigned char) roundf(black * 0xFF / 100.0f);
+    cmyk[4] = alpha;
 }
 
 static int is_big_endian(void) {
@@ -79,7 +77,7 @@ static int is_big_endian(void) {
 }
 
 /* TIFF Revision 6.0 https://www.adobe.io/content/dam/udp/en/open/standards/tiff/TIFF6.pdf */
-INTERNAL int tif_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf) {
+INTERNAL int tif_pixel_plot(struct zint_symbol *symbol, const unsigned char *pixelbuf) {
     unsigned char fg[4], bg[4];
     int i;
     int pmi; /* PhotometricInterpretation */
@@ -100,7 +98,7 @@ INTERNAL int tif_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
     unsigned int bytes_put;
     long total_bytes_put;
     FILE *tif_file;
-    unsigned char *pb;
+    const unsigned char *pb;
     int compression = TIF_NO_COMPRESSION;
     tif_lzw_state lzw_state;
     long file_pos;
@@ -118,47 +116,32 @@ INTERNAL int tif_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
     int ifd_size;
     uint32_t temp32;
 
-    fg[0] = (16 * ctoi(symbol->fgcolour[0])) + ctoi(symbol->fgcolour[1]);
-    fg[1] = (16 * ctoi(symbol->fgcolour[2])) + ctoi(symbol->fgcolour[3]);
-    fg[2] = (16 * ctoi(symbol->fgcolour[4])) + ctoi(symbol->fgcolour[5]);
-    bg[0] = (16 * ctoi(symbol->bgcolour[0])) + ctoi(symbol->bgcolour[1]);
-    bg[1] = (16 * ctoi(symbol->bgcolour[2])) + ctoi(symbol->bgcolour[3]);
-    bg[2] = (16 * ctoi(symbol->bgcolour[4])) + ctoi(symbol->bgcolour[5]);
-
-    if (strlen(symbol->fgcolour) > 6) {
-        fg[3] = (16 * ctoi(symbol->fgcolour[6])) + ctoi(symbol->fgcolour[7]);
-    } else {
-        fg[3] = 0xff;
-    }
-
-    if (strlen(symbol->bgcolour) > 6) {
-        bg[3] = (16 * ctoi(symbol->bgcolour[6])) + ctoi(symbol->bgcolour[7]);
-    } else {
-        bg[3] = 0xff;
-    }
+    (void) out_colour_get_rgb(symbol->fgcolour, &fg[0], &fg[1], &fg[2], &fg[3]);
+    (void) out_colour_get_rgb(symbol->bgcolour, &bg[0], &bg[1], &bg[2], &bg[3]);
 
     if (symbol->symbology == BARCODE_ULTRA) {
         static const int ultra_chars[8] = { 'W', 'C', 'B', 'M', 'R', 'Y', 'G', 'K' };
-        static const unsigned char ultra_rgbs[8][3] = {
-            { 0xff, 0xff, 0xff, }, /* White */
-            {    0, 0xff, 0xff, }, /* Cyan */
-            {    0,    0, 0xff, }, /* Blue */
-            { 0xff,    0, 0xff, }, /* Magenta */
-            { 0xff,    0,    0, }, /* Red */
-            { 0xff, 0xff,    0, }, /* Yellow */
-            {    0, 0xff,    0, }, /* Green */
-            {    0,    0,    0, }, /* Black */
-        };
 
         if (symbol->output_options & CMYK_COLOUR) {
+            static const unsigned char ultra_cmyks[8][4] = {
+                {    0,    0,    0,    0 }, /* White */
+                { 0xFF,    0,    0,    0 }, /* Cyan */
+                { 0xFF, 0xFF,    0,    0 }, /* Blue */
+                {    0, 0xFF,    0,    0 }, /* Magenta */
+                {    0, 0xFF, 0xFF,    0 }, /* Red */
+                {    0,    0, 0xFF,    0 }, /* Yellow */
+                { 0xFF,    0, 0xFF,    0 }, /* Green */
+                {    0,    0,    0, 0xFF }, /* Black */
+            };
             for (i = 0; i < 8; i++) {
                 map[ultra_chars[i]] = i;
-                to_cmyk(ultra_rgbs[i], fg[3], palette[i]);
+                memcpy(palette[i], ultra_cmyks[i], 4);
+                palette[i][4] = fg[3];
             }
             map['0'] = 8;
-            to_cmyk(bg, bg[3], palette[8]);
+            to_cmyk(symbol->bgcolour, palette[8]);
             map['1'] = 9;
-            to_cmyk(fg, fg[3], palette[9]);
+            to_cmyk(symbol->fgcolour, palette[9]);
 
             pmi = TIF_PMI_SEPARATED;
             bits_per_sample = 8;
@@ -170,6 +153,16 @@ INTERNAL int tif_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
             }
             pixels_per_sample = 1;
         } else {
+            static const unsigned char ultra_rgbs[8][3] = {
+                { 0xff, 0xff, 0xff, }, /* White */
+                {    0, 0xff, 0xff, }, /* Cyan */
+                {    0,    0, 0xff, }, /* Blue */
+                { 0xff,    0, 0xff, }, /* Magenta */
+                { 0xff,    0,    0, }, /* Red */
+                { 0xff, 0xff,    0, }, /* Yellow */
+                {    0, 0xff,    0, }, /* Green */
+                {    0,    0,    0, }, /* Black */
+            };
             for (i = 0; i < 8; i++) {
                 map[ultra_chars[i]] = i;
                 memcpy(palette[i], ultra_rgbs[i], 3);
@@ -200,9 +193,9 @@ INTERNAL int tif_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
     } else { /* fg/bg only */
         if (symbol->output_options & CMYK_COLOUR) {
             map['0'] = 0;
-            to_cmyk(bg, bg[3], palette[0]);
+            to_cmyk(symbol->bgcolour, palette[0]);
             map['1'] = 1;
-            to_cmyk(fg, fg[3], palette[1]);
+            to_cmyk(symbol->fgcolour, palette[1]);
 
             pmi = TIF_PMI_SEPARATED;
             bits_per_sample = 8;
@@ -331,7 +324,7 @@ INTERNAL int tif_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
 #endif
         tif_file = stdout;
     } else {
-        if (!(tif_file = fopen(symbol->outfile, "wb+"))) { /* '+' as use fseek/ftell() */
+        if (!(tif_file = out_fopen(symbol->outfile, "wb+"))) { /* '+' as use fseek/ftell() */
             sprintf(symbol->errtxt, "672: Could not open output file (%d: %.30s)", errno, strerror(errno));
             return ZINT_ERROR_FILE_ACCESS;
         }
@@ -397,7 +390,7 @@ INTERNAL int tif_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
                 file_pos = ftell(tif_file);
                 if (!tif_lzw_encode(&lzw_state, tif_file, strip_buf, bytes_put)) { /* Only fails if can't malloc */
                     tif_lzw_cleanup(&lzw_state);
-                    fclose(tif_file); /* Only use LZW if not STDOUT, so ok to close */
+                    (void) fclose(tif_file); /* Only use LZW if not STDOUT, so ok to close */
                     strcpy(symbol->errtxt, "673: Failed to malloc LZW hash table");
                     return ZINT_ERROR_MEMORY;
                 }
@@ -523,7 +516,11 @@ INTERNAL int tif_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
     tags[entries].tag = 0x0128; /* ResolutionUnit */
     tags[entries].type = 3; /* SHORT */
     tags[entries].count = 1;
-    tags[entries++].offset = 2; /* Inches */
+    if (symbol->dpmm) {
+        tags[entries++].offset = 3; /* Centimetres */
+    } else {
+        tags[entries++].offset = 2; /* Inches */
+    }
 
     if (color_map_size) {
         tags[entries].tag = 0x0140; /* ColorMap */
@@ -571,17 +568,17 @@ INTERNAL int tif_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
         total_bytes_put += strip_count * 8;
     }
 
-    /* X Resolution */
-    temp32 = 72;
+    /* XResolution */
+    temp32 = symbol->dpmm ? symbol->dpmm : 72;
     fwrite(&temp32, 4, 1, tif_file);
-    temp32 = 1;
+    temp32 = symbol->dpmm ? 10 /*cm*/ : 1;
     fwrite(&temp32, 4, 1, tif_file);
     total_bytes_put += 8;
 
-    /* Y Resolution */
-    temp32 = 72;
+    /* YResolution */
+    temp32 = symbol->dpmm ? symbol->dpmm : 72;
     fwrite(&temp32, 4, 1, tif_file);
-    temp32 = 1;
+    temp32 = symbol->dpmm ? 10 /*cm*/ : 1;
     fwrite(&temp32, 4, 1, tif_file);
     total_bytes_put += 8;
 
@@ -598,15 +595,29 @@ INTERNAL int tif_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
         total_bytes_put += 6 * color_map_size;
     }
 
+    if (ferror(tif_file)) {
+        sprintf(symbol->errtxt, "679: Incomplete write to output (%d: %.30s)", errno, strerror(errno));
+        if (!output_to_stdout) {
+            (void) fclose(tif_file);
+        }
+        return ZINT_ERROR_FILE_WRITE;
+    }
+
     if (output_to_stdout) {
-        fflush(tif_file);
+        if (fflush(tif_file) != 0) {
+            sprintf(symbol->errtxt, "980: Incomplete flush to output (%d: %.30s)", errno, strerror(errno));
+            return ZINT_ERROR_FILE_WRITE;
+        }
     } else {
         if (ftell(tif_file) != total_bytes_put) {
-            fclose(tif_file);
+            (void) fclose(tif_file);
             strcpy(symbol->errtxt, "674: Failed to write all output");
             return ZINT_ERROR_FILE_WRITE;
         }
-        fclose(tif_file);
+        if (fclose(tif_file) != 0) {
+            sprintf(symbol->errtxt, "981: Failure on closing output file (%d: %.30s)", errno, strerror(errno));
+            return ZINT_ERROR_FILE_WRITE;
+        }
     }
 
     return 0;

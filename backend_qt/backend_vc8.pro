@@ -4,7 +4,7 @@ win32 {
 }
 
 TARGET = QtZint2
-VERSION = 2.11.0.9
+VERSION = 2.13.0
 
 QMAKE_CFLAGS += /TP /wd4018 /wd4244 /wd4305
 QMAKE_CXXFLAGS += /TP /wd4018 /wd4244 /wd4305
@@ -13,7 +13,7 @@ INCLUDEPATH += ../backend d:\\opt\\include
 
 DEFINES +=  _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_WARNINGS ZINT_VERSION=\\\"$$VERSION\\\" include=""
 
-!contains(DEFINES, NO_PNG) {
+!contains(DEFINES, ZINT_NO_PNG) {
     SOURCES += ../backend/png.c
 }
 
@@ -29,7 +29,7 @@ HEADERS +=  ../backend/aztec.h \
             ../backend/dmatrix_trace.h \
             ../backend/eci.h \
             ../backend/emf.h \
-            ../backend/font.h \
+            ../backend/raster_font.h \
             ../backend/gb18030.h \
             ../backend/gb2312.h \
             ../backend/gbk.h \
@@ -43,6 +43,7 @@ HEADERS +=  ../backend/aztec.h \
             ../backend/pcx.h \
             ../backend/pdf417.h \
             ../backend/pdf417_tabs.h \
+            ../backend/pdf417_trace.h \
             ../backend/qr.h \
             ../backend/reedsol.h \
             ../backend/rss.h \

@@ -2,6 +2,7 @@ TEMPLATE = app
 TARGET = qtZint
 QT += uitools
 QT += widgets
+QT += svg
 
 # Input
 HEADERS += barcodeitem.h \
@@ -9,12 +10,14 @@ HEADERS += barcodeitem.h \
          datawindow.h \
          exportwindow.h \
          mainwindow.h \
+         scalewindow.h \
          sequencewindow.h
 
 FORMS += extCLI.ui \
          extData.ui \
          extExport.ui \
          extSequence.ui \
+         extScale.ui \
          grpAztec.ui \
          grpC11.ui \
          grpC128.ui \
@@ -31,14 +34,17 @@ FORMS += extCLI.ui \
          grpDBExtend.ui \
          grpDM.ui \
          grpDotCode.ui \
+         grpDPD.ui \
          grpGrid.ui \
          grpHX.ui \
          grpITF14.ui \
+         grpMailmark2D.ui \
          grpMaxicode.ui \
          grpMicroPDF.ui \
          grpMQR.ui \
          grpMSICheck.ui \
          grpPDF417.ui \
+         grpPZN.ui \
          grpQR.ui \
          grpRMQR.ui \
          grpUltra.ui \
@@ -54,6 +60,7 @@ SOURCES += barcodeitem.cpp \
         exportwindow.cpp \
         main.cpp \
         mainwindow.cpp \
+        scalewindow.cpp \
         sequencewindow.cpp
 
 RESOURCES += resources.qrc

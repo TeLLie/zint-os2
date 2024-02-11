@@ -1,6 +1,6 @@
 /*
     libzint - the open source barcode library
-    Copyright (C) 2019-2022 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2019-2023 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -34,84 +34,101 @@
 /* Due to above: */
 /* SPDX-License-Identifier: LGPL-2.1+ */
 
-#include "testcommon.h"
-
 #ifdef _WIN32
 #include <windows.h>
 #include <direct.h>
+#include <wchar.h>
 #endif
-
-#include "../eci.h"
-#ifndef NO_PNG
+#ifndef ZINT_NO_PNG
 #include <png.h>
 #include <zlib.h>
 #include <setjmp.h>
 #endif
 #include <assert.h>
-#include <errno.h>
-#include <getopt.h>
 #include <limits.h>
 #include <sys/stat.h>
+
+#include "testcommon.h"
+#include "../eci.h"
+#include "../output.h"
 
 static int tests = 0;
 static int failed = 0;
 static int skipped = 0;
 int assertionFailed = 0;
 int assertionNum = 0;
+struct zint_symbol **assertionPPSymbol = NULL;
 const char *assertionFilename = "";
 static const char *testName = NULL;
 static const char *testFunc = NULL;
 
 /* Visual C++ 6 doesn't support variadic args to macros, so make do with functions, which have inferior behaviour,
    e.g. don't exit on failure, `assert_equal()` type-specific */
-#if _MSC_VER == 1200 /* VC6 */
+#if (defined(_MSC_VER) && _MSC_VER == 1200) || defined(ZINT_IS_C89) /* VC6 or C89 */
 #include <stdarg.h>
 void assert_zero(int exp, const char *fmt, ...) {
     assertionNum++;
     if (exp != 0) {
         va_list args; assertionFailed++; va_start(args, fmt); vprintf(fmt, args); va_end(args); testFinish();
+        if (assertionPPSymbol) { ZBarcode_Delete(*assertionPPSymbol); assertionPPSymbol = NULL; };
     }
 }
 void assert_nonzero(int exp, const char *fmt, ...) {
     assertionNum++;
     if (exp == 0) {
         va_list args; assertionFailed++; va_start(args, fmt); vprintf(fmt, args); va_end(args); testFinish();
+        if (assertionPPSymbol) { ZBarcode_Delete(*assertionPPSymbol); assertionPPSymbol = NULL; };
     }
 }
 void assert_null(const void *exp, const char *fmt, ...) {
     assertionNum++;
     if (exp != NULL) {
         va_list args; assertionFailed++; va_start(args, fmt); vprintf(fmt, args); va_end(args); testFinish();
+        if (assertionPPSymbol) { ZBarcode_Delete(*assertionPPSymbol); assertionPPSymbol = NULL; };
     }
 }
 void assert_nonnull(const void *exp, const char *fmt, ...) {
     assertionNum++;
     if (exp == NULL) {
         va_list args; assertionFailed++; va_start(args, fmt); vprintf(fmt, args); va_end(args); testFinish();
+        if (assertionPPSymbol) { ZBarcode_Delete(*assertionPPSymbol); assertionPPSymbol = NULL; };
     }
 }
 void assert_equal(int e1, int e2, const char *fmt, ...) {
     assertionNum++;
     if (e1 != e2) {
         va_list args; assertionFailed++; va_start(args, fmt); vprintf(fmt, args); va_end(args); testFinish();
+        if (assertionPPSymbol) { ZBarcode_Delete(*assertionPPSymbol); assertionPPSymbol = NULL; };
     }
 }
 void assert_equalu64(uint64_t e1, uint64_t e2, const char *fmt, ...) {
     assertionNum++;
     if (e1 != e2) {
         va_list args; assertionFailed++; va_start(args, fmt); vprintf(fmt, args); va_end(args); testFinish();
+        if (assertionPPSymbol) { ZBarcode_Delete(*assertionPPSymbol); assertionPPSymbol = NULL; };
     }
 }
 void assert_notequal(int e1, int e2, const char *fmt, ...) {
     assertionNum++;
     if (e1 == e2) {
         va_list args; assertionFailed++; va_start(args, fmt); vprintf(fmt, args); va_end(args); testFinish();
+        if (assertionPPSymbol) { ZBarcode_Delete(*assertionPPSymbol); assertionPPSymbol = NULL; };
     }
 }
 #endif
 
+#ifdef _WIN32
+#define utf8_to_wide(u, w) \
+    { \
+        int lenW; /* Includes NUL terminator */ \
+        if ((lenW = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, u, -1, NULL, 0)) == 0) return 0; \
+        w = (wchar_t *) z_alloca(sizeof(wchar_t) * lenW); \
+        if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, u, -1, w, lenW) == 0) return 0; \
+    }
+#endif
+
 /* Begin individual test function */
-void testStartReal(const char *func, const char *name) {
+void testStartReal(const char *func, const char *name, struct zint_symbol **pp_symbol) {
     tests++;
     if (func && *func && name && *name && strcmp(func, name) == 0) {
         testName = "";
@@ -121,15 +138,17 @@ void testStartReal(const char *func, const char *name) {
     testFunc = func ? func : "";
     assertionFailed = 0;
     assertionNum = 0;
+    assertionPPSymbol = pp_symbol;
     printf("_____%d: %s: %s...\n", tests, testFunc, testName ? testName : "");
 }
 
 /* End individual test function */
 void testFinish(void) {
+    fputs(assertionFailed ? "*****" : ".....", stdout);
     if (testName && *testName) {
-        printf(".....%d: %s: %s ", tests, testFunc, testName);
+        printf("%d: %s: %s ", tests, testFunc, testName);
     } else {
-        printf(".....%d: %s: ", tests, testFunc);
+        printf("%d: %s: ", tests, testFunc);
     }
     if (assertionFailed) {
         printf("FAILED. (%d assertions failed.)\n", assertionFailed);
@@ -142,10 +161,11 @@ void testFinish(void) {
 /* Skip (and end) individual test function */
 void testSkip(const char *msg) {
     skipped++;
+    fputs(assertionFailed ? "*****" : ".....", stdout);
     if (testName && *testName) {
-        printf(".....%d: %s: %s ", tests, testFunc, testName);
+        printf("%d: %s: %s ", tests, testFunc, testName);
     } else {
-        printf(".....%d: %s: ", tests, testFunc);
+        printf("%d: %s: ", tests, testFunc);
     }
     if (assertionFailed) {
         printf("FAILED. (%d assertions failed.)\n", assertionFailed);
@@ -158,11 +178,11 @@ void testSkip(const char *msg) {
 /* End test program */
 void testReport(void) {
     if (failed && skipped) {
-        printf("Total %d tests, %d skipped, %d fails.\n", tests, skipped, failed);
+        printf("Total %d tests, %d skipped, %d **fails**.\n", tests, skipped, failed);
         exit(-1);
     }
     if (failed) {
-        printf("Total %d tests, %d fails.\n", tests, failed);
+        printf("Total %d tests, %d **fails**.\n", tests, failed);
         exit(-1);
     }
     if (skipped) {
@@ -170,36 +190,92 @@ void testReport(void) {
     } else if (tests) {
         printf("Total %d tests, all passed.\n", tests);
     } else {
-        printf("Total %d tests.\n", tests);
+        fputs("***No tests run.***\n", stdout);
     }
+}
+
+/* Verifies that a string `src` (length <= 9) only uses digits. On success returns value in `p_val` */
+static int validate_int(const char src[], int *p_val) {
+    int val = 0;
+    int i;
+    const int length = (int) strlen(src);
+
+    if (length > 9) { /* Prevent overflow */
+        return 0;
+    }
+    for (i = 0; i < length; i++) {
+        if (src[i] < '0' || src[i] > '9') {
+            return 0;
+        }
+        val *= 10;
+        val += src[i] - '0';
+    }
+    *p_val = val;
+
+    return 1;
+}
+
+/* Verifies that a string `src` only uses digits or a hyphen-separated range of digits.
+   On success returns value in `p_val` and if present a range end value in `p_val_end` */
+static int validate_int_range(const char src[], int *p_val, int *p_val_end) {
+    int val = 0;
+    int val_end = -1;
+    const int length = (int) strlen(src);
+    int i, j;
+
+    for (i = 0; i < length; i++) {
+        if (src[i] < '0' || src[i] > '9') {
+            if (src[i] != '-') {
+                return 0;
+            }
+            val_end = 0;
+            for (j = i + 1; j < length; j++) {
+                if (src[j] < '0' || src[j] > '9') {
+                    return 0;
+                }
+                if (j - (i + 1) >= 9) { /* Prevent overflow */
+                    return 0;
+                }
+                val_end *= 10;
+                val_end += src[j] - '0';
+            }
+            break;
+        }
+        if (i >= 9) { /* Prevent overflow */
+            return 0;
+        }
+        val *= 10;
+        val += src[i] - '0';
+    }
+    *p_val = val;
+    *p_val_end = val_end;
+
+    return 1;
 }
 
 /* Begin test program, parse args */
 void testRun(int argc, char *argv[], testFunction funcs[], int funcs_size) {
-    int i, opt, ran;
-    long long_opt;
-    char *optarg_endptr = NULL;
-    int debug = 0;
+    int i, ran;
+    char *optarg;
     char *func = NULL;
     char func_buf[256 + 5];
-    int index = -1;
-    int generate = 0;
+    int exclude_idx = 0;
+    testCtx ctx;
 
-    typedef void (*func_void)(void);
-    typedef void (*func_debug)(int debug);
-    typedef void (*func_index)(int index);
-    typedef void (*func_index_debug)(int index, int debug);
-    typedef void (*func_generate)(int generate);
-    typedef void (*func_generate_debug)(int generate, int debug);
-    typedef void (*func_index_generate)(int index, int generate);
-    typedef void (*func_index_generate_debug)(int index, int generate, int debug);
+    ctx.index = ctx.index_end = -1;
+    for (i = 0; i < ZINT_TEST_CTX_EXC_MAX; i++) {
+        ctx.exclude[i] = ctx.exclude_end[i] = -1;
+    }
+    ctx.generate = ctx.debug = 0;
 
     if (argc) {
-        char *filename = strrchr(argv[0], '/');
+        const char *filename;
 #ifdef _WIN32
-        if (filename == NULL) {
-            filename = strrchr(argv[0], '\\');
+        if ((filename = strrchr(argv[0], '\\')) == NULL) {
+            filename = strrchr(argv[0], '/');
         }
+#else
+        filename = strrchr(argv[0], '/');
 #endif
         if (filename) {
             assertionFilename = filename + 1;
@@ -208,19 +284,22 @@ void testRun(int argc, char *argv[], testFunction funcs[], int funcs_size) {
         }
     }
 
-    while ((opt = getopt(argc, argv, "d:f:gi:")) != -1) {
-        switch (opt) {
-            case 'd':
-                errno = 0;
-                long_opt = strtol(optarg, &optarg_endptr, 10);
-                if (errno || optarg_endptr == optarg || long_opt < 0 || long_opt > INT_MAX) {
-                    fprintf(stderr, "testRun: -d debug value invalid\n");
-                    debug = 0;
-                } else {
-                    debug = long_opt;
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-d") == 0) {
+            if (i + 1 == argc) {
+                fprintf(stderr, "testRun: -d debug value missing, ignored\n");
+            } else {
+                optarg = argv[++i];
+                if (!validate_int(optarg, &ctx.debug)) {
+                    fprintf(stderr, "testRun: -d debug value invalid, ignored\n");
+                    ctx.debug = 0;
                 }
-                break;
-            case 'f':
+            }
+        } else if (strcmp(argv[i], "-f") == 0) {
+            if (i + 1 == argc) {
+                fprintf(stderr, "testRun: -f func value missing, ignored\n");
+            } else {
+                optarg = argv[++i];
                 if (strlen(optarg) < 256) {
                     if (strncmp(optarg, "test_", 5) == 0) {
                         strcpy(func_buf, optarg);
@@ -230,23 +309,38 @@ void testRun(int argc, char *argv[], testFunction funcs[], int funcs_size) {
                     }
                     func = func_buf;
                 } else {
-                    fprintf(stderr, "testRun: -f func value too long\n");
+                    fprintf(stderr, "testRun: -f func value too long, ignored\n");
                     func = NULL;
                 }
-                break;
-            case 'g':
-                generate = 1;
-                break;
-            case 'i':
-                errno = 0;
-                long_opt = strtol(optarg, &optarg_endptr, 10);
-                if (errno || optarg_endptr == optarg || long_opt < 0 || long_opt > INT_MAX) {
-                    fprintf(stderr, "testRun: -i index value invalid\n");
-                    index = -1;
-                } else {
-                    index = long_opt;
+            }
+        } else if (strcmp(argv[i], "-g") == 0) {
+            ctx.generate = 1;
+        } else if (strcmp(argv[i], "-i") == 0) {
+            if (i + 1 == argc) {
+                fprintf(stderr, "testRun: -i index value missing, ignored\n");
+            } else {
+                optarg = argv[++i];
+                if (!validate_int_range(optarg, &ctx.index, &ctx.index_end)) {
+                    fprintf(stderr, "testRun: -i index value invalid, ignored\n");
+                    ctx.index = ctx.index_end = -1;
                 }
-                break;
+            }
+        } else if (strcmp(argv[i], "-x") == 0) {
+            if (i + 1 == argc) {
+                fprintf(stderr, "testRun: -x exclude value missing, ignored\n");
+            } else {
+                optarg = argv[++i];
+                if (exclude_idx + 1 == ZINT_TEST_CTX_EXC_MAX) {
+                    fprintf(stderr, "testRun: too many -x exclude values, ignored\n");
+                } else if (!validate_int_range(optarg, &ctx.exclude[exclude_idx], &ctx.exclude_end[exclude_idx])) {
+                    fprintf(stderr, "testRun: -x exclude value invalid, ignored\n");
+                    ctx.exclude[exclude_idx] = ctx.exclude_end[exclude_idx] = -1;
+                } else {
+                    exclude_idx++;
+                }
+            }
+        } else {
+            fprintf(stderr, "testRun: unknown arg '%s', ignored\n", argv[i]);
         }
     }
 
@@ -255,35 +349,7 @@ void testRun(int argc, char *argv[], testFunction funcs[], int funcs_size) {
         if (func && strcmp(func, funcs[i].name) != 0) {
             continue;
         }
-        if (funcs[i].has_index && funcs[i].has_generate && funcs[i].has_debug) {
-            (*(func_index_generate_debug)funcs[i].func)(index, generate, debug);
-        } else if (funcs[i].has_index && funcs[i].has_generate) {
-            if (debug) fprintf(stderr, "testRun %s: -d ignored\n", funcs[i].name);
-            (*(func_index_generate)funcs[i].func)(index, generate);
-        } else if (funcs[i].has_index && funcs[i].has_debug) {
-            if (generate) fprintf(stderr, "testRun %s: -g ignored\n", funcs[i].name);
-            (*(func_index_debug)funcs[i].func)(index, debug);
-        } else if (funcs[i].has_index) {
-            if (generate) fprintf(stderr, "testRun %s: -g ignored\n", funcs[i].name);
-            if (debug) fprintf(stderr, "testRun %s: -d ignored\n", funcs[i].name);
-            (*(func_index)funcs[i].func)(index);
-        } else if (funcs[i].has_generate && funcs[i].has_debug) {
-            if (index != -1) fprintf(stderr, "testRun %s: -i index ignored\n", funcs[i].name);
-            (*(func_generate_debug)funcs[i].func)(generate, debug);
-        } else if (funcs[i].has_generate) {
-            if (index != -1) fprintf(stderr, "testRun %s: -i index ignored\n", funcs[i].name);
-            if (debug) fprintf(stderr, "testRun %s: -d ignored\n", funcs[i].name);
-            (*(func_generate)funcs[i].func)(generate);
-        } else if (funcs[i].has_debug) {
-            if (index != -1) fprintf(stderr, "testRun %s: -i index ignored\n", funcs[i].name);
-            if (generate) fprintf(stderr, "testRun %s -g ignored\n", funcs[i].name);
-            (*(func_debug)funcs[i].func)(debug);
-        } else {
-            if (index != -1) fprintf(stderr, "testRun %s: -i index ignored\n", funcs[i].name);
-            if (generate) fprintf(stderr, "testRun %s -g ignored\n", funcs[i].name);
-            if (debug) fprintf(stderr, "testRun %s: -d ignored\n", funcs[i].name);
-            (*(func_void)funcs[i].func)();
-        }
+        (*funcs[i].func)(&ctx);
         ran++;
     }
 
@@ -292,9 +358,36 @@ void testRun(int argc, char *argv[], testFunction funcs[], int funcs_size) {
     }
 }
 
+/* Call in a dataset loop to determine if a datum should be tested according to -i & -x args */
+int testContinue(const testCtx *const p_ctx, const int i) {
+    int j;
+    if (p_ctx->index != -1) {
+        if (p_ctx->index_end != -1) {
+            if (i < p_ctx->index || (p_ctx->index_end && i > p_ctx->index_end)) {
+                return 1;
+            }
+        } else if (i != p_ctx->index) {
+            return 1;
+        }
+    }
+    for (j = 0; j < ZINT_TEST_CTX_EXC_MAX && p_ctx->exclude[j] != -1; j++) {
+        if (p_ctx->exclude_end[j] != -1) {
+            if (i >= p_ctx->exclude[j] && (p_ctx->exclude_end[j] == 0 || i <= p_ctx->exclude_end[j])) {
+                return 1;
+            }
+        } else if (i == p_ctx->exclude[j]) {
+            return 1;
+        }
+    }
+    if ((p_ctx->debug & ZINT_DEBUG_TEST_PRINT) && !(p_ctx->debug & ZINT_DEBUG_TEST_LESS_NOISY)) {
+        printf("i:%d\n", i);
+    }
+    return 0;
+}
+
 /* Helper to set common symbol fields */
 int testUtilSetSymbol(struct zint_symbol *symbol, int symbology, int input_mode, int eci, int option_1, int option_2,
-            int option_3, int output_options, char *data, int length, int debug) {
+            int option_3, int output_options, const char *data, int length, int debug) {
     symbol->symbology = symbology;
     if (input_mode != -1) {
         symbol->input_mode = input_mode;
@@ -342,7 +435,7 @@ const char *testUtilErrorName(int error_number) {
     };
     static const struct item data[] = {
         { "0", 0, 0 },
-        { "", -1, 1 },
+        { "ZINT_WARN_HRT_TRUNCATED", ZINT_WARN_HRT_TRUNCATED, 1 },
         { "ZINT_WARN_INVALID_OPTION", ZINT_WARN_INVALID_OPTION, 2 },
         { "ZINT_WARN_USES_ECI", ZINT_WARN_USES_ECI, 3 },
         { "ZINT_WARN_NONCOMPLIANT", ZINT_WARN_NONCOMPLIANT, 4 },
@@ -353,6 +446,10 @@ const char *testUtilErrorName(int error_number) {
         { "ZINT_ERROR_ENCODING_PROBLEM", ZINT_ERROR_ENCODING_PROBLEM, 9 },
         { "ZINT_ERROR_FILE_ACCESS", ZINT_ERROR_FILE_ACCESS, 10 },
         { "ZINT_ERROR_MEMORY", ZINT_ERROR_MEMORY, 11 },
+        { "ZINT_ERROR_FILE_WRITE", ZINT_ERROR_FILE_WRITE, 12 },
+        { "ZINT_ERROR_USES_ECI", ZINT_ERROR_USES_ECI, 13 },
+        { "ZINT_ERROR_NONCOMPLIANT", ZINT_ERROR_NONCOMPLIANT, 14 },
+        { "ZINT_ERROR_HRT_TRUNCATED", ZINT_ERROR_HRT_TRUNCATED, 15 },
     };
     static const int data_size = ARRAY_SIZE(data);
 
@@ -383,6 +480,7 @@ const char *testUtilInputModeName(int input_mode) {
         { "GS1NOCHECK_MODE", GS1NOCHECK_MODE, 0x0020 },
         { "HEIGHTPERROW_MODE", HEIGHTPERROW_MODE, 0x0040 },
         { "FAST_MODE", FAST_MODE, 0x0080 },
+        { "EXTRA_ESCAPE_MODE", EXTRA_ESCAPE_MODE, 0x0100 },
     };
     static const int data_size = ARRAY_SIZE(data);
     int set, i;
@@ -424,32 +522,49 @@ const char *testUtilInputModeName(int input_mode) {
 }
 
 /* Pretty name for option 3 */
-const char *testUtilOption3Name(int option_3) {
+const char *testUtilOption3Name(int symbology, int option_3) {
     static char buffer[64];
 
     const char *name = NULL;
     const unsigned int high_byte = option_3 == -1 ? 0 : (option_3 >> 8) & 0xFF;
 
-    switch (option_3 & 0xFF) {
-        case DM_SQUARE:
-            name = "DM_SQUARE";
-            break;
-        case DM_DMRE:
-            name = "DM_DMRE";
-            break;
-        case ZINT_FULL_MULTIBYTE:
-            name = "ZINT_FULL_MULTIBYTE";
-            break;
-        case ULTRA_COMPRESSION:
-            name = "ULTRA_COMPRESSION";
-            break;
-        default:
-            if (option_3 != -1 && (option_3 & 0xFF) != 0) {
-                fprintf(stderr, "testUtilOption3Name: unknown value (%d)\n", option_3);
-                abort();
+    if (symbology == BARCODE_DATAMATRIX || symbology == BARCODE_HIBC_DM) {
+        if ((option_3 & 0x7F) == DM_SQUARE) {
+            if ((option_3 & DM_ISO_144) == DM_ISO_144) {
+                name = "DM_SQUARE | DM_ISO_144";
+            } else {
+                name = "DM_SQUARE";
             }
+        } else if ((option_3 & 0x7F) == DM_DMRE) {
+            if ((option_3 & DM_ISO_144) == DM_ISO_144) {
+                name = "DM_DMRE | DM_ISO_144";
+            } else {
+                name = "DM_DMRE";
+            }
+        } else if ((option_3 & DM_ISO_144) == DM_ISO_144) {
+            name = "DM_ISO_144";
+        } else {
             name = (option_3 & 0xFF) ? "-1" : "0";
-            break;
+        }
+    } else if (symbology == BARCODE_QRCODE || symbology == BARCODE_HIBC_QR || symbology == BARCODE_MICROQR
+                || symbology == BARCODE_RMQR || symbology == BARCODE_GRIDMATRIX || symbology == BARCODE_HANXIN) {
+        if ((option_3 & 0xFF) == ZINT_FULL_MULTIBYTE) {
+            name = "ZINT_FULL_MULTIBYTE";
+        } else {
+            name = (option_3 & 0xFF) ? "-1" : "0";
+        }
+    } else if (symbology == BARCODE_ULTRA) {
+        if ((option_3 & 0xFF) == ULTRA_COMPRESSION) {
+            name = "ULTRA_COMPRESSION";
+        } else {
+            name = (option_3 & 0xFF) ? "-1" : "0";
+        }
+    } else {
+        if (option_3 != -1 && (option_3 & 0xFF) != 0) {
+            fprintf(stderr, "testUtilOption3Name: unknown value (%d)\n", option_3);
+            abort();
+        }
+        name = (option_3 & 0xFF) ? "-1" : "0";
     }
 
     if (high_byte) {
@@ -474,7 +589,7 @@ const char *testUtilOutputOptionsName(int output_options) {
         int val;
     };
     static const struct item data[] = {
-        { "BARCODE_NO_ASCII", BARCODE_NO_ASCII, 1 },
+        { "BARCODE_BIND_TOP", BARCODE_BIND_TOP, 1 },
         { "BARCODE_BIND", BARCODE_BIND, 2 },
         { "BARCODE_BOX", BARCODE_BOX, 4 },
         { "BARCODE_STDOUT", BARCODE_STDOUT, 8 },
@@ -488,6 +603,8 @@ const char *testUtilOutputOptionsName(int output_options) {
         { "BARCODE_QUIET_ZONES", BARCODE_QUIET_ZONES, 2048 },
         { "BARCODE_NO_QUIET_ZONES", BARCODE_NO_QUIET_ZONES, 4096 },
         { "COMPLIANT_HEIGHT", COMPLIANT_HEIGHT, 0x2000 },
+        { "EANUPC_GUARD_WHITESPACE", EANUPC_GUARD_WHITESPACE, 0x4000 },
+        { "EMBED_VECTOR_FONT", EMBED_VECTOR_FONT, 0x8000 },
     };
     static int const data_size = ARRAY_SIZE(data);
     int set = 0;
@@ -514,8 +631,8 @@ const char *testUtilOutputOptionsName(int output_options) {
         }
     }
     if (set != output_options) {
-        fprintf(stderr, "testUtilOutputOptionsName: unknown output option(s) %d (%d)\n",
-                output_options & set, output_options);
+        fprintf(stderr, "testUtilOutputOptionsName: unknown output option(s) %d (%d, 0x%X)\n",
+                output_options & set, output_options, output_options);
         abort();
     }
     return buf;
@@ -1092,6 +1209,7 @@ void testUtilBitmapPrint(const struct zint_symbol *symbol, const char *prefix, c
         for (column = 0; column < symbol->bitmap_width; column += 10) printf("%-3d       ", column);
         putchar('\n');
     }
+    fflush(stdout);
 }
 
 /* Compare a bitmap to a dump */
@@ -1139,6 +1257,35 @@ int testUtilBitmapCmp(const struct zint_symbol *symbol, const char *expected, in
     *row = r;
     *column = c;
     return e != ep || r != symbol->bitmap_height || c != symbol->bitmap_width ? 1 /*fail*/ : 0 /*success*/;
+}
+
+/* Dump vectors to stdout, for debugging */
+void testUtilVectorPrint(const struct zint_symbol *symbol) {
+    struct zint_vector_rect *rect;
+    struct zint_vector_hexagon *hex;
+    struct zint_vector_circle *circ;
+    struct zint_vector_string *str;
+
+    if (symbol->vector == NULL) {
+        fputs("symbol->vector NULL\n", stdout);
+    } else {
+        for (rect = symbol->vector->rectangles; rect; rect = rect->next) {
+            printf("rect(x %.9g, y %.9g, width %.9g, height %.9g, colour %d)\n", rect->x, rect->y, rect->width,
+                    rect->height, rect->colour);
+        }
+        for (hex = symbol->vector->hexagons; hex; hex = hex->next) {
+            printf("hex(x %.9g, y %.9g, diameter %.9g, rotation %d)\n", hex->x, hex->y, hex->diameter, hex->rotation);
+        }
+        for (circ = symbol->vector->circles; circ; circ = circ->next) {
+            printf("circ(x %.9g, y %.9g, diameter %.9g, width %.9g, colour %d)\n", circ->x, circ->y, circ->diameter,
+                    circ->width, circ->colour);
+        }
+        for (str = symbol->vector->strings; str; str = str->next) {
+            printf("str(x %.9g, y %.9g, fsize %.9g, width %.9g, length %d, rotation %d, halign %d, \"%s\")\n", str->x,
+                    str->y, str->fsize, str->width, str->length, str->rotation, str->halign, str->text);
+        }
+    }
+    fflush(stdout);
 }
 
 /* Determine the location of test data relative to where the test is being run */
@@ -1252,9 +1399,19 @@ int testUtilDataPath(char *buffer, int buffer_size, const char *subdir, const ch
     return 1;
 }
 
+/* Open a file (Windows compatibility) */
+FILE *testUtilOpen(const char *filename, const char *mode) {
+#ifdef _WIN32
+    FILE *fp = out_win_fopen(filename, mode);
+#else
+    FILE *fp = fopen(filename, mode);
+#endif
+    return fp;
+}
+
 /* Does file exist? */
 int testUtilExists(const char *filename) {
-    FILE *fp = fopen(filename, "r");
+    FILE *fp = testUtilOpen(filename, "r");
     if (fp == NULL) {
         return 0;
     }
@@ -1262,10 +1419,24 @@ int testUtilExists(const char *filename) {
     return 1;
 }
 
+/* Remove a file (Windows compatibility). Returns 0 if successful, non-zero if not */
+int testUtilRemove(const char *filename) {
+#ifdef _WIN32
+    wchar_t *filenameW;
+    utf8_to_wide(filename, filenameW);
+    return DeleteFileW(filenameW) == 0; /* Non-zero on success */
+#else
+    return remove(filename);
+#endif
+}
+
 /* Does directory exist? (Windows compatibility) */
 int testUtilDirExists(const char *dirname) {
 #ifdef _WIN32
-    DWORD dwAttrib = GetFileAttributes(dirname);
+    DWORD dwAttrib;
+    wchar_t *dirnameW;
+    utf8_to_wide(dirname, dirnameW);
+    dwAttrib = GetFileAttributesW(dirnameW);
     return dwAttrib != (DWORD) -1 && (dwAttrib & FILE_ATTRIBUTE_DIRECTORY);
 #else
     return testUtilExists(dirname);
@@ -1275,7 +1446,9 @@ int testUtilDirExists(const char *dirname) {
 /* Make a directory (Windows compatibility). Returns 0 if successful, non-zero if not */
 int testUtilMkDir(const char *dirname) {
 #ifdef _WIN32
-    return CreateDirectory(dirname, NULL) == 0;
+    wchar_t *dirnameW;
+    utf8_to_wide(dirname, dirnameW);
+    return CreateDirectoryW(dirnameW, NULL) == 0;
 #else
     return mkdir(dirname, S_IRWXU);
 #endif
@@ -1284,25 +1457,69 @@ int testUtilMkDir(const char *dirname) {
 /* Remove a directory (Windows compatibility). Returns 0 if successful, non-zero if not */
 int testUtilRmDir(const char *dirname) {
 #ifdef _WIN32
-    return RemoveDirectory(dirname) == 0;
+    wchar_t *dirnameW;
+    utf8_to_wide(dirname, dirnameW);
+    return RemoveDirectoryW(dirnameW) == 0;
 #else
     return rmdir(dirname);
 #endif
 }
 
-/* Rename a file (Windows compatibility). */
+/* Rename a file (Windows compatibility) */
 int testUtilRename(const char *oldpath, const char *newpath) {
-#ifdef _MSVC
-    int ret = remove(newpath);
+#ifdef _WIN32
+    wchar_t *oldpathW, *newpathW;
+    int ret = testUtilRemove(newpath);
     if (ret != 0) return ret;
-#endif
+    utf8_to_wide(oldpath, oldpathW);
+    utf8_to_wide(newpath, newpathW);
+    return _wrename(oldpathW, newpathW);
+#else
     return rename(oldpath, newpath);
+#endif
+}
+
+/* Create read-only file */
+int testUtilCreateROFile(const char *filename) {
+#ifdef _WIN32
+    wchar_t *filenameW;
+#endif
+    FILE *fp = testUtilOpen(filename, "w+");
+    if (fp == NULL) {
+        return 0;
+    }
+    if (fclose(fp) != 0) {
+        return 0;
+    }
+#ifdef _WIN32
+    utf8_to_wide(filename, filenameW);
+    if (SetFileAttributesW(filenameW, GetFileAttributesW(filenameW) | FILE_ATTRIBUTE_READONLY) == 0) {
+        return 0;
+    }
+#else
+    if (chmod(filename, S_IRUSR | S_IRGRP | S_IROTH) != 0) {
+        return 0;
+    }
+#endif
+    return 1;
+}
+
+/* Remove read-only file (Windows compatibility) */
+int testUtilRmROFile(const char *filename) {
+#ifdef _WIN32
+    wchar_t *filenameW;
+    utf8_to_wide(filename, filenameW);
+    if (SetFileAttributesW(filenameW, GetFileAttributesW(filenameW) & ~FILE_ATTRIBUTE_READONLY) == 0) {
+        return -1;
+    }
+#endif
+    return testUtilRemove(filename);
 }
 
 /* Compare 2 PNG files */
 int testUtilCmpPngs(const char *png1, const char *png2) {
     int ret = -1;
-#ifdef NO_PNG
+#ifdef ZINT_NO_PNG
     (void)png1; (void)png2;
 #else
     FILE *fp1;
@@ -1316,11 +1533,11 @@ int testUtilCmpPngs(const char *png1, const char *png2) {
     size_t rowbytes1, rowbytes2;
     int r;
 
-    fp1 = fopen(png1, "rb");
+    fp1 = testUtilOpen(png1, "rb");
     if (!fp1) {
         return 2;
     }
-    fp2 = fopen(png2, "rb");
+    fp2 = testUtilOpen(png2, "rb");
     if (!fp2) {
         fclose(fp1);
         return 3;
@@ -1506,11 +1723,11 @@ int testUtilCmpTxts(const char *txt1, const char *txt2) {
     char buf2[1024];
     size_t len1 = 0, len2 = 0;
 
-    fp1 = fopen(txt1, "r");
+    fp1 = testUtilOpen(txt1, "r");
     if (!fp1) {
         return 2;
     }
-    fp2 = fopen(txt2, "r");
+    fp2 = testUtilOpen(txt2, "r");
     if (!fp2) {
         fclose(fp1);
         return 3;
@@ -1557,11 +1774,11 @@ int testUtilCmpBins(const char *bin1, const char *bin2) {
     char buf2[1024];
     size_t len1 = 0, len2 = 0;
 
-    fp1 = fopen(bin1, "rb");
+    fp1 = testUtilOpen(bin1, "rb");
     if (!fp1) {
         return 2;
     }
-    fp2 = fopen(bin2, "rb");
+    fp2 = testUtilOpen(bin2, "rb");
     if (!fp2) {
         fclose(fp1);
         return 3;
@@ -1605,11 +1822,11 @@ int testUtilCmpEpss(const char *eps1, const char *eps2) {
     static char first_line[] = "%!PS-Adobe-3.0 EPSF-3.0\n";
     static char second_line_start[] = "%%Creator: Zint ";
 
-    fp1 = fopen(eps1, "r");
+    fp1 = testUtilOpen(eps1, "r");
     if (!fp1) {
         return 2;
     }
-    fp2 = fopen(eps2, "r");
+    fp2 = testUtilOpen(eps2, "r");
     if (!fp2) {
         fclose(fp1);
         return 3;
@@ -1669,12 +1886,19 @@ int testUtilCmpEpss(const char *eps1, const char *eps2) {
 #endif
 
 /* Whether ImageMagick's identify utility available on system */
-int testUtilHaveIdentify(void) {
-    return system("magick -version " DEV_NULL) == 0;
+const char *testUtilHaveIdentify(void) {
+    static const char *progs[2] = { "magick identify", "identify" };
+    if (system("magick -version " DEV_NULL_STDERR) == 0) {
+        return progs[0];
+    }
+    if (system("identify -version " DEV_NULL_STDERR) == 0) {
+        return progs[1];
+    }
+    return NULL;
 }
 
 /* Check raster files */
-int testUtilVerifyIdentify(const char *filename, int debug) {
+int testUtilVerifyIdentify(const char *const prog, const char *filename, int debug) {
     char cmd[512 + 128];
 
     if (strlen(filename) > 512) {
@@ -1684,12 +1908,12 @@ int testUtilVerifyIdentify(const char *filename, int debug) {
     if (debug & ZINT_DEBUG_TEST_PRINT) {
         /* Verbose very noisy though so for quick check just return default output */
         if (debug & ZINT_DEBUG_TEST_LESS_NOISY) {
-            sprintf(cmd, "magick identify %s", filename);
+            sprintf(cmd, "%s %s", prog, filename);
         } else {
-            sprintf(cmd, "magick identify -verbose %s", filename);
+            sprintf(cmd, "%s -verbose %s", prog, filename);
         }
     } else {
-        sprintf(cmd, "magick identify -verbose %s " DEV_NULL, filename);
+        sprintf(cmd, "%s -verbose %s " DEV_NULL, prog, filename);
     }
 
     return system(cmd);
@@ -1741,7 +1965,7 @@ int testUtilVerifyLibreOffice(const char *filename, int debug) {
         return -1;
     }
 
-    fp = fopen(svg, "r");
+    fp = testUtilOpen(svg, "r");
     if (!fp) {
         fprintf(stderr, "testUtilVerifyLibreOffice: failed to open '%s' (%s)\n", svg, cmd);
         return -1;
@@ -1768,7 +1992,7 @@ int testUtilVerifyLibreOffice(const char *filename, int debug) {
     if (strstr(buf, "x=\"-32767\"") != NULL) {
         return -1;
     }
-    remove(svg);
+    testUtilRemove(svg);
 
     return 0;
 }
@@ -1912,15 +2136,15 @@ static const char *testUtilBwippName(int index, const struct zint_symbol *symbol
         { "symbol", BARCODE_FIM, 49, 0, 0, 0, 0, 0, },
         { "code39", BARCODE_LOGMARS, 50, 0, 1, 0, 0, 0, },
         { "pharmacode", BARCODE_PHARMA, 51, 0, 0, 0, 1 /*linear_row_height*/, 0, },
-        { "pzn", BARCODE_PZN, 52, 0, 0, 0, 0, 0, },
+        { "pzn", BARCODE_PZN, 52, 0, 1, 0, 0, 0, },
         { "pharmacode2", BARCODE_PHARMA_TWO, 53, 0, 0, 0, 0, 0, },
-        { "", -1, 54, 0, 0, 0, 0, 0, },
+        { "", BARCODE_CEPNET, 54, 0, 0, 0, 0, 0, },
         { "pdf417", BARCODE_PDF417, 55, 1, 1, 1, 0, 0, },
         { "pdf417compact", BARCODE_PDF417COMP, 56, 1, 1, 1, 0, 0, },
         { "maxicode", BARCODE_MAXICODE, 57, 1, 1, 0, 0, 0, },
         { "qrcode", BARCODE_QRCODE, 58, 1, 1, 1, 0, 0, },
         { "", -1, 59, 0, 0, 0, 0, 0, },
-        { "", BARCODE_CODE128B, 60, 0, 0, 0, 0, 0, },
+        { "", BARCODE_CODE128AB, 60, 0, 0, 0, 0, 0, },
         { "", -1, 61, 0, 0, 0, 0, 0, },
         { "", -1, 62, 0, 0, 0, 0, 0, },
         { "auspost", BARCODE_AUSPOST, 63, 0, 0, 0, 0, 0, },
@@ -1956,7 +2180,7 @@ static const char *testUtilBwippName(int index, const struct zint_symbol *symbol
         { "daft", BARCODE_DAFT, 93, 0, 0, 0, 0, 0, },
         { "", -1, 94, 0, 0, 0, 0, 0, },
         { "", -1, 95, 0, 0, 0, 0, 0, },
-        { "", BARCODE_DPD, 96, 0, 0, 0, 0, 0, },
+        { "code128", BARCODE_DPD, 96, 0, 1, 0, 0, 0, },
         { "microqrcode", BARCODE_MICROQR, 97, 1, 1, 1, 0, 0, },
         { "hibccode128", BARCODE_HIBC_128, 98, 0, 0, 0, 0, 0, },
         { "hibccode39", BARCODE_HIBC_39, 99, 0, 0, 0, 0, 0, },
@@ -1979,9 +2203,9 @@ static const char *testUtilBwippName(int index, const struct zint_symbol *symbol
         { "hanxin", BARCODE_HANXIN, 116, 0, 0, 0, 0, 0, },
         { "", -1, 117, 0, 0, 0, 0, 0, },
         { "", -1, 118, 0, 0, 0, 0, 0, },
-        { "", -1, 119, 0, 0, 0, 0, 0, },
-        { "", -1, 120, 0, 0, 0, 0, 0, },
-        { "", BARCODE_MAILMARK, 121, 0, 0, 0, 0, 0, }, /* Note BWIPP mailmark is Data Matrix variant */
+        { "mailmark", BARCODE_MAILMARK_2D, 119, 0, 1, 0, 0, 0, },
+        { "code128", BARCODE_UPU_S10, 120, 0, 0, 0, 0, 0, },
+        { "", BARCODE_MAILMARK_4S, 121, 0, 0, 0, 0, 0, }, /* Note BWIPP mailmark is BARCODE_MAILMARK_2D above */
         { "", -1, 122, 0, 0, 0, 0, 0, },
         { "", -1, 123, 0, 0, 0, 0, 0, },
         { "", -1, 124, 0, 0, 0, 0, 0, },
@@ -2083,6 +2307,14 @@ static const char *testUtilBwippName(int index, const struct zint_symbol *symbol
             }
             return NULL;
         }
+    } else if (symbology == BARCODE_MAILMARK_2D) {
+        if (option_2 < 1) {
+            if (debug & ZINT_DEBUG_TEST_PRINT) {
+                printf("i:%d %s not BWIPP compatible, version (option_2) must be specified\n",
+                        index, testUtilBarcodeName(symbology));
+            }
+            return NULL;
+        }
     }
 
     if (linear_row_height) {
@@ -2097,7 +2329,8 @@ static const char *testUtilBwippName(int index, const struct zint_symbol *symbol
                 *gs1_cvt = 1;
             }
             return "gs1datamatrix";
-        } else if (symbology == BARCODE_AZTEC || symbology == BARCODE_ULTRA) {
+        } else if (symbology == BARCODE_AZTEC || symbology == BARCODE_CODE16K || symbology == BARCODE_ULTRA
+                    || symbology == BARCODE_CODE49) {
             if (debug & ZINT_DEBUG_TEST_PRINT) {
                 printf("i:%d %s not BWIPP compatible, GS1_MODE not supported\n",
                         index, testUtilBarcodeName(symbology));
@@ -2191,14 +2424,31 @@ static char *testUtilBwippEscape(char *bwipp_data, int bwipp_data_size, const ch
                 /*case 'x': val = 0; TODO: implement break; */
                 case '\\': val = '\\'; break;
                 /*case 'u': val = 0; TODO: implement break; */
+                case '^': val = -1; break; /* Code 128 special escapes */
                 default: fprintf(stderr, "testUtilBwippEscape: unknown escape %c\n", *d); return NULL; break;
             }
-            if (b + 4 >= be) {
-                fprintf(stderr, "testUtilBwippEscape: loop bwipp_data buffer full (%d)\n", bwipp_data_size);
-                return NULL;
+            if (val >= 0) {
+                if (b + 4 >= be) {
+                    fprintf(stderr, "testUtilBwippEscape: loop bwipp_data buffer full (%d)\n", bwipp_data_size);
+                    return NULL;
+                }
+                sprintf(b, "^%03d", val);
+                b += 4;
+            } else {
+                if (d + 1 < de && *(d + 1) >= 'A' && *(d + 1) <= 'C') {
+                    d++;
+                } else {
+                    if (b + 8 >= be) {
+                        fprintf(stderr, "testUtilBwippEscape: loop bwipp_data buffer full (%d)\n", bwipp_data_size);
+                        return NULL;
+                    }
+                    sprintf(b, "^%03d^%03d", '\\', *d);
+                    b += 8;
+                    if (*d == '^') {
+                        d++;
+                    }
+                }
             }
-            sprintf(b, "^%03d", val);
-            b += 4;
             d++;
             *parse = 1;
         } else {
@@ -2281,8 +2531,13 @@ static char *testUtilBwippUtf8Convert(const int index, const int symbology, cons
                 index, eci, testUtilBarcodeName(symbology));
         return NULL;
     }
+    if (utf8_to_eci(eci, data, converted, p_data_len) != 0) {
+        fprintf(stderr, "i:%d testUtilBwippUtf8Convert: failed to convert UTF-8 data for %s, default ECI %d\n",
+                index, testUtilBarcodeName(symbology), eci);
+        return NULL;
+    }
 
-    return (char *) data;
+    return (char *) converted;
 }
 
 #define GS_INITIAL_LEN  35 /* Length of cmd up to -q */
@@ -2294,11 +2549,21 @@ int testUtilBwipp(int index, const struct zint_symbol *symbol, int option_1, int
                                     " backend/tests/tools/bwipp_dump.ps";
     static const char cmd_opts_fmt[] = "gs -dNOPAUSE -dBATCH -dNODISPLAY -q -sb=%s -sd='%s' -so='%s'"
                                         " backend/tests/tools/bwipp_dump.ps";
-    /* If data > 2K */
-    static const char cmd_fmt2[] = "gs -dNOPAUSE -dBATCH -dNODISPLAY -q -sb=%s -sd='%.2043s' -sd2='%s'"
+    /* If data > 2K and < ~4K */
+    static const char cmd_fmt2[] = "gs -dNOPAUSE -dBATCH -dNODISPLAY -q -sb=%s -sd='%.2040s' -sd2='%s'"
                                         " backend/tests/tools/bwipp_dump.ps";
-    static const char cmd_opts_fmt2[] = "gs -dNOPAUSE -dBATCH -dNODISPLAY -q -sb=%s -sd='%.2043s' -sd2='%s' -so='%s'"
+    static const char cmd_opts_fmt2[] = "gs -dNOPAUSE -dBATCH -dNODISPLAY -q -sb=%s -sd='%.2040s' -sd2='%s' -so='%s'"
                                         " backend/tests/tools/bwipp_dump.ps";
+    /* If data > ~4K and < ~6K */
+    static const char cmd_fmt3[] = "gs -dNOPAUSE -dBATCH -dNODISPLAY -q -sb=%s -sd='%.2040s' -sd2='%.2040s' -sd3='%s'"
+                                        " backend/tests/tools/bwipp_dump.ps";
+    static const char cmd_opts_fmt3[] = "gs -dNOPAUSE -dBATCH -dNODISPLAY -q -sb=%s -sd='%.2040s' -sd2='%.2040s' -sd3='%s'"
+                                        " -so='%s' backend/tests/tools/bwipp_dump.ps";
+    /* If data > ~6K and < ~8K */
+    static const char cmd_fmt4[] = "gs -dNOPAUSE -dBATCH -dNODISPLAY -q -sb=%s -sd='%.2040s' -sd2='%.2040s' -sd3='%.2040s'"
+                                        " -sd4='%s' backend/tests/tools/bwipp_dump.ps";
+    static const char cmd_opts_fmt4[] = "gs -dNOPAUSE -dBATCH -dNODISPLAY -q -sb=%s -sd='%.2040s' -sd2='%.2040s'"
+                                        " -sd3='%.2040s' -sd4='%s' -so='%s' backend/tests/tools/bwipp_dump.ps";
 
     const int symbology = symbol->symbology;
     int data_len = length == -1 ? (int) strlen(data) : length;
@@ -2327,10 +2592,10 @@ int testUtilBwipp(int index, const struct zint_symbol *symbol, int option_1, int
     int r, h;
     int parse = 0, parsefnc = p_parsefnc ? *p_parsefnc : 0;
 
-    int upcean = is_extendable(symbology);
-    int upca = symbology == BARCODE_UPCA || symbology == BARCODE_UPCA_CHK || symbology == BARCODE_UPCA_CC;
-    char obracket = symbol->input_mode & GS1PARENS_MODE ? '(' : '[';
-    char cbracket = symbol->input_mode & GS1PARENS_MODE ? ')' : ']';
+    const int upcean = (ZBarcode_Cap(symbology, ZINT_CAP_EANUPC) & ZINT_CAP_EANUPC) == ZINT_CAP_EANUPC;
+    const int upca = symbology == BARCODE_UPCA || symbology == BARCODE_UPCA_CHK || symbology == BARCODE_UPCA_CC;
+    const char obracket = symbol->input_mode & GS1PARENS_MODE ? '(' : '[';
+    const char cbracket = symbol->input_mode & GS1PARENS_MODE ? ')' : ']';
     int addon_posn;
     int eci;
     int i, j, len;
@@ -2443,8 +2708,8 @@ int testUtilBwipp(int index, const struct zint_symbol *symbol, int option_1, int
                 /* sprintf(bwipp_opts_buf + strlen(bwipp_opts_buf), "%sdontlint", strlen(bwipp_opts_buf) ? " " : ""); */
             }
         } else {
-            if (testUtilBwippEscape(bwipp_data, bwipp_data_size, data, data_len, symbol->input_mode & ESCAPE_MODE,
-                    eci, &parse, &parsefnc) == NULL) {
+            if (testUtilBwippEscape(bwipp_data, bwipp_data_size, data, data_len,
+                    symbol->input_mode & (ESCAPE_MODE | EXTRA_ESCAPE_MODE), eci, &parse, &parsefnc) == NULL) {
                 return -1;
             }
             if (parse) {
@@ -2469,7 +2734,8 @@ int testUtilBwipp(int index, const struct zint_symbol *symbol, int option_1, int
                         strlen(bwipp_opts_buf) ? " " : "");
                 bwipp_opts = bwipp_opts_buf;
             } else if (symbology == BARCODE_PZN) {
-                sprintf(bwipp_opts_buf + strlen(bwipp_opts_buf), "%spzn8", strlen(bwipp_opts_buf) ? " " : "");
+                sprintf(bwipp_opts_buf + strlen(bwipp_opts_buf), "%spzn%c",
+                        strlen(bwipp_opts_buf) ? " " : "", option_2 == 1 ? '7' : '8');
                 bwipp_opts = bwipp_opts_buf;
             } else if (symbology == BARCODE_TELEPEN_NUM) {
                 if (data_len & 1) { /* Add leading zero */
@@ -2477,7 +2743,6 @@ int testUtilBwipp(int index, const struct zint_symbol *symbol, int option_1, int
                     *bwipp_data = '0';
                 }
             } else if (symbology == BARCODE_CODABLOCKF || symbology == BARCODE_HIBC_BLOCKF) {
-                sprintf(bwipp_opts_buf + strlen(bwipp_opts_buf), "%ssepheight=0", strlen(bwipp_opts_buf) ? " " : "");
                 if (option_1 > 0) {
                     sprintf(bwipp_opts_buf + strlen(bwipp_opts_buf), "%srows=%d",
                             strlen(bwipp_opts_buf) ? " " : "", option_1);
@@ -2530,7 +2795,8 @@ int testUtilBwipp(int index, const struct zint_symbol *symbol, int option_1, int
                 }
             } else if (symbology == BARCODE_PDF417 || symbology == BARCODE_PDF417COMP || symbology == BARCODE_HIBC_PDF
                         || symbology == BARCODE_MICROPDF417 || symbology == BARCODE_HIBC_MICPDF) {
-                for (r = 0; r < symbol->rows; r++) bwipp_row_height[r] = 1; /* Change from 3 */
+                const int row_height = symbology == BARCODE_MICROPDF417 || symbology == BARCODE_HIBC_MICPDF ? 2 : 3;
+                for (r = 0; r < symbol->rows; r++) bwipp_row_height[r] = row_height;
                 if (option_1 >= 0) {
                     sprintf(bwipp_opts_buf + strlen(bwipp_opts_buf), "%seclevel=%d",
                             strlen(bwipp_opts_buf) ? " " : "", option_1);
@@ -2551,7 +2817,7 @@ int testUtilBwipp(int index, const struct zint_symbol *symbol, int option_1, int
                         || symbology == BARCODE_USPS_IMAIL || symbology == BARCODE_AUSPOST
                         || symbology == BARCODE_PHARMA_TWO) {
                 for (r = 0; r < symbol->rows; r++) bwipp_row_height[r] = 1; /* Zap */
-                if (symbology == BARCODE_KIX) {
+                if (symbology == BARCODE_RM4SCC || symbology == BARCODE_KIX || symbology == BARCODE_JAPANPOST || symbology == BARCODE_DAFT) {
                     to_upper((unsigned char *) bwipp_data, (int) strlen(bwipp_data));
                 } else if (symbology == BARCODE_USPS_IMAIL) {
                     char *dash = strchr(bwipp_data, '-');
@@ -2580,18 +2846,23 @@ int testUtilBwipp(int index, const struct zint_symbol *symbol, int option_1, int
                     memmove(bwipp_data + 2, bwipp_data, data_len + 1);
                     memmove(bwipp_data, prefix, 2);
                 }
+            } else if (symbology == BARCODE_DPD) {
+                if (data_len == 27 && option_2 != 1) {
+                    memmove(bwipp_data + 1, bwipp_data, data_len + 1);
+                    bwipp_data[0] = '%';
+                }
+                bwipp_opts = bwipp_opts_buf;
             } else if (symbology == BARCODE_FIM) {
                 strcpy(bwipp_data, "fima");
-                bwipp_data[3] = data[0] - 'A' + 'a';
+                bwipp_data[3] = z_isupper(data[0]) ? data[0] - 'A' + 'a' : data[0];
             } else if (symbology == BARCODE_CODE16K || symbology == BARCODE_CODE49) {
-                sprintf(bwipp_opts_buf + strlen(bwipp_opts_buf), "%ssepheight=0", strlen(bwipp_opts_buf) ? " " : "");
-                bwipp_opts = bwipp_opts_buf;
                 if (option_1 >= 2) {
                     if ((symbology == BARCODE_CODE16K && option_1 <= 16)
-                            || (symbology == BARCODE_CODE49 && option_1 <= 8)) {
+                            || (symbology == BARCODE_CODE49 && option_1 <= 8 && option_1 >= symbol->rows)) {
                         sprintf(bwipp_opts_buf + strlen(bwipp_opts_buf), "%srows=%d",
                             strlen(bwipp_opts_buf) ? " " : "", option_1);
                     }
+                    bwipp_opts = bwipp_opts_buf;
                 }
             } else if (symbology == BARCODE_AZTEC || symbology == BARCODE_HIBC_AZTEC) {
                 int compact = 0, full = 0;
@@ -2703,7 +2974,7 @@ int testUtilBwipp(int index, const struct zint_symbol *symbol, int option_1, int
                             strlen(bwipp_opts_buf) ? " " : "", mode);
                     bwipp_opts = bwipp_opts_buf;
                 }
-                if (primary_len) {
+                if (primary_len >= 6) { /* Keep gcc happy */
                     char prefix_buf[30];
                     int prefix_len;
                     int postcode_len = primary_len - 6;
@@ -2761,6 +3032,10 @@ int testUtilBwipp(int index, const struct zint_symbol *symbol, int option_1, int
             } else if (symbology == BARCODE_BC412) {
                 to_upper((unsigned char *) bwipp_data, (int) strlen(bwipp_data));
                 sprintf(bwipp_opts_buf + strlen(bwipp_opts_buf), "%ssemi", strlen(bwipp_opts_buf) ? " " : "");
+                bwipp_opts = bwipp_opts_buf;
+            } else if (symbology == BARCODE_MAILMARK_2D) {
+                sprintf(bwipp_opts_buf + strlen(bwipp_opts_buf), "%stype=%d",
+                        strlen(bwipp_opts_buf) ? " " : "", option_2 - 1);
                 bwipp_opts = bwipp_opts_buf;
             }
         }
@@ -2865,16 +3140,13 @@ int testUtilBwipp(int index, const struct zint_symbol *symbol, int option_1, int
                 }
             }
         } else if (symbology == BARCODE_ULTRA) {
+            const int rev = option_2 == 2 ? 2 : 1;
             if (option_1 >= 1 && option_1 <= 6) {
                 sprintf(bwipp_opts_buf + strlen(bwipp_opts_buf), "%seclevel=EC%d",
                         strlen(bwipp_opts_buf) ? " " : "", option_1 - 1);
-                bwipp_opts = bwipp_opts_buf;
             }
-            if (option_2 >= 1 && option_2 <= 2) {
-                sprintf(bwipp_opts_buf + strlen(bwipp_opts_buf), "%srev=%d",
-                        strlen(bwipp_opts_buf) ? " " : "", option_2);
-                bwipp_opts = bwipp_opts_buf;
-            }
+            sprintf(bwipp_opts_buf + strlen(bwipp_opts_buf), "%srev=%d", strlen(bwipp_opts_buf) ? " " : "", rev);
+            bwipp_opts = bwipp_opts_buf;
         }
     }
 
@@ -2886,14 +3158,33 @@ int testUtilBwipp(int index, const struct zint_symbol *symbol, int option_1, int
     }
 
     if (bwipp_opts && strlen(bwipp_opts)) {
-        if (strlen(bwipp_data) >= 2043) { /* Ghostscript's `arg_str_max` 2048 less "-sd=" */
-            sprintf(cmd, cmd_opts_fmt2, bwipp_barcode, bwipp_data, bwipp_data + 2043, bwipp_opts);
+        if (strlen(bwipp_data) >= 2040) { /* Ghostscript's `arg_str_max` 2048 less "-sd?=" + quotes */
+            if (strlen(bwipp_data) >= 2040 * 2) {
+                if (strlen(bwipp_data) >= 2040 * 3) {
+                    sprintf(cmd, cmd_opts_fmt4, bwipp_barcode, bwipp_data, bwipp_data + 2040, bwipp_data + 2040 * 2,
+                            bwipp_data + 2040 * 3, bwipp_opts);
+                } else {
+                    sprintf(cmd, cmd_opts_fmt3, bwipp_barcode, bwipp_data, bwipp_data + 2040, bwipp_data + 2040 * 2,
+                            bwipp_opts);
+                }
+            } else {
+                sprintf(cmd, cmd_opts_fmt2, bwipp_barcode, bwipp_data, bwipp_data + 2040, bwipp_opts);
+            }
         } else {
             sprintf(cmd, cmd_opts_fmt, bwipp_barcode, bwipp_data, bwipp_opts);
         }
     } else {
-        if (strlen(bwipp_data) >= 2043) {
-            sprintf(cmd, cmd_fmt2, bwipp_barcode, bwipp_data, bwipp_data + 2043);
+        if (strlen(bwipp_data) >= 2040) {
+            if (strlen(bwipp_data) >= 2040 * 2) {
+                if (strlen(bwipp_data) >= 2040 * 3) {
+                    sprintf(cmd, cmd_fmt4, bwipp_barcode, bwipp_data, bwipp_data + 2040, bwipp_data + 2040 * 2,
+                            bwipp_data + 2040 * 3);
+                } else {
+                    sprintf(cmd, cmd_fmt3, bwipp_barcode, bwipp_data, bwipp_data + 2040, bwipp_data + 2040 * 2);
+                }
+            } else {
+                sprintf(cmd, cmd_fmt2, bwipp_barcode, bwipp_data, bwipp_data + 2040);
+            }
         } else {
             sprintf(cmd, cmd_fmt, bwipp_barcode, bwipp_data);
         }
@@ -2982,8 +3273,8 @@ int testUtilBwipp(int index, const struct zint_symbol *symbol, int option_1, int
         }
         cnt = (int) fread(b, 1, symbol->width, fp);
         if (cnt != symbol->width) {
-            fprintf(stderr, "i:%d testUtilBwipp: failed to read symbol->width %d bytes, cnt %d (%s)\n",
-                    index, symbol->width, cnt, cmd);
+            fprintf(stderr, "i:%d testUtilBwipp: failed to read row %d of %d, symbol->width %d bytes, cnt %d (%s)\n",
+                    index, r + 1, symbol->rows, symbol->width, cnt, cmd);
             testutil_pclose(fp);
             return -1;
         }
@@ -2997,6 +3288,9 @@ int testUtilBwipp(int index, const struct zint_symbol *symbol, int option_1, int
                         index, symbol->width, cnt, h, r, bwipp_row_height[r], r, symbol->row_height[r], cmd);
                 testutil_pclose(fp);
                 return -1;
+            }
+            if (h * 2 == bwipp_row_height[r]) { /* Hack to use middle row (avoids add-on text offsets) */
+                memcpy(b - cnt, b, cnt);
             }
         }
     }
@@ -3179,6 +3473,16 @@ int testUtilHaveZXingCPPDecoder(void) {
     return system("zxingcppdecoder " DEV_NULL_STDERR) == 0;
 }
 
+static int testUtilHasNonASCII(const char *source, const int length) {
+    int i;
+    for (i = 0; i < length; i++) {
+        if (source[i] & 0x80) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 /* Map Zint symbology to ZXing-C++ format name */
 static const char *testUtilZXingCPPName(int index, const struct zint_symbol *symbol, const char *source,
             const int length, const int debug) {
@@ -3211,7 +3515,7 @@ static const char *testUtilZXingCPPName(int index, const struct zint_symbol *sym
         { "Code128", BARCODE_CODE128, 20, },
         { "ITF", BARCODE_DPLEIT, 21, },
         { "ITF", BARCODE_DPIDENT, 22, },
-        { "", BARCODE_CODE16K, 23, },
+        { "Code16K", BARCODE_CODE16K, 23, },
         { "", BARCODE_CODE49, 24, },
         { "Code93", BARCODE_CODE93, 25, },
         { "", -1, 26, },
@@ -3240,7 +3544,7 @@ static const char *testUtilZXingCPPName(int index, const struct zint_symbol *sym
         { "", BARCODE_FIM, 49, },
         { "Code39", BARCODE_LOGMARS, 50, },
         { "", BARCODE_PHARMA, 51, },
-        { "", BARCODE_PZN, 52, }, /* TODO: Code39 with prefix and mod-11 checksum */
+        { "Code39", BARCODE_PZN, 52, },
         { "", BARCODE_PHARMA_TWO, 53, },
         { "", -1, 54, },
         { "PDF417", BARCODE_PDF417, 55, },
@@ -3248,7 +3552,7 @@ static const char *testUtilZXingCPPName(int index, const struct zint_symbol *sym
         { "MaxiCode", BARCODE_MAXICODE, 57, },
         { "QRCode", BARCODE_QRCODE, 58, },
         { "", -1, 59, },
-        { "Code128", BARCODE_CODE128B, 60, },
+        { "Code128", BARCODE_CODE128AB, 60, },
         { "", -1, 61, },
         { "", -1, 62, },
         { "", BARCODE_AUSPOST, 63, },
@@ -3262,17 +3566,17 @@ static const char *testUtilZXingCPPName(int index, const struct zint_symbol *sym
         { "DataMatrix", BARCODE_DATAMATRIX, 71, },
         { "Code128", BARCODE_EAN14, 72, },
         { "Code39", BARCODE_VIN, 73, },
-        { "", BARCODE_CODABLOCKF, 74, },
+        { "CodablockF", BARCODE_CODABLOCKF, 74, },
         { "Code128", BARCODE_NVE18, 75, },
         { "", BARCODE_JAPANPOST, 76, },
         { "", BARCODE_KOREAPOST, 77, },
         { "", -1, 78, },
-        { "", BARCODE_DBAR_STK, 79, },
+        { "DataBar", BARCODE_DBAR_STK, 79, },
         { "DataBar", BARCODE_DBAR_OMNSTK, 80, },
         { "DataBarExpanded", BARCODE_DBAR_EXPSTK, 81, },
         { "", BARCODE_PLANET, 82, },
         { "", -1, 83, },
-        { "", BARCODE_MICROPDF417, 84, },
+        { "MicroPDF417", BARCODE_MICROPDF417, 84, },
         { "", BARCODE_USPS_IMAIL, 85, },
         { "", BARCODE_PLESSEY, 86, },
         { "", BARCODE_TELEPEN_NUM, 87, },
@@ -3298,7 +3602,7 @@ static const char *testUtilZXingCPPName(int index, const struct zint_symbol *sym
         { "", -1, 107, },
         { "", BARCODE_HIBC_MICPDF, 108, },
         { "", -1, 109, },
-        { "", BARCODE_HIBC_BLOCKF, 110, },
+        { "CodablockF", BARCODE_HIBC_BLOCKF, 110, },
         { "", -1, 111, },
         { "Aztec", BARCODE_HIBC_AZTEC, 112, },
         { "", -1, 113, },
@@ -3307,9 +3611,9 @@ static const char *testUtilZXingCPPName(int index, const struct zint_symbol *sym
         { "HanXin", BARCODE_HANXIN, 116, },
         { "", -1, 117, },
         { "", -1, 118, },
-        { "", -1, 119, },
-        { "", -1, 120, },
-        { "", BARCODE_MAILMARK, 121, },
+        { "DataMatrix", BARCODE_MAILMARK_2D, 119, },
+        { "Code128", BARCODE_UPU_S10, 120, },
+        { "", BARCODE_MAILMARK_4S, 121, },
         { "", -1, 122, },
         { "", -1, 123, },
         { "", -1, 124, },
@@ -3333,7 +3637,7 @@ static const char *testUtilZXingCPPName(int index, const struct zint_symbol *sym
         { "", BARCODE_GRIDMATRIX, 142, },
         { "QRCode", BARCODE_UPNQR, 143, },
         { "", BARCODE_ULTRA, 144, },
-        { "", BARCODE_RMQR, 145, },
+        { "RMQRCode", BARCODE_RMQR, 145, },
     };
     static const int data_size = ARRAY_SIZE(data);
 
@@ -3358,12 +3662,20 @@ static const char *testUtilZXingCPPName(int index, const struct zint_symbol *sym
     if (symbology == BARCODE_QRCODE || symbology == BARCODE_HIBC_QR || symbology == BARCODE_MICROQR
             || symbology == BARCODE_RMQR) {
         const int full_multibyte = (symbol->option_3 & 0xFF) == ZINT_FULL_MULTIBYTE;
-        if (full_multibyte) { /* TODO: Support in ZXing-C++ */
-            printf("i:%d %s not ZXing-C++ compatible, ZINT_FULL_MULTIBYTE not supported\n",
+        if (full_multibyte && testUtilHasNonASCII(source, length)) { /* TODO: Support in ZXing-C++ */
+            printf("i:%d %s not ZXing-C++ compatible, ZINT_FULL_MULTIBYTE not supported (with non-ASCII data)\n",
                     index, testUtilBarcodeName(symbology));
             return NULL;
         }
-    } else if (is_extendable(symbology)) {
+    } else if (symbology == BARCODE_CODABLOCKF || symbology == BARCODE_HIBC_BLOCKF) {
+        if (symbol->rows == 1) { /* Single row i.e. CODE128 not supported */
+            if (debug & ZINT_DEBUG_TEST_PRINT) {
+                printf("i:%d %s not ZXing-C++ compatible, single row not supported\n",
+                        index, testUtilBarcodeName(symbology));
+            }
+            return NULL;
+        }
+    } else if ((ZBarcode_Cap(symbology, ZINT_CAP_EANUPC) & ZINT_CAP_EANUPC) == ZINT_CAP_EANUPC) {
         if (symbology == BARCODE_EANX || symbology == BARCODE_EANX_CHK) {
             if (length < 9) {
                 if (length < 6) {
@@ -3390,9 +3702,9 @@ int testUtilCanZXingCPP(int index, const struct zint_symbol *symbol, const char 
 
 int testUtilZXingCPP(int index, struct zint_symbol *symbol, const char *source, const int length, char *bits,
             char *buffer, const int buffer_size, int *p_cmp_len) {
-    static const char cmd_fmt[] = "zxingcppdecoder -width %d -textonly -format %s -bits '%s'";
-    static const char hint_cmd_fmt[] = "zxingcppdecoder -width %d -textonly -format %s -hint '%s' -bits '%s'";
-    static const char cs_cmd_fmt[] = "zxingcppdecoder -width %d -textonly -format %s -bits '%s' -charset %s";
+    static const char cmd_fmt[] = "zxingcppdecoder -textonly -format %s -width %d -bits '%s'";
+    static const char opts_cmd_fmt[] = "zxingcppdecoder -textonly -format %s -opts '%s' -width %d -bits '%s'";
+    static const char cs_cmd_fmt[] = "zxingcppdecoder -textonly -format %s -charset %s -width %d -bits '%s'";
 
     const int bits_len = (int) strlen(bits);
     const int width = symbol->width;
@@ -3401,7 +3713,7 @@ int testUtilZXingCPP(int index, struct zint_symbol *symbol, const char *source, 
     const char *zxingcpp_barcode = NULL;
     const int data_mode = (symbol->input_mode & 0x07) == DATA_MODE;
     int set_charset = 0;
-    const char *hint = NULL;
+    const char *opts = NULL;
 
     FILE *fp = NULL;
     int cnt;
@@ -3416,12 +3728,12 @@ int testUtilZXingCPP(int index, struct zint_symbol *symbol, const char *source, 
 
     if (symbology == BARCODE_EXCODE39) {
         if (symbol->option_2 == 1) {
-            hint = "tryCode39ExtendedMode,validateCode39CheckSum";
+            opts = "tryCode39ExtendedMode,validateCode39CheckSum";
         } else {
-            hint = "tryCode39ExtendedMode";
+            opts = "tryCode39ExtendedMode";
         }
     } else if ((symbology == BARCODE_CODE39 || symbology == BARCODE_LOGMARS) && symbol->option_2 == 1) {
-        hint = "validateCode39CheckSum";
+        opts = "validateCode39CheckSum";
     }
 
     if ((symbol->input_mode & 0x07) == UNICODE_MODE && symbol->eci == 0
@@ -3441,11 +3753,11 @@ int testUtilZXingCPP(int index, struct zint_symbol *symbol, const char *source, 
         } else {
             charset = "ISO8859_1";
         }
-        sprintf(cmd, cs_cmd_fmt, width, zxingcpp_barcode, bits, charset);
-    } else if (hint) {
-        sprintf(cmd, hint_cmd_fmt, width, zxingcpp_barcode, hint, bits);
+        sprintf(cmd, cs_cmd_fmt, zxingcpp_barcode, charset, width, bits);
+    } else if (opts) {
+        sprintf(cmd, opts_cmd_fmt, zxingcpp_barcode, opts, width, bits);
     } else {
-        sprintf(cmd, cmd_fmt, width, zxingcpp_barcode, bits);
+        sprintf(cmd, cmd_fmt, zxingcpp_barcode, width, bits);
     }
 
     if (symbol->debug & ZINT_DEBUG_TEST_PRINT) {
@@ -3513,7 +3825,8 @@ int testUtilZXingCPP(int index, struct zint_symbol *symbol, const char *source, 
     return 0;
 }
 
-INTERNAL int escape_char_process_test(struct zint_symbol *symbol, unsigned char *input_string, int *length);
+INTERNAL int escape_char_process_test(struct zint_symbol *symbol, unsigned char *input_string, int *length,
+                unsigned char *escaped_string);
 
 #include "../gs1.h"
 
@@ -3525,24 +3838,29 @@ int testUtilZXingCPPCmp(struct zint_symbol *symbol, char *msg, char *cmp_buf, in
 
     const int is_dbar_exp = symbology == BARCODE_DBAR_EXP || symbology == BARCODE_DBAR_EXPSTK;
     const int gs1 = (symbol->input_mode & 0x07) == GS1_MODE || is_dbar_exp;
-    const int is_escaped = symbol->input_mode & ESCAPE_MODE;
+    const int is_extra_escaped = (symbol->input_mode & EXTRA_ESCAPE_MODE) && symbol->symbology == BARCODE_CODE128;
+    const int is_escaped = (symbol->input_mode & ESCAPE_MODE) || is_extra_escaped;
     const int is_hibc = symbology >= BARCODE_HIBC_128 && symbology <= BARCODE_HIBC_AZTEC;
     const int have_c25checkdigit = symbol->option_2 == 1 || symbol->option_2 == 2;
     const int have_c25inter = (symbology == BARCODE_C25INTER && ((expected_len & 1) || have_c25checkdigit))
                                 || symbology == BARCODE_ITF14 || symbology == BARCODE_DPLEIT
                                 || symbology == BARCODE_DPIDENT;
-    const int is_upcean = is_extendable(symbology);
+    const int is_upcean = (ZBarcode_Cap(symbology, ZINT_CAP_EANUPC) & ZINT_CAP_EANUPC) == ZINT_CAP_EANUPC;
+    const int need_dpd_prefix = (symbology == BARCODE_DPD && expected_len == 27 && symbol->option_2 != 1);
+    const int is_vin_international = symbology == BARCODE_VIN && (symbol->option_2 & 1);
 
     char *reduced = gs1 ? (char *) z_alloca(expected_len + 1) : NULL;
     char *escaped = is_escaped ? (char *) z_alloca(expected_len + 1) : NULL;
     char *hibc = is_hibc ? (char *) z_alloca(expected_len + 2 + 1) : NULL;
     char *maxi = symbology == BARCODE_MAXICODE && primary
                     ? (char *) z_alloca(expected_len + strlen(primary) + 6 + 9 + 1) : NULL;
-    char *vin = symbology == BARCODE_VIN && (symbol->option_2 & 1) ? (char *) z_alloca(expected_len + 1 + 1) : NULL;
+    char *vin = is_vin_international ? (char *) z_alloca(expected_len + 1 + 1) : NULL;
     char *c25inter = have_c25inter ? (char *) z_alloca(expected_len + 13 + 1 + 1) : NULL;
     char *upcean = is_upcean ? (char *) z_alloca(expected_len + 1 + 1) : NULL;
     char *ean14_nve18 = symbology == BARCODE_EAN14 || symbology == BARCODE_NVE18
                         ? (char *) z_alloca(expected_len + 3 + 1) : NULL;
+    char *dpd = need_dpd_prefix ? (char *) z_alloca(28 + 1) : NULL;
+    char *pzn = symbology == BARCODE_PZN ? (char *) z_alloca(expected_len + 1 + 1) : NULL;
 
     int ret;
     int ret_memcmp;
@@ -3556,11 +3874,34 @@ int testUtilZXingCPPCmp(struct zint_symbol *symbol, char *msg, char *cmp_buf, in
     }
 
     if (is_escaped) {
-        memcpy(escaped, expected, expected_len);
-        ret = escape_char_process_test(symbol, (unsigned char *) escaped, &expected_len);
-        if (ret != 0) {
-            sprintf(msg, "escape_char_process %d != 0", ret);
-            return 3;
+        if (symbol->input_mode & ESCAPE_MODE) {
+            ret = escape_char_process_test(symbol, (unsigned char *) expected, &expected_len,
+                                            (unsigned char *) escaped);
+            if (ret != 0) {
+                sprintf(msg, "escape_char_process %d != 0", ret);
+                return 3;
+            }
+        } else {
+            memcpy(escaped, expected, expected_len);
+        }
+        if (is_extra_escaped) {
+            /* Remove any Code 128 special escapes */
+            int j = 0;
+            for (i = 0; i < expected_len; i++) {
+                if (escaped[i] == '\\' && i + 2 < expected_len && escaped[i + 1] == '^'
+                        && ((escaped[i + 2] >= 'A' && escaped[i + 2] <= 'C') || escaped[i + 2] == '^')) {
+                    if (escaped[i + 2] != '^') {
+                        i += 2;
+                    } else {
+                        escaped[j++] = escaped[i++];
+                        escaped[j++] = escaped[i++];
+                    }
+                } else {
+                    escaped[j++] = escaped[i];
+                }
+            }
+            expected_len = j;
+            escaped[expected_len] = '\0';
         }
         expected = escaped;
     }
@@ -3631,13 +3972,11 @@ int testUtilZXingCPPCmp(struct zint_symbol *symbol, char *msg, char *cmp_buf, in
         if (symbol->option_2 == 1 || symbol->option_2 == 2) {
             cmp_len--; /* Too messy to calc the check digit so ignore */
         }
-    } else if (symbology == BARCODE_VIN) {
-        if (symbol->option_2 & 1) {
-            vin[0] = 'I';
-            memcpy(vin + 1, expected, expected_len);
-            vin[++expected_len] = '\0';
-            expected = vin;
-        }
+    } else if (is_vin_international) {
+        vin[0] = 'I';
+        memcpy(vin + 1, expected, expected_len);
+        vin[++expected_len] = '\0';
+        expected = vin;
     } else if (have_c25inter) {
         if (symbology == BARCODE_C25INTER) {
             if ((expected_len & 1) || have_c25checkdigit) {
@@ -3684,7 +4023,7 @@ int testUtilZXingCPPCmp(struct zint_symbol *symbol, char *msg, char *cmp_buf, in
             c25inter[++expected_len] = '\0';
             expected = c25inter;
         }
-    } else if (symbology == BARCODE_DBAR_OMN || symbology == BARCODE_DBAR_OMNSTK) {
+    } else if (symbology == BARCODE_DBAR_OMN || symbology == BARCODE_DBAR_OMNSTK || symbology == BARCODE_DBAR_STK) {
         if (expected_len == 13) {
             cmp_len--; /* Too messy to calc the check digit so ignore */
         }
@@ -3804,6 +4143,22 @@ int testUtilZXingCPPCmp(struct zint_symbol *symbol, char *msg, char *cmp_buf, in
         }
         expected = ean14_nve18;
         expected_len += 3;
+
+    } else if (need_dpd_prefix) {
+        dpd[0] = '%';
+        memcpy(dpd + 1, expected, expected_len);
+        expected = dpd;
+        expected_len++;
+
+    } else if (symbology == BARCODE_PZN) {
+        /* Add hyphen at start */
+        pzn[0] = '-';
+        memcpy(pzn + 1, expected, expected_len);
+        if ((symbol->option_2 == 0 && expected_len != 8) || (symbol->option_2 == 1 && expected_len != 7)) {
+            cmp_len--; /* Don't bother with check digit */
+        }
+        expected = pzn;
+        expected_len++;
     }
 
     if (ret_buf) {

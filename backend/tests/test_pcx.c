@@ -1,6 +1,6 @@
 /*
     libzint - the open source barcode library
-    Copyright (C) 2020 - 2021 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2020-2023 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -27,11 +27,12 @@
     OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
     SUCH DAMAGE.
  */
-/* vim: set ts=4 sw=4 et : */
+/* SPDX-License-Identifier: BSD-3-Clause */
 
 #include "testcommon.h"
 
-static void test_print(int index, int generate, int debug) {
+static void test_print(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int symbology;
@@ -47,12 +48,13 @@ static void test_print(int index, int generate, int debug) {
         char *data;
         char *expected_file;
     };
-    // s/\/\*[ 0-9]*\*\//\=printf("\/*%3d*\/", line(".") - line("'<"))
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
     struct item data[] = {
         /*  0*/ { BARCODE_GRIDMATRIX, -1, -1, -1, -1, -1, -1, "C3C3C3", "", 0.75, "Grid Matrix", "gridmatrix_fg_0.75.pcx" },
         /*  1*/ { BARCODE_CODABLOCKF, -1, -1, -1, -1, -1, 20, "FFFFFF", "000000", 0, "1234567890123456789012345678901234567890", "codeblockf_reverse.pcx" },
         /*  2*/ { BARCODE_QRCODE, -1, -1, -1, -1, 2, 1, "", "D2E3F4", 0, "1234567890", "qr_bg.pcx" },
         /*  3*/ { BARCODE_ULTRA, 1, BARCODE_BOX, 1, 1, -1, -1, "FF0000", "0000FF", 0, "ULTRACODE_123456789!", "ultra_fg_bg_hvwsp1_box1.pcx" },
+        /*  4*/ { BARCODE_CODE11, -1, -1, -1, -1, -1, -1, "12345678", "FEDCBA98", 0, "123", "code11_fgbgtrans.pcx" },
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
@@ -64,11 +66,11 @@ static void test_print(int index, int generate, int debug) {
     char escaped[1024];
     int escaped_size = 1024;
 
-    int have_identify = testUtilHaveIdentify();
+    const char *const have_identify = testUtilHaveIdentify();
 
     testStart("test_pcx");
 
-    if (generate) {
+    if (p_ctx->generate) {
         char data_dir_path[1024];
         assert_nonzero(testUtilDataPath(data_dir_path, sizeof(data_dir_path), data_dir, NULL), "testUtilDataPath(%s) == 0\n", data_dir);
         if (!testUtilDirExists(data_dir_path)) {
@@ -79,7 +81,7 @@ static void test_print(int index, int generate, int debug) {
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -114,16 +116,16 @@ static void test_print(int index, int generate, int debug) {
 
         assert_nonzero(testUtilDataPath(expected_file, sizeof(expected_file), data_dir, data[i].expected_file), "i:%d testUtilDataPath == 0\n", i);
 
-        if (generate) {
-            printf("        /*%3d*/ { %s, %d, %s, %d, %d, %d, %d, \"%s\", \"%s\", \"%s\", \"%s\"},\n",
+        if (p_ctx->generate) {
+            printf("        /*%3d*/ { %s, %d, %s, %d, %d, %d, %d, \"%s\", \"%s\", %.5g, \"%s\", \"%s\"},\n",
                     i, testUtilBarcodeName(data[i].symbology), data[i].border_width, testUtilOutputOptionsName(data[i].output_options),
                     data[i].whitespace_width, data[i].whitespace_height,
-                    data[i].option_1, data[i].option_2, data[i].fgcolour, data[i].bgcolour,
+                    data[i].option_1, data[i].option_2, data[i].fgcolour, data[i].bgcolour, data[i].scale,
                     testUtilEscape(data[i].data, length, escaped, escaped_size), data[i].expected_file);
             ret = testUtilRename(symbol->outfile, expected_file);
             assert_zero(ret, "i:%d testUtilRename(%s, %s) ret %d != 0 (%d: %s)\n", i, symbol->outfile, expected_file, ret, errno, strerror(errno));
             if (have_identify) {
-                ret = testUtilVerifyIdentify(expected_file, debug);
+                ret = testUtilVerifyIdentify(have_identify, expected_file, debug);
                 assert_zero(ret, "i:%d %s identify %s ret %d != 0\n", i, testUtilBarcodeName(data[i].symbology), expected_file, ret);
             }
         } else {
@@ -132,7 +134,7 @@ static void test_print(int index, int generate, int debug) {
 
             ret = testUtilCmpBins(symbol->outfile, expected_file);
             assert_zero(ret, "i:%d %s testUtilCmpBins(%s, %s) %d != 0\n", i, testUtilBarcodeName(data[i].symbology), symbol->outfile, expected_file, ret);
-            assert_zero(remove(symbol->outfile), "i:%d remove(%s) != 0\n", i, symbol->outfile);
+            assert_zero(testUtilRemove(symbol->outfile), "i:%d testUtilRemove(%s) != 0\n", i, symbol->outfile);
         }
 
         ZBarcode_Delete(symbol);
@@ -143,10 +145,13 @@ static void test_print(int index, int generate, int debug) {
 
 INTERNAL int pcx_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf);
 
-static void test_outfile(void) {
+static void test_outfile(const testCtx *const p_ctx) {
     int ret;
+    int skip_readonly_test = 0;
     struct zint_symbol symbol = {0};
     unsigned char data[] = { "1" };
+
+    (void)p_ctx;
 
     testStart("test_outfile");
 
@@ -154,10 +159,18 @@ static void test_outfile(void) {
     symbol.bitmap = data;
     symbol.bitmap_width = symbol.bitmap_height = 1;
 
-    strcpy(symbol.outfile, "nosuch_dir/out.pcx");
+    strcpy(symbol.outfile, "test_pcx_out.pcx");
+#ifndef _WIN32
+    skip_readonly_test = getuid() == 0; /* Skip if running as root on Unix as can't create read-only file */
+#endif
+    if (!skip_readonly_test) {
+        (void) testUtilRmROFile(symbol.outfile); /* In case lying around from previous fail */
+        assert_nonzero(testUtilCreateROFile(symbol.outfile), "pcx_pixel_plot testUtilCreateROFile(%s) fail (%d: %s)\n", symbol.outfile, errno, strerror(errno));
 
-    ret = pcx_pixel_plot(&symbol, data);
-    assert_equal(ret, ZINT_ERROR_FILE_ACCESS, "pcx_pixel_plot ret %d != ZINT_ERROR_FILE_ACCESS (%d) (%s)\n", ret, ZINT_ERROR_FILE_ACCESS, symbol.errtxt);
+        ret = pcx_pixel_plot(&symbol, data);
+        assert_equal(ret, ZINT_ERROR_FILE_ACCESS, "pcx_pixel_plot ret %d != ZINT_ERROR_FILE_ACCESS (%d) (%s)\n", ret, ZINT_ERROR_FILE_ACCESS, symbol.errtxt);
+        assert_zero(testUtilRmROFile(symbol.outfile), "pcx_pixel_plot testUtilRmROFile(%s) != 0 (%d: %s)\n", symbol.outfile, errno, strerror(errno));
+    }
 
     symbol.output_options |= BARCODE_STDOUT;
 
@@ -170,9 +183,9 @@ static void test_outfile(void) {
 
 int main(int argc, char *argv[]) {
 
-    testFunction funcs[] = { /* name, func, has_index, has_generate, has_debug */
-        { "test_print", test_print, 1, 1, 1 },
-        { "test_outfile", test_outfile, 0, 0, 0 },
+    testFunction funcs[] = { /* name, func */
+        { "test_print", test_print },
+        { "test_outfile", test_outfile },
     };
 
     testRun(argc, argv, funcs, ARRAY_SIZE(funcs));
@@ -181,3 +194,5 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+
+/* vim: set ts=4 sw=4 et : */

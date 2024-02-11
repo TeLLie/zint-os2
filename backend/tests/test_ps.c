@@ -1,6 +1,6 @@
 /*
     libzint - the open source barcode library
-    Copyright (C) 2020-2022 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2020-2023 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -32,7 +32,8 @@
 #include "testcommon.h"
 #include <sys/stat.h>
 
-static void test_print(int index, int generate, int debug) {
+static void test_print(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int symbology;
@@ -54,46 +55,67 @@ static void test_print(int index, int generate, int debug) {
     struct item data[] = {
         /*  0*/ { BARCODE_CODE128, UNICODE_MODE, -1, BOLD_TEXT, -1, -1, -1, -1, 0, 0, "", "", 0, "Égjpqy", "code128_egrave_bold.eps" },
         /*  1*/ { BARCODE_CODE128, UNICODE_MODE, -1, BOLD_TEXT, -1, -1, -1, -1, 0, 0, "", "", 90, "Égjpqy", "code128_egrave_bold_rotate_90.eps" },
-        /*  2*/ { BARCODE_CODE39, -1, -1, -1, -1, -1, -1, -1, 0, 0, "147AD0", "FC9630", 0, "123", "code39_fg_bg.eps" },
-        /*  3*/ { BARCODE_CODE39, -1, -1, CMYK_COLOUR, -1, -1, -1, -1, 0, 0, "147AD0EE", "FC9630", 0, "123", "code39_fgalpha_bg_cmyk.eps" },
-        /*  4*/ { BARCODE_ULTRA, -1, -1, -1, -1, -1, -1, -1, 0, 0, "147AD0", "FC9630", 0, "123", "ultra_fg_bg.eps" },
-        /*  5*/ { BARCODE_ULTRA, -1, 1, BARCODE_BOX, 2, -1, -1, -1, 0, 0, "0000FF", "FF0000", 0, "123", "ultra_fg_bg_box.eps" },
-        /*  6*/ { BARCODE_ULTRA, -1, 2, BARCODE_BOX | CMYK_COLOUR, 1, 1, -1, -1, 0, 0, "0000FF", "FF0000", 0, "123", "ultra_fg_bg_box_cmyk.eps" },
-        /*  7*/ { BARCODE_EANX, -1, -1, -1, -1, -1, -1, -1, 0, 0, "", "", 0, "9771384524017+12", "ean13_2addon_ggs_5.2.2.5.1-2.eps" },
-        /*  8*/ { BARCODE_UPCA, -1, -1, -1, -1, -1, -1, -1, 0, 0, "", "", 0, "012345678905+24", "upca_2addon_ggs_5.2.6.6-5.eps" },
-        /*  9*/ { BARCODE_UPCE, -1, -1, -1, -1, -1, -1, -1, 0, 0, "", "", 0, "0123456+12345", "upce_5addon.eps" },
-        /* 10*/ { BARCODE_UPCE, -1, -1, SMALL_TEXT | BOLD_TEXT, -1, -1, -1, -1, 0, 0, "", "", 0, "0123456+12345", "upce_5addon_small_bold.eps" },
-        /* 11*/ { BARCODE_CODE128, UNICODE_MODE, -1, -1, -1, -1, -1, -1, 0, 0, "", "", 0, "A\\B)ç(D", "code128_escape_latin1.eps" },
-        /* 12*/ { BARCODE_DBAR_LTD, -1, -1, BOLD_TEXT, -1, -1, -1, -1, 0, 0, "", "", 0, "1501234567890", "dbar_ltd_24724_fig7_bold.eps" },
-        /* 13*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 0.1, 0, "", "", 0, "12", "dotcode_0.1.eps" },
-        /* 14*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 0.08, 0, "", "", 0, "12", "dotcode_0.1.eps" },
-        /* 15*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 0, 0, "", "", 0, "12", "dotcode_1.0.eps" },
-        /* 16*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 0, 0.1, "", "", 0, "12", "dotcode_1.0_ds0.1.eps" },
-        /* 17*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 0, 1.1, "", "", 0, "12", "dotcode_1.0_ds1.1.eps" },
-        /* 18*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 1.5, 0, "", "", 0, "12", "dotcode_1.5.eps" },
-        /* 19*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 1.5, 0.4, "", "", 0, "12", "dotcode_1.5_ds0.4.eps" },
-        /* 20*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 1.5, 1.1, "", "", 0, "12", "dotcode_1.5_ds1.1.eps" },
-        /* 21*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 1.5, 2.1, "", "", 0, "12", "dotcode_1.5_ds2.1.eps" },
-        /* 22*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 2, 0, "", "", 0, "12", "dotcode_2.0.eps" },
-        /* 23*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 2, 0.9, "", "", 0, "12", "dotcode_2.0_ds0.9.eps" },
-        /* 24*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 2, 1.1, "", "", 0, "12", "dotcode_2.0_ds1.1.eps" },
-        /* 25*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 3, 0, "", "", 0, "12", "dotcode_3.0.eps" },
-        /* 26*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 3, 0.4, "", "", 0, "12", "dotcode_3.0_ds0.4.eps" },
-        /* 27*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 3, 1.1, "", "", 0, "12", "dotcode_3.0_ds1.1.eps" },
-        /* 28*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 3.5, 0, "", "", 0, "12", "dotcode_3.5.eps" },
-        /* 29*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 3.5, 0.4, "", "", 0, "12", "dotcode_3.5_ds0.4.eps" },
-        /* 30*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 3.5, 1.1, "", "", 0, "12", "dotcode_3.5_ds1.1.eps" },
-        /* 31*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 5, 0, "", "", 0, "12", "dotcode_5.0.eps" },
-        /* 32*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 5, 0.2, "", "", 0, "12", "dotcode_5.0_ds0.2.eps" },
-        /* 33*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 5, 1.1, "", "", 0, "12", "dotcode_5.0_ds1.1.eps" },
-        /* 34*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 5, 1.7, "", "", 0, "12", "dotcode_5.0_ds1.7.eps" },
-        /* 35*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 0, 0, "FF0000", "0000FF00", 0, "12", "dotcode_no_bg.eps" },
-        /* 36*/ { BARCODE_MAXICODE, -1, -1, CMYK_COLOUR, -1, -1, -1, -1, 0, 0, "", "", 270, "12", "maxicode_rotate_270_cmyk.eps" },
-        /* 37*/ { BARCODE_MAXICODE, -1, -1, -1, 3, -1, -1, -1, 0, 0, "", "0000FF00", 180, "12", "maxicode_no_bg_hwsp3_rotate_180.eps" },
+        /*  2*/ { BARCODE_CODE128, UNICODE_MODE, -1, BOLD_TEXT, -1, -1, -1, -1, 0, 0, "", "", 180, "Égjpqy", "code128_egrave_bold_rotate_180.eps" },
+        /*  3*/ { BARCODE_CODE128, UNICODE_MODE, -1, BOLD_TEXT, -1, -1, -1, -1, 0, 0, "", "", 270, "Égjpqy", "code128_egrave_bold_rotate_270.eps" },
+        /*  4*/ { BARCODE_CODE39, -1, -1, -1, -1, -1, -1, -1, 0, 0, "147AD0", "FC9630", 0, "123", "code39_fg_bg.eps" },
+        /*  5*/ { BARCODE_CODE39, -1, -1, CMYK_COLOUR, -1, -1, -1, -1, 0, 0, "147AD0EE", "FC9630", 0, "123", "code39_fgalpha_bg_cmyk.eps" },
+        /*  6*/ { BARCODE_CODE39, -1, -1, CMYK_COLOUR, -1, -1, -1, -1, 0, 0, "90,40,0,9", "FC963000", 0, "123", "code39_nobg_cmyk.eps" },
+        /*  7*/ { BARCODE_CODE39, -1, -1, SMALL_TEXT, -1, -1, -1, -1, 0, 0, "", "", 0, "123", "code39_small.eps" },
+        /*  8*/ { BARCODE_ULTRA, -1, -1, -1, -1, -1, -1, -1, 0, 0, "147AD0", "FC9630", 0, "123", "ultra_fg_bg.eps" },
+        /*  9*/ { BARCODE_ULTRA, -1, 1, BARCODE_BOX, 2, -1, -1, -1, 0, 0, "0000FF", "FF0000", 0, "123", "ultra_fg_bg_box.eps" },
+        /* 10*/ { BARCODE_ULTRA, -1, 2, BARCODE_BOX | CMYK_COLOUR, 1, 1, -1, -1, 0, 0, "0000FF", "FF0000", 0, "123", "ultra_fg_bg_box_cmyk.eps" },
+        /* 11*/ { BARCODE_EANX, -1, -1, -1, -1, -1, -1, -1, 0, 0, "", "", 0, "9501101531000", "ean13_ggs_5.2.2.1-1.eps" },
+        /* 12*/ { BARCODE_EANX, -1, -1, EANUPC_GUARD_WHITESPACE, -1, -1, -1, -1, 0, 0, "", "", 0, "9501101531000", "ean13_ggs_5.2.2.1-1_gws.eps" },
+        /* 13*/ { BARCODE_EANX, -1, -1, -1, -1, -1, -1, -1, 0, 0, "", "", 0, "9771384524017+12", "ean13_2addon_ggs_5.2.2.5.1-2.eps" },
+        /* 14*/ { BARCODE_EANX, -1, -1, EANUPC_GUARD_WHITESPACE, -1, -1, -1, -1, 0, 0, "", "", 0, "9771384524017+12", "ean13_2addon_ggs_5.2.2.5.1-2_gws.eps" },
+        /* 15*/ { BARCODE_EANX, -1, -1, -1, -1, -1, -1, -1, 0, 0, "", "", 0, "9501234", "ean8_gss_5.2.2.2-1.eps" },
+        /* 16*/ { BARCODE_EANX, -1, -1, EANUPC_GUARD_WHITESPACE, -1, -1, -1, -1, 0, 0, "", "", 0, "9501234", "ean8_gss_5.2.2.2-1_gws.eps" },
+        /* 17*/ { BARCODE_EANX, -1, -1, EANUPC_GUARD_WHITESPACE, 3, -1, -1, -1, 0, 0, "", "", 0, "9501234", "ean8_gss_5.2.2.2-1_gws_wsw3.eps" },
+        /* 18*/ { BARCODE_EANX, -1, -1, -1, -1, -1, -1, -1, 0, 0, "", "", 0, "98765", "ean5.eps" },
+        /* 19*/ { BARCODE_EANX, -1, -1, EANUPC_GUARD_WHITESPACE, -1, -1, -1, -1, 0, 0, "", "", 0, "98765", "ean5_gws.eps" },
+        /* 20*/ { BARCODE_UPCA, -1, -1, -1, -1, -1, -1, -1, 0, 0, "", "", 0, "012345678905+24", "upca_2addon_ggs_5.2.6.6-5.eps" },
+        /* 21*/ { BARCODE_UPCA, -1, -1, EANUPC_GUARD_WHITESPACE, -1, -1, -1, -1, 0, 0, "", "", 0, "012345678905+24", "upca_2addon_ggs_5.2.6.6-5_gws.eps" },
+        /* 22*/ { BARCODE_UPCA, -1, -1, EANUPC_GUARD_WHITESPACE, 1, 3, -1, -1, 0, 0, "", "", 0, "012345678905+24", "upca_2addon_ggs_5.2.6.6-5_gws_wsw1h3.eps" },
+        /* 23*/ { BARCODE_UPCA, -1, -1, -1, -1, -1, -1, -1, 0, 0, "", "", 90, "012345678905+24", "upca_2addon_ggs_5.2.6.6-5_rotate_90.eps" },
+        /* 24*/ { BARCODE_UPCA, -1, -1, EANUPC_GUARD_WHITESPACE, -1, -1, -1, -1, 0, 0, "", "", 180, "012345678905+24", "upca_2addon_ggs_5.2.6.6-5_gws_rotate_180.eps" },
+        /* 25*/ { BARCODE_UPCA, -1, -1, EANUPC_GUARD_WHITESPACE, 4, -1, -1, -1, 0, 0, "", "", 270, "012345678905+24", "upca_2addon_ggs_5.2.6.6-5_gws_rotate_270_wsw4.eps" },
+        /* 26*/ { BARCODE_UPCE, -1, -1, -1, -1, -1, -1, -1, 0, 0, "", "", 0, "0123456+12345", "upce_5addon.eps" },
+        /* 27*/ { BARCODE_UPCE, -1, -1, EANUPC_GUARD_WHITESPACE, -1, -1, -1, -1, 0, 0, "", "", 0, "0123456+12345", "upce_5addon_gws.eps" },
+        /* 28*/ { BARCODE_UPCE, -1, -1, -1, -1, -1, -1, -1, 0, 0, "", "", 270, "0123456+12345", "upce_5addon_rotate_270.eps" },
+        /* 29*/ { BARCODE_UPCE, -1, -1, SMALL_TEXT | BOLD_TEXT, -1, -1, -1, -1, 0, 0, "", "", 0, "0123456+12345", "upce_5addon_small_bold.eps" },
+        /* 30*/ { BARCODE_UPCE, -1, -1, SMALL_TEXT | BOLD_TEXT | EANUPC_GUARD_WHITESPACE, -1, -1, -1, -1, 0, 0, "", "", 0, "0123456+12345", "upce_5addon_small_bold_gws.eps" },
+        /* 31*/ { BARCODE_CODE128, UNICODE_MODE, -1, -1, -1, -1, -1, -1, 0, 0, "", "", 0, "A\\B)ç(D", "code128_escape_latin1.eps" },
+        /* 32*/ { BARCODE_DBAR_LTD, -1, -1, BOLD_TEXT, -1, -1, -1, -1, 0, 0, "", "", 0, "1501234567890", "dbar_ltd_24724_fig7_bold.eps" },
+        /* 33*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 0.1, 0, "", "", 0, "12", "dotcode_0.1.eps" },
+        /* 34*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 0.08, 0, "", "", 0, "12", "dotcode_0.1.eps" },
+        /* 35*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 0, 0, "", "", 0, "12", "dotcode_1.0.eps" },
+        /* 36*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 0, 0.1, "", "", 0, "12", "dotcode_1.0_ds0.1.eps" },
+        /* 37*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 0, 1.1, "", "", 0, "12", "dotcode_1.0_ds1.1.eps" },
+        /* 38*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 1.5, 0, "", "", 0, "12", "dotcode_1.5.eps" },
+        /* 39*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 1.5, 0.4, "", "", 0, "12", "dotcode_1.5_ds0.4.eps" },
+        /* 40*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 1.5, 1.1, "", "", 0, "12", "dotcode_1.5_ds1.1.eps" },
+        /* 41*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 1.5, 2.1, "", "", 0, "12", "dotcode_1.5_ds2.1.eps" },
+        /* 42*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 2, 0, "", "", 0, "12", "dotcode_2.0.eps" },
+        /* 43*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 2, 0.9, "", "", 0, "12", "dotcode_2.0_ds0.9.eps" },
+        /* 44*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 2, 1.1, "", "", 0, "12", "dotcode_2.0_ds1.1.eps" },
+        /* 45*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 3, 0, "", "", 0, "12", "dotcode_3.0.eps" },
+        /* 46*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 3, 0.4, "", "", 0, "12", "dotcode_3.0_ds0.4.eps" },
+        /* 47*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 3, 1.1, "", "", 0, "12", "dotcode_3.0_ds1.1.eps" },
+        /* 48*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 3.5, 0, "", "", 0, "12", "dotcode_3.5.eps" },
+        /* 49*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 3.5, 0.4, "", "", 0, "12", "dotcode_3.5_ds0.4.eps" },
+        /* 50*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 3.5, 1.1, "", "", 0, "12", "dotcode_3.5_ds1.1.eps" },
+        /* 51*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 5, 0, "", "", 0, "12", "dotcode_5.0.eps" },
+        /* 52*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 5, 0.2, "", "", 0, "12", "dotcode_5.0_ds0.2.eps" },
+        /* 53*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 5, 1.1, "", "", 0, "12", "dotcode_5.0_ds1.1.eps" },
+        /* 54*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 5, 1.7, "", "", 0, "12", "dotcode_5.0_ds1.7.eps" },
+        /* 55*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, -1, 0, 0, "FF0000", "0000FF00", 0, "12", "dotcode_no_bg.eps" },
+        /* 56*/ { BARCODE_MAXICODE, -1, -1, CMYK_COLOUR, -1, -1, -1, -1, 0, 0, "", "", 270, "12", "maxicode_rotate_270_cmyk.eps" },
+        /* 57*/ { BARCODE_MAXICODE, -1, -1, -1, 3, -1, -1, -1, 0, 0, "", "0000FF00", 180, "12", "maxicode_no_bg_hwsp3_rotate_180.eps" },
+        /* 58*/ { BARCODE_MAXICODE, -1, -1, -1, -1, -1, -1, -1, 2.4, 0, "", "", 90, "12", "maxicode_2.4_rotate_90.eps" },
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     const char *data_dir = "/backend/tests/data/eps";
     const char *eps = "out.eps";
@@ -103,9 +125,9 @@ static void test_print(int index, int generate, int debug) {
 
     int have_ghostscript = testUtilHaveGhostscript();
 
-    testStart("test_print");
+    testStartSymbol("test_print", &symbol);
 
-    if (generate) {
+    if (p_ctx->generate) {
         char data_dir_path[1024];
         assert_nonzero(testUtilDataPath(data_dir_path, sizeof(data_dir_path), data_dir, NULL), "testUtilDataPath(%s) == 0\n", data_dir);
         if (!testUtilDirExists(data_dir_path)) {
@@ -116,7 +138,7 @@ static void test_print(int index, int generate, int debug) {
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -153,7 +175,7 @@ static void test_print(int index, int generate, int debug) {
 
         assert_nonzero(testUtilDataPath(expected_file, sizeof(expected_file), data_dir, data[i].expected_file), "i:%d testUtilDataPath == 0\n", i);
 
-        if (generate) {
+        if (p_ctx->generate) {
             printf("        /*%3d*/ { %s, %s, %d, %s, %d, %d, %d, %d, %.5g, %.5g, \"%s\", \"%s\", %d, \"%s\", \"%s\"},\n",
                     i, testUtilBarcodeName(data[i].symbology), testUtilInputModeName(data[i].input_mode), data[i].border_width,
                     testUtilOutputOptionsName(data[i].output_options), data[i].whitespace_width, data[i].whitespace_height, data[i].option_1, data[i].option_2,
@@ -171,7 +193,7 @@ static void test_print(int index, int generate, int debug) {
 
             ret = testUtilCmpEpss(symbol->outfile, expected_file);
             assert_zero(ret, "i:%d %s testUtilCmpEpss(%s, %s) %d != 0\n", i, testUtilBarcodeName(data[i].symbology), symbol->outfile, expected_file, ret);
-            assert_zero(remove(symbol->outfile), "i:%d remove(%s) != 0\n", i, symbol->outfile);
+            assert_zero(testUtilRemove(symbol->outfile), "i:%d testUtilRemove(%s) != 0\n", i, symbol->outfile);
         }
 
         ZBarcode_Delete(symbol);
@@ -182,7 +204,7 @@ static void test_print(int index, int generate, int debug) {
 
 INTERNAL void ps_convert_test(const unsigned char *string, unsigned char *ps_string);
 
-static void test_ps_convert(int index) {
+static void test_ps_convert(const testCtx *const p_ctx) {
 
     struct item {
         char *data;
@@ -200,7 +222,7 @@ static void test_ps_convert(int index) {
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         ps_convert_test((unsigned char *) data[i].data, converted);
         assert_zero(strcmp((char *) converted, data[i].expected), "i:%d ps_convert(%s) %s != %s\n", i, data[i].data, converted, data[i].expected);
@@ -211,25 +233,37 @@ static void test_ps_convert(int index) {
 
 INTERNAL int ps_plot(struct zint_symbol *symbol, int rotate_angle);
 
-static void test_outfile(void) {
+static void test_outfile(const testCtx *const p_ctx) {
     int ret;
+    int skip_readonly_test = 0;
     struct zint_symbol symbol = {0};
     struct zint_vector vector = {0};
+
+    (void)p_ctx;
 
     testStart("test_outfile");
 
     symbol.symbology = BARCODE_CODE128;
     symbol.vector = &vector;
 
-    strcpy(symbol.outfile, "nosuch_dir/out.eps");
+    strcpy(symbol.outfile, "test_ps_out.eps");
+#ifndef _WIN32
+    skip_readonly_test = getuid() == 0; /* Skip if running as root on Unix as can't create read-only file */
+#endif
+    if (!skip_readonly_test) {
+        (void) testUtilRmROFile(symbol.outfile); /* In case lying around from previous fail */
+        assert_nonzero(testUtilCreateROFile(symbol.outfile), "ps_plot testUtilCreateROFile(%s) fail (%d: %s)\n", symbol.outfile, errno, strerror(errno));
 
-    ret = ps_plot(&symbol, 0);
-    assert_equal(ret, ZINT_ERROR_FILE_ACCESS, "ps_plot ret %d != ZINT_ERROR_FILE_ACCESS (%d) (%s)\n", ret, ZINT_ERROR_FILE_ACCESS, symbol.errtxt);
+        ret = ps_plot(&symbol, 0);
+        assert_equal(ret, ZINT_ERROR_FILE_ACCESS, "ps_plot ret %d != ZINT_ERROR_FILE_ACCESS (%d) (%s)\n", ret, ZINT_ERROR_FILE_ACCESS, symbol.errtxt);
+        assert_zero(testUtilRmROFile(symbol.outfile), "ps_plot testUtilRmROFile(%s) != 0 (%d: %s)\n", symbol.outfile, errno, strerror(errno));
+    }
 
     symbol.output_options |= BARCODE_STDOUT;
 
+    printf(">>>Begin ignore (EPS to stdout)\n"); fflush(stdout);
     ret = ps_plot(&symbol, 0);
-    printf(" - ignore (EPS to stdout)\n"); fflush(stdout);
+    printf("<<<End ignore (EPS to stdout)\n"); fflush(stdout);
     assert_zero(ret, "ps_plot ret %d != 0 (%s)\n", ret, symbol.errtxt);
 
     symbol.vector = NULL;
@@ -241,10 +275,10 @@ static void test_outfile(void) {
 
 int main(int argc, char *argv[]) {
 
-    testFunction funcs[] = { /* name, func, has_index, has_generate, has_debug */
-        { "test_print", test_print, 1, 1, 1 },
-        { "test_ps_convert", test_ps_convert, 1, 0, 0 },
-        { "test_outfile", test_outfile, 0, 0, 0 },
+    testFunction funcs[] = { /* name, func */
+        { "test_print", test_print },
+        { "test_ps_convert", test_ps_convert },
+        { "test_outfile", test_outfile },
     };
 
     testRun(argc, argv, funcs, ARRAY_SIZE(funcs));

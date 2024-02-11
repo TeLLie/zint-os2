@@ -1,6 +1,6 @@
 /*
     libzint - the open source barcode library
-    Copyright (C) 2019-2022 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2019-2023 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -37,6 +37,10 @@
 #ifndef Z_TESTCOMMON_H
 #define Z_TESTCOMMON_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define ZINT_DEBUG_TEST_PRINT           16
 #define ZINT_DEBUG_TEST_LESS_NOISY      32
 #define ZINT_DEBUG_TEST_KEEP_OUTFILE    64
@@ -53,6 +57,10 @@
 #define testutil_pclose(stream) _pclose(stream)
 #else
 #include <unistd.h>
+#  if defined(ZINT_IS_C89)
+    extern FILE *popen(const char *command, const char *type);
+    extern int pclose(FILE *stream);
+#  endif
 #define testutil_popen(command, mode) popen(command, mode)
 #define testutil_pclose(stream) pclose(stream)
 #endif
@@ -64,49 +72,60 @@
 #  pragma warning(disable: 4305) /* truncation from 'double' to 'float' */
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 extern int assertionFailed;
 extern int assertionNum;
+extern struct zint_symbol **assertionPPSymbol;
 extern const char *assertionFilename;
 
-#if _MSC_VER < 1900 /* MSVC 2015 */
-#define testStart(__arg__) (testStartReal("", __arg__))
+#if defined(_MSC_VER) && _MSC_VER < 1900 /* MSVC 2015 */
+#define testStart(name) (testStartReal("", name, NULL))
+#define testStartSymbol(name, pp_symbol) (testStartReal("", name, pp_symbol))
 #else
-#define testStart(__arg__) (testStartReal(__func__, __arg__))
+#define testStart(name) (testStartReal(__func__, name, NULL))
+#define testStartSymbol(name, pp_symbol) (testStartReal(__func__, name, pp_symbol))
 #endif
-void testStartReal(const char *func, const char *name);
+void testStartReal(const char *func, const char *name, struct zint_symbol **pp_symbol);
 void testFinish(void);
 void testSkip(const char *msg);
 void testReport(void);
 
+#define ZINT_TEST_CTX_EXC_MAX   32
+typedef struct s_testCtx {
+    int index;
+    int index_end;
+    int exclude[ZINT_TEST_CTX_EXC_MAX];
+    int exclude_end[ZINT_TEST_CTX_EXC_MAX];
+    int generate;
+    int debug;
+} testCtx;
+typedef void (*testFunc_t)(const testCtx *const p_ctx);
 typedef struct s_testFunction {
-    const char *name; void *func; int has_index; int has_generate; int has_debug;
+    const char *name; testFunc_t func;
 } testFunction;
 void testRun(int argc, char *argv[], testFunction funcs[], int funcs_size);
+int testContinue(const testCtx *const p_ctx, const int i);
 
-#if _MSC_VER == 1200 /* VC6 */
+#if (defined(_MSC_VER) &&_MSC_VER == 1200) || defined(ZINT_IS_C89) /* VC6 or C89 */
 void assert_zero(int exp, const char *fmt, ...);
 void assert_nonzero(int exp, const char *fmt, ...);
 void assert_null(const void *exp, const char *fmt, ...);
 void assert_nonnull(const void *exp, const char *fmt, ...);
 void assert_equal(int e1, int e2, const char *fmt, ...);
 void assert_equalu64(uint64_t e1, uint64_t e2, const char *fmt, ...);
-void assert_notequal(int e1, int e2, ...);
+void assert_notequal(int e1, int e2, const char *fmt, ...);
 #else
-#define assert_exp(__exp__, ...) \
-    { assertionNum++; if (!(__exp__)) { assertionFailed++; printf("%s:%d ", assertionFilename, __LINE__); \
-      printf(__VA_ARGS__); testFinish(); return; } }
+#define assert_exp(exp, ...) \
+    { assertionNum++; if (!(exp)) { assertionFailed++; printf("%s:%d ", assertionFilename, __LINE__); \
+      printf(__VA_ARGS__); testFinish(); \
+      if (assertionPPSymbol) { ZBarcode_Delete(*assertionPPSymbol); assertionPPSymbol = NULL; } return; } }
 
-#define assert_zero(__exp__, ...) assert_exp((__exp__) == 0, __VA_ARGS__)
-#define assert_nonzero(__exp__, ...) assert_exp((__exp__) != 0, __VA_ARGS__)
-#define assert_null(__ptr__, ...) assert_exp((__ptr__) == NULL, __VA_ARGS__)
-#define assert_nonnull(__ptr__, ...) assert_exp((__ptr__) != NULL, __VA_ARGS__)
-#define assert_equal(__e1__, __e2__, ...) assert_exp((__e1__) == (__e2__), __VA_ARGS__)
+#define assert_zero(exp, ...) assert_exp((exp) == 0, __VA_ARGS__)
+#define assert_nonzero(exp, ...) assert_exp((exp) != 0, __VA_ARGS__)
+#define assert_null(ptr, ...) assert_exp((ptr) == NULL, __VA_ARGS__)
+#define assert_nonnull(ptr, ...) assert_exp((ptr) != NULL, __VA_ARGS__)
+#define assert_equal(e1, e2, ...) assert_exp((e1) == (e2), __VA_ARGS__)
 #define assert_equalu64 assert_equal
-#define assert_notequal(__e1__, __e2__, ...) assert_exp((__e1__) != (__e2__), __VA_ARGS__)
+#define assert_notequal(e1, e2, ...) assert_exp((e1) != (e2), __VA_ARGS__)
 #endif
 
 #define TU(p) ((unsigned char *) (p))
@@ -114,12 +133,12 @@ void assert_notequal(int e1, int e2, ...);
 INTERNAL void vector_free(struct zint_symbol *symbol); /* Free vector structures */
 
 int testUtilSetSymbol(struct zint_symbol *symbol, int symbology, int input_mode, int eci,
-            int option_1, int option_2, int option_3, int output_options, char *data, int length, int debug);
+            int option_1, int option_2, int option_3, int output_options, const char *data, int length, int debug);
 
 const char *testUtilBarcodeName(int symbology);
 const char *testUtilErrorName(int error_number);
 const char *testUtilInputModeName(int input_mode);
-const char *testUtilOption3Name(int option_3);
+const char *testUtilOption3Name(int symbology, int option_3);
 const char *testUtilOutputOptionsName(int output_options);
 
 int testUtilDAFTConvert(const struct zint_symbol *symbol, char *buffer, const int buffer_size);
@@ -143,12 +162,18 @@ char *testUtilUCharArrayDump(unsigned char *array, int size, char *dump, int dum
 void testUtilBitmapPrint(const struct zint_symbol *symbol, const char *prefix, const char *postfix);
 int testUtilBitmapCmp(const struct zint_symbol *symbol, const char *expected, int *row, int *column);
 
+void testUtilVectorPrint(const struct zint_symbol *symbol);
+
 int testUtilDataPath(char *buffer, int buffer_size, const char *subdir, const char *filename);
+FILE *testUtilOpen(const char *filename, const char *mode);
 int testUtilExists(const char *filename);
+int testUtilRemove(const char *filename);
 int testUtilDirExists(const char *dirname);
 int testUtilMkDir(const char *dirname);
 int testUtilRmDir(const char *dirname);
 int testUtilRename(const char *oldpath, const char *newpath);
+int testUtilCreateROFile(const char *filename);
+int testUtilRmROFile(const char *filename);
 
 int testUtilCmpPngs(const char *file1, const char *file2);
 int testUtilCmpTxts(const char *txt1, const char *txt2);
@@ -156,8 +181,8 @@ int testUtilCmpBins(const char *bin1, const char *bin2);
 int testUtilCmpSvgs(const char *svg1, const char *svg2);
 int testUtilCmpEpss(const char *eps1, const char *eps2);
 
-int testUtilHaveIdentify(void);
-int testUtilVerifyIdentify(const char *filename, int debug);
+const char *testUtilHaveIdentify(void);
+int testUtilVerifyIdentify(const char *const prog, const char *filename, int debug);
 int testUtilHaveLibreOffice(void);
 int testUtilVerifyLibreOffice(const char *filename, int debug);
 int testUtilHaveGhostscript(void);

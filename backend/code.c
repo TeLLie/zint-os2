@@ -1,7 +1,7 @@
 /* code.c - Handles Code 11, 39, 39+, 93, PZN, Channel and VIN */
 /*
     libzint - the open source barcode library
-    Copyright (C) 2008-2022 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2008-2023 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -132,8 +132,9 @@ INTERNAL int code11(struct zint_symbol *symbol, unsigned char source[], int leng
 
     int i;
     int h, c_digit, c_weight, c_count, k_digit, k_weight, k_count;
-    int weight[122], error_number = 0;
-    char dest[750]; /* 6 + 121 * 6 + 2 * 6 + 5 + 1 == 750 */
+    int weight[141]; /* 140 + 1 extra for 1st check */
+    char dest[864]; /* 6 + 140 * 6 + 2 * 6 + 5 + 1 = 864 */
+    int error_number = 0;
     char *d = dest;
     int num_check_digits;
     char checkstr[3] = {0};
@@ -142,8 +143,8 @@ INTERNAL int code11(struct zint_symbol *symbol, unsigned char source[], int leng
     /* Suppresses clang-tidy clang-analyzer-core.UndefinedBinaryOperatorResult warning */
     assert(length > 0);
 
-    if (length > 121) {
-        strcpy(symbol->errtxt, "320: Input too long (121 character maximum)");
+    if (length > 140) { /* 8 (Start) + 140 * 8 + 2 * 8 (Check) + 7 (Stop) = 1151 */
+        strcpy(symbol->errtxt, "320: Input too long (140 character maximum)");
         return ZINT_ERROR_TOO_LONG;
     }
     if (!is_sane(SODIUM_MNS_F, source, length)) {
@@ -241,14 +242,14 @@ INTERNAL int code39(struct zint_symbol *symbol, unsigned char source[], int leng
     int i;
     int counter;
     int error_number = 0;
-    int posns[85];
-    char dest[880]; /* 10 (Start) + 85 * 10 + 10 (Check) + 9 (Stop) + 1 = 880 */
+    int posns[86];
+    char dest[890]; /* 10 (Start) + 86 * 10 + 10 (Check) + 9 (Stop) + 1 = 890 */
     char *d = dest;
     char localstr[2] = {0};
 
     counter = 0;
 
-    if ((symbol->option_2 < 0) || (symbol->option_2 > 1)) {
+    if ((symbol->option_2 < 0) || (symbol->option_2 > 2)) {
         symbol->option_2 = 0;
     }
 
@@ -257,17 +258,17 @@ INTERNAL int code39(struct zint_symbol *symbol, unsigned char source[], int leng
         strcpy(symbol->errtxt, "322: Input too long (30 character maximum)");
         return ZINT_ERROR_TOO_LONG;
     /* Prevent encoded_data out-of-bounds >= 143 for BARCODE_HIBC_39 due to wider 'wide' bars */
-    } else if ((symbol->symbology == BARCODE_HIBC_39) && (length > 69)) {
+    } else if ((symbol->symbology == BARCODE_HIBC_39) && (length > 70)) { /* 16 (Start) + 70*16 + 15 (Stop) = 1151 */
         /* Note use 319 (2of5 range) as 340 taken by CODE128 */
-        strcpy(symbol->errtxt, "319: Input too long (67 character maximum)"); /* 69 less '+' and check */
+        strcpy(symbol->errtxt, "319: Input too long (68 character maximum)"); /* 70 less '+' and check */
         return ZINT_ERROR_TOO_LONG;
-    } else if (length > 85) {
-        strcpy(symbol->errtxt, "323: Input too long (85 character maximum)");
+    } else if (length > 86) { /* 13 (Start) + 86*13 + 12 (Stop) = 1143 */
+        strcpy(symbol->errtxt, "323: Input too long (86 character maximum)");
         return ZINT_ERROR_TOO_LONG;
     }
 
     to_upper(source, length);
-    if (!is_sane_lookup(SILVER, 43, source, length, posns)) {
+    if (!is_sane_lookup(SILVER, 43 /* Up to "%" */, source, length, posns)) {
         strcpy(symbol->errtxt, "324: Invalid character in data (alphanumerics, space and \"-.$/+%\" only)");
         return ZINT_ERROR_INVALID_DATA;
     }
@@ -281,7 +282,7 @@ INTERNAL int code39(struct zint_symbol *symbol, unsigned char source[], int leng
         counter += posns[i];
     }
 
-    if (symbol->option_2 == 1) {
+    if (symbol->option_2 == 1 || symbol->option_2 == 2) { /* Visible or hidden check digit */
 
         char check_digit;
         counter %= 43;
@@ -294,8 +295,11 @@ INTERNAL int code39(struct zint_symbol *symbol, unsigned char source[], int leng
             check_digit = '_';
         }
 
-        localstr[0] = check_digit;
-        localstr[1] = '\0';
+        if (symbol->option_2 == 1) { /* Visible check digit */
+            localstr[0] = check_digit;
+            localstr[1] = '\0';
+        }
+        if (symbol->debug & ZINT_DEBUG_PRINT) printf("Check digit: %c\n", check_digit);
     }
 
     /* Stop character */
@@ -303,7 +307,7 @@ INTERNAL int code39(struct zint_symbol *symbol, unsigned char source[], int leng
     d += 9;
 
     if ((symbol->symbology == BARCODE_LOGMARS) || (symbol->symbology == BARCODE_HIBC_39)) {
-        /* LOGMARS uses wider 'wide' bars than normal Code 39 */
+        /* LOGMARS and HIBC use wider 'wide' bars than normal Code 39 */
         counter = d - dest;
         for (i = 0; i < counter; i++) {
             if (dest[i] == '2') {
@@ -352,19 +356,25 @@ INTERNAL int code39(struct zint_symbol *symbol, unsigned char source[], int leng
     return error_number;
 }
 
-/* Pharmazentral Nummer (PZN) */
+/* Pharmazentralnummer (PZN) */
 /* PZN https://www.ifaffm.de/mandanten/1/documents/04_ifa_coding_system/IFA_Info_Code_39_EN.pdf */
 /* PZN https://www.ifaffm.de/mandanten/1/documents/04_ifa_coding_system/
        IFA-Info_Check_Digit_Calculations_PZN_PPN_UDI_EN.pdf */
 INTERNAL int pzn(struct zint_symbol *symbol, unsigned char source[], int length) {
 
     int i, error_number, zeroes;
-    unsigned int count, check_digit;
-    char localstr[11];
+    int count, check_digit;
+    unsigned char have_check_digit = '\0';
+    char localstr[1 + 8 + 1]; /* '-' prefix + 8 digits + NUL */
+    const int pzn7 = symbol->option_2 == 1;
 
-    if (length > 7) {
-        strcpy(symbol->errtxt, "325: Input wrong length (7 character maximum)");
+    if (length > 8 - pzn7) {
+        sprintf(symbol->errtxt, "325: Input wrong length (%d character maximum)", 8 - pzn7);
         return ZINT_ERROR_TOO_LONG;
+    }
+    if (length == 8 - pzn7) {
+        have_check_digit = source[7 - pzn7];
+        length--;
     }
     if (!is_sane(NEON_F, source, length)) {
         strcpy(symbol->errtxt, "326: Invalid character in data (digits only)");
@@ -372,14 +382,14 @@ INTERNAL int pzn(struct zint_symbol *symbol, unsigned char source[], int length)
     }
 
     localstr[0] = '-';
-    zeroes = 7 - length + 1;
+    zeroes = 7 - pzn7 - length + 1;
     for (i = 1; i < zeroes; i++)
         localstr[i] = '0';
     ustrcpy(localstr + zeroes, source);
 
     count = 0;
-    for (i = 1; i < 8; i++) {
-        count += i * ctoi(localstr[i]);
+    for (i = 1; i < 8 - pzn7; i++) {
+        count += (i + pzn7) * ctoi(localstr[i]);
     }
 
     check_digit = count % 11;
@@ -392,11 +402,26 @@ INTERNAL int pzn(struct zint_symbol *symbol, unsigned char source[], int length)
         strcpy(symbol->errtxt, "327: Invalid PZN, check digit is '10'");
         return ZINT_ERROR_INVALID_DATA;
     }
-    localstr[8] = itoc(check_digit);
-    localstr[9] = '\0';
-    error_number = code39(symbol, (unsigned char *) localstr, 9);
-    ustrcpy(symbol->text, "PZN ");
-    ustrcat(symbol->text, localstr);
+    if (have_check_digit && ctoi(have_check_digit) != check_digit) {
+        sprintf(symbol->errtxt, "890: Invalid check digit '%c', expecting '%c'", have_check_digit, itoc(check_digit));
+        return ZINT_ERROR_INVALID_CHECK;
+    }
+
+    localstr[8 - pzn7] = itoc(check_digit);
+    localstr[9 - pzn7] = '\0';
+
+    if (pzn7) {
+        symbol->option_2 = 0; /* Need to overwrite this so `code39()` doesn't add a check digit itself */
+    }
+
+    error_number = code39(symbol, (unsigned char *) localstr, 9 - pzn7);
+
+    if (pzn7) {
+        symbol->option_2 = 1; /* Restore */
+    }
+
+    ustrcpy(symbol->text, "PZN - "); /* Note changed to put space after hyphen */
+    ustrcat(symbol->text, localstr + 1);
 
     if (symbol->output_options & COMPLIANT_HEIGHT) {
         /* Technical Information regarding PZN Coding V 2.1 (25 Feb 2019) Code size
@@ -418,13 +443,14 @@ INTERNAL int pzn(struct zint_symbol *symbol, unsigned char source[], int length)
 /* Extended Code 39 - ISO/IEC 16388:2007 Annex A */
 INTERNAL int excode39(struct zint_symbol *symbol, unsigned char source[], int length) {
 
-    unsigned char buffer[85 * 2 + 1] = {0};
+    unsigned char buffer[86 * 2 + 1] = {0};
     unsigned char *b = buffer;
+    unsigned char check_digit = '\0';
     int i;
     int error_number;
 
-    if (length > 85) {
-        strcpy(symbol->errtxt, "328: Input too long (85 character maximum)");
+    if (length > 86) {
+        strcpy(symbol->errtxt, "328: Input too long (86 character maximum)");
         return ZINT_ERROR_TOO_LONG;
     }
 
@@ -438,8 +464,8 @@ INTERNAL int excode39(struct zint_symbol *symbol, unsigned char source[], int le
         memcpy(b, EC39Ctrl[source[i]], 2);
         b += EC39Ctrl[source[i]][1] ? 2 : 1;
     }
-    if (b - buffer > 85) {
-        strcpy(symbol->errtxt, "317: Expanded input too long (85 symbol character maximum)");
+    if (b - buffer > 86) {
+        strcpy(symbol->errtxt, "317: Expanded input too long (86 symbol character maximum)");
         return ZINT_ERROR_TOO_LONG;
     }
     *b = '\0';
@@ -447,9 +473,22 @@ INTERNAL int excode39(struct zint_symbol *symbol, unsigned char source[], int le
     /* Then sends the buffer to the C39 function */
     error_number = code39(symbol, buffer, b - buffer);
 
+    /* Save visible check digit */
+    if (symbol->option_2 == 1) {
+        const int len = (int) ustrlen(symbol->text);
+        if (len > 0) {
+            check_digit = symbol->text[len - 1];
+        }
+    }
+
+    /* Copy over source to HRT, subbing space for unprintables */
     for (i = 0; i < length; i++)
         symbol->text[i] = source[i] >= ' ' && source[i] != 0x7F ? source[i] : ' ';
-    symbol->text[length] = '\0'; /* Chops off check digit */
+
+    if (check_digit) {
+        symbol->text[i++] = check_digit;
+    }
+    symbol->text[i] = '\0';
 
     return error_number;
 }
@@ -463,17 +502,17 @@ INTERNAL int code93(struct zint_symbol *symbol, unsigned char source[], int leng
 
     int i;
     int h, weight, c, k, error_number = 0;
-    int values[110]; /* 107 + 2 (Checks) */
-    char buffer[216]; /* 107*2 (107 full ASCII) + 1 = 215 */
+    int values[125]; /* 123 + 2 (Checks) */
+    char buffer[247]; /* 123*2 (123 full ASCII) + 1 = 247 */
     char *b = buffer;
-    char dest[668]; /* 6 (Start) + 107*6 + 2*6 (Checks) + 7 (Stop) + 1 (NUL) = 668 */
+    char dest[764]; /* 6 (Start) + 123*6 + 2*6 (Checks) + 7 (Stop) + 1 (NUL) = 764 */
     char *d = dest;
 
     /* Suppresses clang-tidy clang-analyzer-core.CallAndMessage warning */
     assert(length > 0);
 
-    if (length > 107) { /* 9 (Start) + 107*9 + 2*9 (Checks) + 10 (Stop) == 1000 */
-        strcpy(symbol->errtxt, "330: Input too long (107 character maximum)");
+    if (length > 123) { /* 9 (Start) + 123*9 + 2*9 (Checks) + 10 (Stop) = 1144 */
+        strcpy(symbol->errtxt, "330: Input too long (123 character maximum)");
         return ZINT_ERROR_TOO_LONG;
     }
 
@@ -491,8 +530,8 @@ INTERNAL int code93(struct zint_symbol *symbol, unsigned char source[], int leng
 
     /* Now we can check the true length of the barcode */
     h = b - buffer;
-    if (h > 107) {
-        strcpy(symbol->errtxt, "332: Expanded input too long (107 symbol character maximum)");
+    if (h > 123) {
+        strcpy(symbol->errtxt, "332: Expanded input too long (123 symbol character maximum)");
         return ZINT_ERROR_TOO_LONG;
     }
 
@@ -568,7 +607,9 @@ typedef const struct s_channel_precalc {
     long value; unsigned char B[8]; unsigned char S[8]; unsigned char bmax[7]; unsigned char smax[7];
 } channel_precalc;
 
-/*#define CHANNEL_GENERATE_PRECALCS*/
+#if 0
+#define CHANNEL_GENERATE_PRECALCS
+#endif
 
 #ifdef CHANNEL_GENERATE_PRECALCS
 /* To generate precalc tables uncomment CHANNEL_GENERATE_PRECALCS define and run
@@ -577,11 +618,11 @@ static void channel_generate_precalc(int channels, long value, int mod, int last
             int smax[7]) {
     int i;
     if (value == mod) printf("static channel_precalc channel_precalcs%d[] = {\n", channels);
-    printf("    { %7ld, {", value); for (i = 0; i < 8; i++) printf(" %d,", B[i]); printf(" },");
-    printf(" {"); for (i = 0; i < 8; i++) printf(" %d,", S[i]); printf(" },");
-    printf(" {"); for (i = 0; i < 7; i++) printf(" %d,", bmax[i]); printf(" },");
-    printf(" {"); for (i = 0; i < 7; i++) printf(" %d,", smax[i]); printf(" }, },\n");
-    if (value == last) printf("};\n");
+    printf("    { %7ld, {", value); for (i = 0; i < 8; i++) printf(" %d,", B[i]); fputs(" },", stdout);
+    fputs(" {", stdout); for (i = 0; i < 8; i++) printf(" %d,", S[i]); fputs(" },", stdout);
+    fputs(" {", stdout); for (i = 0; i < 7; i++) printf(" %d,", bmax[i]); fputs(" },", stdout);
+    fputs(" {", stdout); for (i = 0; i < 7; i++) printf(" %d,", smax[i]); fputs(" }, },\n", stdout);
+    if (value == last) fputs("};\n", stdout);
 }
 #else
 #include "channel_precalcs.h"

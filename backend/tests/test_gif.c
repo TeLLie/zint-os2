@@ -1,6 +1,6 @@
 /*
     libzint - the open source barcode library
-    Copyright (C) 2020 - 2021 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2020-2023 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -27,13 +27,14 @@
     OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
     SUCH DAMAGE.
  */
-/* vim: set ts=4 sw=4 et : */
+/* SPDX-License-Identifier: BSD-3-Clause */
 
 #include "testcommon.h"
 
 INTERNAL int gif_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf);
 
-static void test_pixel_plot(int index, int debug) {
+static void test_pixel_plot(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int width;
@@ -42,7 +43,7 @@ static void test_pixel_plot(int index, int debug) {
         int repeat;
         int ret;
     };
-    // s/\/\*[ 0-9]*\*\//\=printf("\/*%3d*\/", line(".") - line("'<"))
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
     struct item data[] = {
         /*  0*/ { 1, 1, "1", 0, 0 },
         /*  1*/ { 2, 1, "11", 0, 0 },
@@ -52,8 +53,8 @@ static void test_pixel_plot(int index, int debug) {
         /*  5*/ { 3, 2, "101010", 0, 0 },
         /*  6*/ { 3, 3, "101010101", 0, 0 },
         /*  7*/ { 8, 2, "CBMWKRYGGYRKWMBC", 0, 0 },
-        /*  8*/ { 20, 30, "WWCWBWMWRWYWGWKCCWCMCRCYCGCKBWBCBBMBRBYBGBKMWMCMBMMRMYMGMKRWRCRBRMRRYRGRKYWYCYBYMYRYYGYKGWGCGBGMGRGYGGKKWKCKBKMKRKYKGKK", 1, 0 }, // Single LZW block, size 255
-        /*  9*/ { 19, 32, "WWCWBWMWRWYWGWKCCWCMCRCYCGCKBWBCBBMBRBYBGBKMWMCMBMMRMYMGMKRWRCRBRMRRYRGRKYWYCYBYMYRYYGYKGWGCGBGMGRGYGGKKWK", 1, 0 }, // Two LZW blocks, last size 1
+        /*  8*/ { 20, 30, "WWCWBWMWRWYWGWKCCWCMCRCYCGCKBWBCBBMBRBYBGBKMWMCMBMMRMYMGMKRWRCRBRMRRYRGRKYWYCYBYMYRYYGYKGWGCGBGMGRGYGGKKWKCKBKMKRKYKGKK", 1, 0 }, /* Single LZW block, size 255 */
+        /*  9*/ { 19, 32, "WWCWBWMWRWYWGWKCCWCMCRCYCGCKBWBCBBMBRBYBGBKMWMCMBMMRMYMGMKRWRCRBRMRRYRGRKYWYCYBYMYRYYGYKGWGCGBGMGRGYGGKKWK", 1, 0 }, /* Two LZW blocks, last size 1 */
         /* 10*/ { 1, 1, "D", 0, ZINT_ERROR_INVALID_DATA },
     };
     int data_size = ARRAY_SIZE(data);
@@ -62,16 +63,16 @@ static void test_pixel_plot(int index, int debug) {
 
     char *gif = "out.gif";
 
-    char data_buf[19 * 32 + 1]; // 19 * 32 == 608
+    char data_buf[19 * 32 + 1]; /* 19 * 32 == 608 */
 
-    int have_identify = testUtilHaveIdentify();
+    const char *const have_identify = testUtilHaveIdentify();
 
     testStart("test_pixel_plot");
 
     for (i = 0; i < data_size; i++) {
         int size;
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -99,15 +100,15 @@ static void test_pixel_plot(int index, int debug) {
 
         if (ret < ZINT_ERROR) {
             if (have_identify) {
-                ret = testUtilVerifyIdentify(symbol->outfile, debug);
+                ret = testUtilVerifyIdentify(have_identify, symbol->outfile, debug);
                 assert_zero(ret, "i:%d identify %s ret %d != 0\n", i, symbol->outfile, ret);
             }
             if (!(debug & ZINT_DEBUG_TEST_KEEP_OUTFILE)) {
-                assert_zero(remove(symbol->outfile), "i:%d remove(%s) != 0\n", i, symbol->outfile);
+                assert_zero(testUtilRemove(symbol->outfile), "i:%d testUtilRemove(%s) != 0\n", i, symbol->outfile);
             }
         } else {
             if (!(debug & ZINT_DEBUG_TEST_KEEP_OUTFILE)) {
-                (void) remove(symbol->outfile);
+                (void) testUtilRemove(symbol->outfile);
             }
         }
 
@@ -119,7 +120,8 @@ static void test_pixel_plot(int index, int debug) {
     testFinish();
 }
 
-static void test_print(int index, int generate, int debug) {
+static void test_print(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int symbology;
@@ -162,14 +164,18 @@ static void test_print(int index, int generate, int debug) {
         /* 19*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, 0, 5, 1.7, { 0, 0, "" }, "", "", "12", "dotcode_5.0_ds1.7.gif", "" },
         /* 20*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, 0, 0, 0, { 0, 0, "" }, "2674C344", "FDFFC2CC", "12", "dotcode_bgfgalpha.gif", "" },
         /* 21*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, 0, 0, 0, { 0, 0, "" }, "00000000", "FFFFFF00", "12", "dotcode_bgfgtrans.gif", "" },
-        /* 22*/ { BARCODE_ULTRA, 1, BARCODE_BOX, 1, 1, -1, -1, 0, 0, 0, { 0, 0, "" }, "0000FF", "FF0000", "12", "ultra_fgbg_hvwsp1_box1.gif", "" },
-        /* 23*/ { BARCODE_ITF14, 4, BARCODE_BIND, 24, -1, -1, -1, 61.8, 3, 0, { 0, 0, "" }, "", "", "0501054800395", "itf14_height61.8_bind4_wsp24_3.gif", "#204 ARM-Cortex crash" },
-        /* 24*/ { BARCODE_ITF14, 0, BARCODE_BIND, -1, -1, -1, -1, 0.5, 0.5, 0, { 0, 0, "" }, "", "", "0501054800395", "itf14_height0.5_box0_0.5.gif", "No box, no text" },
-        /* 25*/ { BARCODE_ITF14, -1, -1, -1, -1, -1, -1, 0.5, 1.1, 0, { 0, 0, "" }, "", "", "0501054800395", "itf14_height0.5_1.1.gif", "" },
-        /* 26*/ { BARCODE_CODE16K, -1, -1, 3, 5, -1, -1, 0.5, 0, 0, { 0, 0, "" }, "", "", "1234567890", "code16k_height0.5_wsp3_vwsp5.gif", "Separator covers bars" },
-        /* 27*/ { BARCODE_CODE16K, -1, -1, 3, 5, -1, -1, 1.5, 0, 0, { 0, 0, "" }, "", "", "1234567890", "code16k_height1.5_wsp3_vwsp5.gif", "" },
-        /* 28*/ { BARCODE_DATAMATRIX, -1, -1, -1, -1, -1, -1, 0, 0, 0, { 2, 9, "001002" }, "", "", "1234567890", "datamatrix_seq2of9.gif", "" },
-        /* 29*/ { BARCODE_ULTRA, -1, -1, 1, -1, -1, 2, 0, 0, 0, { 0, 0, "" }, "", "", "12", "ultra_rev2.gif", "Revision 2" },
+        /* 22*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, 0, 0, 0, { 0, 0, "" }, "00000000", "FFFFFF", "12", "dotcode_fgtrans.gif", "" },
+        /* 23*/ { BARCODE_DOTCODE, -1, -1, -1, -1, -1, -1, 0, 0, 0, { 0, 0, "" }, "000000", "FFFFFF00", "12", "dotcode_bgtrans.gif", "" },
+        /* 24*/ { BARCODE_DOTCODE, -1, CMYK_COLOUR, -1, -1, -1, -1, 0, 0, 0, { 0, 0, "" }, "71,0,40,44", "", "12", "dotcode_cmyk_fg.gif", "" },
+        /* 25*/ { BARCODE_ULTRA, 1, BARCODE_BOX, 1, 1, -1, -1, 0, 0, 0, { 0, 0, "" }, "0000FF", "FF0000", "12", "ultra_fgbg_hvwsp1_box1.gif", "" },
+        /* 26*/ { BARCODE_ITF14, 4, BARCODE_BIND, 24, -1, -1, -1, 61.8, 3, 0, { 0, 0, "" }, "", "", "0501054800395", "itf14_height61.8_bind4_wsp24_3.gif", "#204 ARM-Cortex crash" },
+        /* 27*/ { BARCODE_ITF14, 0, BARCODE_BIND, -1, -1, -1, -1, 0.5, 0.5, 0, { 0, 0, "" }, "", "", "0501054800395", "itf14_height0.5_box0_0.5.gif", "No box, no text" },
+        /* 28*/ { BARCODE_ITF14, -1, -1, -1, -1, -1, -1, 0.5, 1.1, 0, { 0, 0, "" }, "", "", "0501054800395", "itf14_height0.5_1.1.gif", "" },
+        /* 29*/ { BARCODE_CODE16K, -1, -1, 3, 5, -1, -1, 0.5, 0, 0, { 0, 0, "" }, "", "", "1234567890", "code16k_height0.5_wsp3_vwsp5.gif", "Separator covers bars" },
+        /* 30*/ { BARCODE_CODE16K, -1, -1, 3, 5, -1, -1, 1.5, 0, 0, { 0, 0, "" }, "", "", "1234567890", "code16k_height1.5_wsp3_vwsp5.gif", "" },
+        /* 31*/ { BARCODE_DATAMATRIX, -1, -1, -1, -1, -1, -1, 0, 0, 0, { 2, 9, "001002" }, "", "", "1234567890", "datamatrix_seq2of9.gif", "" },
+        /* 32*/ { BARCODE_ULTRA, -1, -1, 1, -1, -1, 2, 0, 0, 0, { 0, 0, "" }, "", "", "12", "ultra_rev2.gif", "Revision 2" },
+        /* 33*/ { BARCODE_DPD, -1, BARCODE_QUIET_ZONES | COMPLIANT_HEIGHT, -1, -1, -1, -1, 0, 0, 0, { 0, 0, "" }, "", "", "008182709980000020028101276", "dpd_compliant.gif", "Now with bind top 3X default" },
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
@@ -181,11 +187,11 @@ static void test_print(int index, int generate, int debug) {
     char escaped[1024];
     int escaped_size = 1024;
 
-    int have_identify = testUtilHaveIdentify();
+    const char *const have_identify = testUtilHaveIdentify();
 
     testStart("test_print");
 
-    if (generate) {
+    if (p_ctx->generate) {
         char data_dir_path[1024];
         assert_nonzero(testUtilDataPath(data_dir_path, sizeof(data_dir_path), data_dir, NULL), "testUtilDataPath(%s) == 0\n", data_dir);
         if (!testUtilDirExists(data_dir_path)) {
@@ -196,7 +202,7 @@ static void test_print(int index, int generate, int debug) {
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -239,7 +245,7 @@ static void test_print(int index, int generate, int debug) {
 
         assert_nonzero(testUtilDataPath(expected_file, sizeof(expected_file), data_dir, data[i].expected_file), "i:%d testUtilDataPath == 0\n", i);
 
-        if (generate) {
+        if (p_ctx->generate) {
             printf("        /*%3d*/ { %s, %d, %s, %d, %d, %d, %d, %.5g, %.5g, %.5g, \"%s\", \"%s\", \"%s\", \"%s\", \"%s\" },\n",
                     i, testUtilBarcodeName(data[i].symbology), data[i].border_width, testUtilOutputOptionsName(data[i].output_options),
                     data[i].whitespace_width, data[i].whitespace_height,
@@ -248,7 +254,7 @@ static void test_print(int index, int generate, int debug) {
             ret = testUtilRename(symbol->outfile, expected_file);
             assert_zero(ret, "i:%d testUtilRename(%s, %s) ret %d != 0\n", i, symbol->outfile, expected_file, ret);
             if (have_identify) {
-                ret = testUtilVerifyIdentify(expected_file, debug);
+                ret = testUtilVerifyIdentify(have_identify, expected_file, debug);
                 assert_zero(ret, "i:%d %s identify %s ret %d != 0\n", i, testUtilBarcodeName(data[i].symbology), expected_file, ret);
             }
         } else {
@@ -257,7 +263,7 @@ static void test_print(int index, int generate, int debug) {
 
             ret = testUtilCmpBins(symbol->outfile, expected_file);
             assert_zero(ret, "i:%d %s testUtilCmpBins(%s, %s) %d != 0\n", i, testUtilBarcodeName(data[i].symbology), symbol->outfile, expected_file, ret);
-            assert_zero(remove(symbol->outfile), "i:%d remove(%s) != 0\n", i, symbol->outfile);
+            assert_zero(testUtilRemove(symbol->outfile), "i:%d testUtilRemove(%s) != 0\n", i, symbol->outfile);
         }
 
         ZBarcode_Delete(symbol);
@@ -266,10 +272,13 @@ static void test_print(int index, int generate, int debug) {
     testFinish();
 }
 
-static void test_outfile(void) {
+static void test_outfile(const testCtx *const p_ctx) {
     int ret;
+    int skip_readonly_test = 0;
     struct zint_symbol symbol = {0};
     unsigned char data[] = { "1" };
+
+    (void)p_ctx;
 
     testStart("test_outfile");
 
@@ -277,10 +286,18 @@ static void test_outfile(void) {
     symbol.bitmap = data;
     symbol.bitmap_width = symbol.bitmap_height = 1;
 
-    strcpy(symbol.outfile, "nosuch_dir/out.gif");
+    strcpy(symbol.outfile, "test_gif_out.gif");
+#ifndef _WIN32
+    skip_readonly_test = getuid() == 0; /* Skip if running as root on Unix as can't create read-only file */
+#endif
+    if (!skip_readonly_test) {
+        (void) testUtilRmROFile(symbol.outfile); /* In case lying around from previous fail */
+        assert_nonzero(testUtilCreateROFile(symbol.outfile), "gif_pixel_plot testUtilCreateROFile(%s) fail (%d: %s)\n", symbol.outfile, errno, strerror(errno));
 
-    ret = gif_pixel_plot(&symbol, data);
-    assert_equal(ret, ZINT_ERROR_FILE_ACCESS, "gif_pixel_plot ret %d != ZINT_ERROR_FILE_ACCESS (%d) (%s)\n", ret, ZINT_ERROR_FILE_ACCESS, symbol.errtxt);
+        ret = gif_pixel_plot(&symbol, data);
+        assert_equal(ret, ZINT_ERROR_FILE_ACCESS, "gif_pixel_plot ret %d != ZINT_ERROR_FILE_ACCESS (%d) (%s)\n", ret, ZINT_ERROR_FILE_ACCESS, symbol.errtxt);
+        assert_zero(testUtilRmROFile(symbol.outfile), "gif_pixel_plot testUtilRmROFile(%s) != 0 (%d: %s)\n", symbol.outfile, errno, strerror(errno));
+    }
 
     symbol.output_options |= BARCODE_STDOUT;
 
@@ -291,7 +308,9 @@ static void test_outfile(void) {
     testFinish();
 }
 
-static void test_large_scale(int debug) {
+static void test_large_scale(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
+
     int length, ret;
     struct zint_symbol symbol = {0};
     char data[] = "1";
@@ -304,16 +323,16 @@ static void test_large_scale(int debug) {
     strcpy(symbol.fgcolour, "000000");
     strcpy(symbol.bgcolour, "ffffff");
     strcpy(symbol.outfile, "out.gif");
-    // X-dimension 0.27mm * 95 = 25.65 ~ 25 pixels so 12.5 gives 95 dpmm (2400 dpi)
-    symbol.scale = 12.5f; // 70.0f would cause re-alloc as LZW > 1MB but very slow
+    /* X-dimension 0.27mm * 95 = 25.65 ~ 25 pixels so 12.5 gives 95 dpmm (2400 dpi) */
+    symbol.scale = 12.5f; /* 70.0f would cause re-alloc as LZW > 1MB but very slow */
     symbol.dot_size = 4.0f / 5.0f;
 
     ret = ZBarcode_Encode_and_Print(&symbol, (unsigned char *) data, length, 0 /*rotate_angle*/);
     assert_zero(ret, "%s ZBarcode_Encode_and_Print ret %d != 0 %s\n", testUtilBarcodeName(symbol.symbology), ret, symbol.errtxt);
 
     if (!(debug & ZINT_DEBUG_TEST_KEEP_OUTFILE)) { /* -d 64 */
-        // 129.1 kB file manually inspected and checked (1.1 MB file for scale 70.0f also checked)
-        assert_zero(remove(symbol.outfile), "remove(%s) != 0\n", symbol.outfile);
+        /* 129.1 kB file manually inspected and checked (1.1 MB file for scale 70.0f also checked) */
+        assert_zero(testUtilRemove(symbol.outfile), "testUtilRemove(%s) != 0\n", symbol.outfile);
     }
 
     ZBarcode_Clear(&symbol);
@@ -323,11 +342,11 @@ static void test_large_scale(int debug) {
 
 int main(int argc, char *argv[]) {
 
-    testFunction funcs[] = { /* name, func, has_index, has_generate, has_debug */
-        { "test_pixel_plot", test_pixel_plot, 1, 0, 1 },
-        { "test_print", test_print, 1, 1, 1 },
-        { "test_outfile", test_outfile, 0, 0, 0 },
-        { "test_large_scale", test_large_scale, 0, 0, 1 },
+    testFunction funcs[] = { /* name, func */
+        { "test_pixel_plot", test_pixel_plot },
+        { "test_print", test_print },
+        { "test_outfile", test_outfile },
+        { "test_large_scale", test_large_scale },
     };
 
     testRun(argc, argv, funcs, ARRAY_SIZE(funcs));
@@ -336,3 +355,5 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+
+/* vim: set ts=4 sw=4 et : */

@@ -1,7 +1,7 @@
 /* png.c - Handles output to PNG file */
 /*
     libzint - the open source barcode library
-    Copyright (C) 2009-2022 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2009-2023 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -30,19 +30,20 @@
  */
 /* SPDX-License-Identifier: BSD-3-Clause */
 
-#ifndef NO_PNG
+#ifndef ZINT_NO_PNG
 
 #include <errno.h>
+#include <math.h>
 #include <stdio.h>
 #ifdef _MSC_VER
 #include <fcntl.h>
 #include <io.h>
 #endif
-#include "common.h"
-
 #include <png.h>
 #include <zlib.h>
 #include <setjmp.h>
+#include "common.h"
+#include "output.h"
 
 /* Note if change this need to change "backend/tests/test_png.c" definition also */
 struct wpng_error_type {
@@ -67,12 +68,12 @@ static void wpng_error_handler(png_structp png_ptr, png_const_charp msg) {
 
 #ifdef ZINT_TEST /* Wrapper for direct testing */
 INTERNAL void wpng_error_handler_test(png_structp png_ptr, png_const_charp msg) {
-	wpng_error_handler(png_ptr, msg);
+    wpng_error_handler(png_ptr, msg);
 }
 #endif
 
 /* Guestimate best compression strategy */
-static int guess_compression_strategy(struct zint_symbol *symbol, unsigned char *pixelbuf) {
+static int guess_compression_strategy(struct zint_symbol *symbol, const unsigned char *pixelbuf) {
     (void)pixelbuf;
 
     /* TODO: Do properly */
@@ -91,7 +92,7 @@ static int guess_compression_strategy(struct zint_symbol *symbol, unsigned char 
     return Z_FILTERED;
 }
 
-INTERNAL int png_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf) {
+INTERNAL int png_pixel_plot(struct zint_symbol *symbol, const unsigned char *pixelbuf) {
     struct wpng_error_type wpng_error;
     FILE *outfile;
     png_structp png_ptr;
@@ -104,50 +105,23 @@ INTERNAL int png_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
     png_color palette[32];
     int num_palette;
     unsigned char trans_alpha[32];
-    int num_trans;
+    int num_trans = 0;
     int bit_depth;
     int compression_strategy;
-    unsigned char *pb;
+    const unsigned char *pb;
     const int output_to_stdout = symbol->output_options & BARCODE_STDOUT;
     unsigned char *outdata = (unsigned char *) z_alloca(symbol->bitmap_width);
 
     wpng_error.symbol = symbol;
 
-    fg.red = (16 * ctoi(symbol->fgcolour[0])) + ctoi(symbol->fgcolour[1]);
-    fg.green = (16 * ctoi(symbol->fgcolour[2])) + ctoi(symbol->fgcolour[3]);
-    fg.blue = (16 * ctoi(symbol->fgcolour[4])) + ctoi(symbol->fgcolour[5]);
-    bg.red = (16 * ctoi(symbol->bgcolour[0])) + ctoi(symbol->bgcolour[1]);
-    bg.green = (16 * ctoi(symbol->bgcolour[2])) + ctoi(symbol->bgcolour[3]);
-    bg.blue = (16 * ctoi(symbol->bgcolour[4])) + ctoi(symbol->bgcolour[5]);
+    (void) out_colour_get_rgb(symbol->fgcolour, &fg.red, &fg.green, &fg.blue, &fg_alpha);
+    (void) out_colour_get_rgb(symbol->bgcolour, &bg.red, &bg.green, &bg.blue, &bg_alpha);
 
-    if (strlen(symbol->fgcolour) > 6) {
-        fg_alpha = (16 * ctoi(symbol->fgcolour[6])) + ctoi(symbol->fgcolour[7]);
-    } else {
-        fg_alpha = 0xff;
-    }
-
-    if (strlen(symbol->bgcolour) > 6) {
-        bg_alpha = (16 * ctoi(symbol->bgcolour[6])) + ctoi(symbol->bgcolour[7]);
-    } else {
-        bg_alpha = 0xff;
-    }
-
-    num_trans = 0;
     if (symbol->symbology == BARCODE_ULTRA) {
-        static const int ultra_chars[8] = { 'W', 'C', 'B', 'M', 'R', 'Y', 'G', 'K' };
-        static const png_color ultra_colours[8] = {
-            { 0xff, 0xff, 0xff, }, /* White */
-            {    0, 0xff, 0xff, }, /* Cyan */
-            {    0,    0, 0xff, }, /* Blue */
-            { 0xff,    0, 0xff, }, /* Magenta */
-            { 0xff,    0,    0, }, /* Red */
-            { 0xff, 0xff,    0, }, /* Yellow */
-            {    0, 0xff,    0, }, /* Green */
-            {    0,    0,    0, }, /* Black */
-        };
+        static const unsigned char ultra_chars[8] = { 'W', 'C', 'B', 'M', 'R', 'Y', 'G', 'K' };
         for (i = 0; i < 8; i++) {
             map[ultra_chars[i]] = i;
-            palette[i] = ultra_colours[i];
+            out_colour_char_to_rgb(ultra_chars[i], &palette[i].red, &palette[i].green, &palette[i].blue);
             if (fg_alpha != 0xff) {
                 trans_alpha[i] = fg_alpha;
             }
@@ -158,7 +132,7 @@ INTERNAL int png_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
         }
 
         /* For Ultracode, have foreground only if have bind/box */
-        if (symbol->border_width > 0 && (symbol->output_options & (BARCODE_BIND | BARCODE_BOX))) {
+        if (symbol->border_width > 0 && (symbol->output_options & (BARCODE_BIND | BARCODE_BOX | BARCODE_BIND_TOP))) {
             /* Check whether can re-use black */
             if (fg.red == 0 && fg.green == 0 && fg.blue == 0) {
                 map['1'] = 7; /* Re-use black */
@@ -185,10 +159,11 @@ INTERNAL int png_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
                     palette[num_palette++] = bg;
                 } else {
                     /* Alpha and no foreground alpha - add to front & move white to end */
+                    png_color white = palette[0]; /* Take copy */
                     map['0'] = 0;
                     palette[0] = bg;
                     map['W'] = num_palette;
-                    palette[num_palette++] = ultra_colours[0];
+                    palette[num_palette++] = white;
                 }
                 if (bg_alpha != 0xff) {
                     trans_alpha[num_trans++] = bg_alpha;
@@ -233,7 +208,7 @@ INTERNAL int png_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
 #endif
         outfile = stdout;
     } else {
-        if (!(outfile = fopen(symbol->outfile, "wb"))) {
+        if (!(outfile = out_fopen(symbol->outfile, "wb"))) {
             sprintf(symbol->errtxt, "632: Could not open output file (%d: %.30s)", errno, strerror(errno));
             return ZINT_ERROR_FILE_ACCESS;
         }
@@ -244,7 +219,7 @@ INTERNAL int png_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
     if (!png_ptr) {
         strcpy(symbol->errtxt, "633: Insufficient memory for PNG write structure buffer");
         if (!output_to_stdout) {
-            fclose(outfile);
+            (void) fclose(outfile);
         }
         return ZINT_ERROR_MEMORY;
     }
@@ -254,7 +229,7 @@ INTERNAL int png_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
         png_destroy_write_struct(&png_ptr, NULL);
         strcpy(symbol->errtxt, "634: Insufficient memory for PNG info structure buffer");
         if (!output_to_stdout) {
-            fclose(outfile);
+            (void) fclose(outfile);
         }
         return ZINT_ERROR_MEMORY;
     }
@@ -263,7 +238,7 @@ INTERNAL int png_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
     if (setjmp(wpng_error.jmpbuf)) {
         png_destroy_write_struct(&png_ptr, &info_ptr);
         if (!output_to_stdout) {
-            fclose(outfile);
+            (void) fclose(outfile);
         }
         return ZINT_ERROR_MEMORY;
     }
@@ -278,6 +253,11 @@ INTERNAL int png_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
     compression_strategy = guess_compression_strategy(symbol, pixelbuf);
     if (compression_strategy != Z_DEFAULT_STRATEGY) {
         png_set_compression_strategy(png_ptr, compression_strategy);
+    }
+
+    if (symbol->dpmm) {
+        int resolution = (int) roundf(stripf(symbol->dpmm * 1000.0f)); /* pixels per metre */
+        png_set_pHYs(png_ptr, info_ptr, resolution, resolution, PNG_RESOLUTION_METER);
     }
 
     /* set Header block */
@@ -337,16 +317,27 @@ INTERNAL int png_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
     /* make sure we have disengaged */
     png_destroy_write_struct(&png_ptr, &info_ptr);
 
+    if (ferror(outfile)) {
+        sprintf(symbol->errtxt, "638: Incomplete write to output (%d: %.30s)", errno, strerror(errno));
+        if (!output_to_stdout) {
+            (void) fclose(outfile);
+        }
+        return ZINT_ERROR_FILE_WRITE;
+    }
+
     if (output_to_stdout) {
-        fflush(outfile);
+        if (fflush(outfile) != 0) {
+            sprintf(symbol->errtxt, "639: Incomplete flush to output (%d: %.30s)", errno, strerror(errno));
+            return ZINT_ERROR_FILE_WRITE;
+        }
     } else {
-        fclose(outfile);
+        if (fclose(outfile) != 0) {
+            sprintf(symbol->errtxt, "960: Failure on closing output file (%d: %.30s)", errno, strerror(errno));
+            return ZINT_ERROR_FILE_WRITE;
+        }
     }
 
     return 0;
 }
-#else
-/* https://stackoverflow.com/a/26541331 Suppresses gcc warning ISO C forbids an empty translation unit */
-typedef int make_iso_compilers_happy;
 /* vim: set ts=4 sw=4 et : */
-#endif /* NO_PNG */
+#endif /* ZINT_NO_PNG */

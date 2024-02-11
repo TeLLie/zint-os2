@@ -1,5 +1,264 @@
-Version 2.11.0.9 (dev) not released yet
-=======================================
+Version 2.13.0 (2023-12-18)
+===========================
+
+**Incompatible changes**
+------------------------
+- Buffer lengths of members `fgcolour` and `bgcolour` in `zint_symbol` extended
+  10 -> 16 to allow for "C,M,Y,K" comma-separated decimal percentage strings
+- CMYK values for EPS (slightly) and TIF (significantly) have changed - now use
+  the same RGB -> CMYK formula
+- Text (HRT) placement for vector (EMF/EPS/SVG) output changed - for EAN/UPC
+  slightly further away from barcode, for all others slightly nearer. Some
+  horizontal alignments of EAN/UPC vector text also tweaked
+- Text (HRT) for standalone EAN-2 and EAN-5 now at top of symbol
+  (was at bottom)
+- Text height (font size) for SMALL_TEXT vector output reduced
+- For Windows, filenames are now assumed to be UTF-8 encoded. Affects `outfile`
+  in `zint_symbol` and all API filename arguments
+- Never-used `fontsize` member removed from `zint_symbol`
+- Buffer length of member `text` (HRT) in `zint_symbol` extended 128 -> 200
+  (client buffers may need checking/extending)
+- Font of text of SVG vector output now "OCRB, monospace" (EAN/UPC) or
+  "Arimo, Arial, sans-serif" (all others)
+  (was "Helvetica, sans-serif" for both)
+- Unintended excess horizontal whitespace of Composite symbols removed, and
+  quiet zone settings respected exactly, and centring of HRT (if any) now
+  relative to linear part of symbol only rather than whole symbol
+- Unlikely-to-be-used `bitmap_byte_length` member removed from `zint_symbol`
+  (was only set on BMP output to length of BMP pixel array)
+- EXCODE39 now defaults to displaying check digit in Human Readable Text (HRT)
+- GS1_128 now warns if data > 48 (GS1 General Specifications max)
+
+Changes
+-------
+- BMP/EMF/EPS/GIF/PCX/PNG/SVG/TIF/TXT: check for errors on writing to output
+  file (ticket #275)
+- manual/man page: document octal escape; Code 128 subset/mode -> Code Set
+- Add special symbology-specific escape sequences (Code 128 only) for manual
+  Code Set switching via `input_mode` flag `EXTRA_ESCAPE_MODE` (CLI --extraesc)
+  (ticket #204)
+- GUI: disable "Reset" colour if default; add "Unset" to Printing Scale dialog
+  (allows unsetting of X-dim/resolution settings without having to zap)
+- API/CLI/GUI: allow foreground/background colours to be specified as
+  comma-separated decimal percentage strings "C,M,Y,K" where "C", "M" etc. are
+  0-100 (ticket #281, 3rd point)
+- PCX: add alpha support
+- GUI: rearrange some Appearance tab inputs (Border Type <-> Width, Show Text
+  <-> Font, Text/Font <-> Printing Scale/Size) to flow more naturally;
+  save button "Save As..." -> "Save..." and add icon
+- Add `text_gap` option to allow adjustment of vertical gap between barcode and
+  text (HRT)
+- DAFT: up max to 250 chars
+- CLI: use own (Wine) version of `CommandLineToArgvW()` to avoid loading
+  "shell32.dll"
+- EAN/UPC: add quiet zone indicators option (API `output_options`
+  `EANUPC_GUARD_WHITESPACE`, CLI `--guardwhitespace`) (ticket #287)
+- EAN-2/EAN-5: HRT now at top instead of at bottom for standalones, following
+  BWIPP
+- EPS/SVG: use new `out_putsf()` func to output floats, avoiding trailing zeroes
+  & locale dependency
+- EPS: simplify "TR" formula
+- SVG: change font from "Helvetica, sans-serif" to "OCRB, monospace" for EAN/UPC
+  and "Arimo, Arial, sans-serif" for all others;
+  use single "<path>" instead of multiple "<rect>"s to draw boxes (reduces file
+  size)
+- Add `EMBED_VECTOR_FONT` to `output_options` (CLI `--embedfont`) to enable
+  embedding of font in vector output - currently only for SVG output
+- GUI: use "OCRB" font for EAN/UPC and "Arimo" for all others (was "Helvetica"
+  for both); add preview background colour option (default light grey) so as
+  whitespace will show up in contrast (access via preview context menu)
+- CODE128/common: add `ZINT_WARN_HRT_TRUNCATED` warning
+- QRCODE: better assert(), removing a NOLINT (2 left)
+- CLI: add some more barcode synonyms for DBAR
+- CMake: don't include png.c unless ZINT_USE_PNG (avoids clang warning)
+- vector: reduce SMALL_TEXT font height 6 -> 5 to be more like raster;
+  reduce antialiasing allowance for `textoffset`;
+  adjust text to baseline using values for Arimo rather than percentage
+- manual: expand size/alpha details in Section "5.4 Buffering Symbols in Memory
+  (raster)" (cf ticket #291); add BSD info
+- EXCODE39: change to display check digit in HRT by default
+- CODE39/EXCODE39/LOGMARS: new hidden check digit option
+- GUI: move some symbology-specific options into Data Tab so separate tab
+  unnecessary
+- DATAMATRIX: add `DM_ISO_144` (--dmiso144) option for ISO placement of ECC
+  codewords instead of default "de facto"
+- manual: add annexes on Qt and Tcl backends
+- CODE128: increase no. symbol chars max 60 -> 99
+- frontend: truncate overlong `--primary` instead of ignoring
+- man page: list size detail for matrix symbols (`--vers`)
+- CODE11/C25XXX/CODE39/EXCODE39/HIBC_39/CODE93/CODABAR/PLESSEY/MSI_PLESSEY/FLAT/
+  DAFT/TELEPEN/TELEPEN_NUM: increase allowed lengths
+- API: add `ZBarcode_Reset()` to fully restore `zint_symbol` to default state
+
+Bugs
+----
+- CEPNET: fix no HRT (library: `has_hrt()`)
+- man page: fix Code 11 check digit info
+- CMake: allow ctest to be run without having to install zint or manually set
+  LD_LIBRARY_PATH and PATH (ticket #279, props Alexey Dokuchaev)
+- GUI: fg/bgcolor text edit: fix right-click context menu not working properly
+  by checking for it on FocusOut
+- GUI: fix fg/bgcolor icon background not being reset on zap
+- EMF/EPS/SVG/GUI: ignore BOLD_TEXT for EAN/UPC
+- EMF/EPS/SVG: fix addon bars placement/length when text hidden
+- For Windows, assume `outfile` & API filename args are in UTF-8,
+  & use xxxW() APIs accordingly, ticket #288, props Marcel
+  **Backwards-incompatible change**
+- GUI: fix `save_to_file()` `filename.toLatin1()` -> `toUtf8()`
+- CLI: batch mode: don't close input if stdin
+- EAN/UPC: fix excess 1X to right of add-ons
+- Composites: fix excess whitespace; fix quiet zone calcs to allow for linear
+  shifting
+- GUI: fix not enabling font combo "Small Bold (vector only)" by default
+- CODEONE: fix S/T quiet zone 1X bottom (props BWIPP issue #245 doc)
+- EAN-2/EAN-5: fix `BARCODE_BIND_TOP/BIND/BOX` output
+- library: fix 21-bit Unicode conversion in `escape_char_process()`; fix
+  restricting escaped data length by using de-escaped length to check
+- AZTEC: fix out-of-bounds crash when user-specified size given, ticket #300,
+  props Andre Maute; fix 4-layer compact block max (76 -> 64); fix encoding of
+  byte-blocks > 11-bit limit
+- CODABLOCKF: fix crash due to `columns` overflow, ticket #300, props Andre
+  Maute
+- CODEONE: fix out-of-bounds crash in `c1_c40text_cnt()` and looping on latch
+  crash in `c1_encode()` and too small buffer for Version T, ticket #300, props
+  Andre Maute
+- EANX_CC/UPCA_CC: fix crash in `dbar_date()` on not checking length and crash
+  in `gs1_verify()` on not checking length, ticket #300, props Andre Maute
+- GS1_128_CC: fix divide-by-zero crash in `calc_padding_ccc()`, ticket #300,
+  props Andre Maute
+- HANXIN: fix incorrect numeric costings (out-by-1) in `hx_in_numeric()`, ticket
+  #300 (#16), props Andre Maure
+- PDF417: fix out-of-bounds crash in `pdf_text_submode_length()` and
+  out-of-bounds crash on overrunning string and codeword buffers, ticket #300,
+  props Andre Maute
+- QRCODE: fix out-of-bounds crash due to incorrect mode costings for GS1
+  percents in `qr_in_alpha()`; fix incorrect numeric costings (out-by-1) in
+  `qr_in_numeric()`; ticket #300 (#14, #15; #16), props Andre Maute
+
+
+Version 2.12.0 (2022-12-12)
+===========================
+
+**Incompatible changes**
+------------------------
+- DOTCODE, QRCODE, RMQR: now return warning if ECI or Structured Append used in
+  GS1 mode
+- CLI now returns an error if unknown option given or if option is missing its
+  argument
+  NOTE: previously printed error messages but continued without returning an
+  error
+- DPD now adds top boundary bar by default and returns warnings if input is not
+  compliant
+- Legacy and never-used output option BARCODE_NO_ASCII removed (value now used
+  by new output option BARCODE_BIND_TOP)
+- Symbology BARCODE_CODE128B (Suppress subset C) renamed to BARCODE_CODE128AB
+  to more accurately reflect its behaviour (old name still recognised, except in
+  Tcl backend)
+- Symbology BARCODE_MAILMARK renamed to BARCODE_MAILMARK_4S due to introduction
+  of BARCODE_MAILMARK_2D (old name still recognised, except in Tcl backend)
+- CLI now expects floating point arguments to be in simple decimal point
+  notation (i.e. not scientific notation) with a maximum of 7 significant digits
+
+Changes
+-------
+- bwipp_dump.ps: convert patch file to cat file as BWIPP now honours `dontdraw`
+  for composite symbologies
+- DOTCODE, QRCODE, RMQR: return warning if ECI or Structured Append used in GS1
+  mode, ticket #271
+- CLI: improve `getopt_long_only()` processing, printing own message if bad arg
+  and returning error if so rather than continuing to process
+- manual: MSE typo -> MSI; adjust SVG scaling for PDF manual; pandoc 2.19.2
+- manual/man page/GUI: Code 16k -> Code 16K
+- PDF417/MICROPDF417: add optimized encoding, FAST_MODE for previous; formatting
+  changes
+- common.c/h: add `cnt_digits()`; comments in include; minor fiddling
+- API/CLI/Tcl/GUI: new output option BARCODE_BIND_TOP / `--bindtop` / "Bind Top"
+- DPD: add top boundary (width 3X) by default, using new BARCODE_BIND_TOP;
+  "relabel" option; some compliance checks
+- manual: fuller DPD doc; some spelling typos, formatting
+- cmake: fixes for static build and install directories, props koprok
+- cmake: remove zintconfig.h.in for now as incompatible with MSVC project builds
+  (will add back in future if go fully CMake)
+- NO_PNG -> ZINT_NO_PNG and new API function `Zint_NoPng()` to determine if no
+  PNG support in libzint; replace use in GUI with backend_qt method `noPng()`
+- API: add new zint_symbol `dpmm` field for output resolution (BMP/EMF/PCX/PNG/
+  TIF only, i.e. excluding EPS, GIF & SVG)
+- Add support for specifying scale by X-dimension and resolution with new option
+  `--scalexdimdp` for CLI/Tcl & new API function `ZBarcode_Scale_From_XdimDp()`
+  (plus `ZBarcode_XdimDp_From_Scale()` and `ZBarcode_Default_Xdim()`) and new
+  GUI popup; manual: document
+- BMP/EMF/PCX/PNG/TIF: use new `dpmm` resolution field (for EMF following
+  Inkscape)
+- backend_qt: add `dpmm()`, `vectorWidth()`, `vectorHeight()`, `noPng()`,
+  `getVersion()`, `takesGS1AIData()`, & `XdimDp` stuff incl. new `QZintXdimDp`
+  struct for passing around scale vars & use in `getAsCLI()`; add comments
+- Raise `scale` limit to 200 (from 100) to allow for large dpmm
+- output: create directories & subdirectories as necessary for output path using
+  new function `out_fopen()` and use in BMP/EMF/EPS/GIF/PCX/PNG/SVG/TIF
+- DPLEIT/DPIDENT: format HRT according to (incomplete) documentation, and set
+  default height to 72X (from 50X)
+- CODE128B renamed to CODE128AB as can use subsets A and/or B
+- MAILMARK: better error message if input < 14 characters
+- GUI: add "Default" button for DAFT tracker ratio & enable/disable various
+  default buttons; use new `takesGS1AIData()` to enable/disable GS1-specific
+  checkboxes
+- CLI: use new `validate_float()` to parse float options (7 significant digits
+  allowed only, no scientific notation)
+- CLI: mirror: use -o directory if any (ticket #193)
+- QRCODE/UPNQR: add FAST_MODE (try 4 not 8 masks automatically)
+- GS1: add new AI 7011 (GSCN 22-163)
+- Add new symbology BARCODE_MAILMARK_2D (Royal Mail 2D Mailmark), renaming
+  previous BARCODE_MAILMARK (Royal Mail 4-State Mailmark) to BARCODE_MAILMARK_4S
+- Add new symbology BARCODE_UPU_S10
+- PZN: allow check digit to be given; add space after hyphen in HRT; PZN7 option
+- backend_tcl: update TEA
+- DATAMATRIX/GRIDMATRIX/PDF417/QR/ULTRA: micro-optimize structapp ID parse
+- library/CLI: fiddle with static asserts (make CHAR_BIT sensitive, supposedly)
+- win32/README: update building libpng (assembly removed)
+- README.linux: document incompatibility of Qt6 >= 6.3
+- manual: expand Barcode Studio waffle
+- test suite: change range separator to hyphen and allow multiple excludes
+
+Bugs
+----
+- test suite: fix `test_library` test to allow for running from root;
+  fix `test_args` test to allow for re-running (remove junk) (tickets #268,
+  #269)
+- common.h: define ZINT_IS_C89 as __STDC_VERSION__ not defined by MSVC, and use
+  when checking whether to include <alloca.h> (MR #152)
+- common.c: ensure `stripf()` not inlined to prevent optimizer undoing effect
+  (ticket #269)
+- GUI: fix "Border Width" ampersand shortcut
+- CODE128: allow for extended latching (double FNC4) spanning intermediate
+  CodeC sequence by setting `f_state` only if in CodeA/B & checking before
+  adding extended mode switch (cf OkapiBarcode commit [9ce6dcc], props Daniel
+  Gredler)
+- DATAMATRIX: in FAST_MODE re-process any buffered X12 characters when mode
+  changes from X12 (cf OkapiBarcode commit [fb7981e], props Daniel Gredler)
+- CODABLOCKF: allow for FNC4 when estimating no. of rows required
+- CODE16K: make sure row calculation accurate by dispensing with glyph estimate
+  & using actual codeword count
+- CODE16K: ensure initial mode selection allows for extended characters
+- vector.c: add `z_alloca()` cast for `first_row_rects` (ticket #272)
+- MSVC project files: remove incorrect "CompileAsCpp" setting from libzint
+  project files (ticket #272)
+- bwipp_dump.ps: fix 2/4-track processing; update to latest BWIPP
+- PDF417/MICROPDF417: use latch not ps shift for padding when spanning
+  Text segments to avoid affecting 1st char of 2nd segment
+- GUI: only skip encoded/errored signal processing if active modal ExportDialog
+  (wasn't clearing/setting error text bar correctly)
+- CODABAR: fix minimum height calc
+- EMF: fix indexing of handles (zero-based not 1-based)
+- GUI: fix symbology zap (previous technique of clearing and re-loading settings
+  without doing a sync no longer works); fix UPCEAN guard descent enable
+
+
+Version 2.11.1 (2022-08-22)
+===========================
+
+**Incompatible changes**
+------------------------
+ - None
 
 Changes
 -------
@@ -22,6 +281,11 @@ Changes
 - Add new symbology BC412 (SEMI T1-95)
 - backend: use alloca() (z_alloca()) for both Unix and Windows
 - GS1: new AI 4309 with latlong checker, new currency code 925
+- GUI: add automatic info feedback to "Automatic" combo item of size/row/height
+  comboboxes
+- PDF417: encodation now simpler and closer to ISO/IEC 15438:2015 Annex N
+  algorithm, props Jeff Skaistis
+- Add new symbology CEPNet
 
 Bugs
 ----
@@ -34,6 +298,13 @@ Bugs
 - GUI: sequence window: fix initial clear button status
 - GUI: NO_PNG: allow for Qt not parsing #if's in slots
 - frontend: batch mode: fix default "~~~~~" output (github issue #65)
+- vector: ensure separators don't overlap with other rectangles so that
+  they render correctly when have RGBA alpha channel
+- GUI: update_preview() after Data Dialog return to ensure preview in sync
+- PDF417: fix invalid numeric -> byte shift transitions, MR #151, props Jeff
+  Skaistis
+- PDF417: fix extraneous text latch after a byte shift, MR #151, props Jeff
+  Skaistis
 
 
 Version 2.11.0 (2022-05-24)
@@ -824,3 +1095,5 @@ Version 0.1 (as Zebar) 2006-11-13
 Draws UPC-A. UPC-E, EAN-8, EAN-13, Interlaced 2 of 5,
 Codabar, Code 39, Extended Code 39 and Code 93 barcodes and Add-on codes EAN-2
 and EAN-5 without parity.
+
+# vim: syntax=off :

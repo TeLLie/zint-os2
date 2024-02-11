@@ -1,7 +1,7 @@
 /* pcx.c - Handles output to ZSoft PCX file */
 /*
     libzint - the open source barcode library
-    Copyright (C) 2009-2022 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2009-2023 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -31,17 +31,19 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 
 #include <errno.h>
+#include <math.h>
 #include <stdio.h>
-#include "common.h"
-#include "pcx.h"        /* PCX header structure */
 #ifdef _MSC_VER
 #include <io.h>
 #include <fcntl.h>
 #endif
+#include "common.h"
+#include "output.h"
+#include "pcx.h"        /* PCX header structure */
 
 /* ZSoft PCX File Format Technical Reference Manual http://bespin.org/~qz/pc-gpe/pcx.txt */
-INTERNAL int pcx_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf) {
-    int fgred, fggrn, fgblu, bgred, bggrn, bgblu;
+INTERNAL int pcx_pixel_plot(struct zint_symbol *symbol, const unsigned char *pixelbuf) {
+    unsigned char fgred, fggrn, fgblu, fgalpha, bgred, bggrn, bgblu, bgalpha;
     int row, column, i, colour;
     int run_count;
     FILE *pcx_file;
@@ -53,30 +55,26 @@ INTERNAL int pcx_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
 
     rle_row[bytes_per_line - 1] = 0; /* Will remain zero if bitmap_width odd */
 
-    fgred = (16 * ctoi(symbol->fgcolour[0])) + ctoi(symbol->fgcolour[1]);
-    fggrn = (16 * ctoi(symbol->fgcolour[2])) + ctoi(symbol->fgcolour[3]);
-    fgblu = (16 * ctoi(symbol->fgcolour[4])) + ctoi(symbol->fgcolour[5]);
-    bgred = (16 * ctoi(symbol->bgcolour[0])) + ctoi(symbol->bgcolour[1]);
-    bggrn = (16 * ctoi(symbol->bgcolour[2])) + ctoi(symbol->bgcolour[3]);
-    bgblu = (16 * ctoi(symbol->bgcolour[4])) + ctoi(symbol->bgcolour[5]);
+    (void) out_colour_get_rgb(symbol->fgcolour, &fgred, &fggrn, &fgblu, &fgalpha);
+    (void) out_colour_get_rgb(symbol->bgcolour, &bgred, &bggrn, &bgblu, &bgalpha);
 
     header.manufacturer = 10; /* ZSoft */
     header.version = 5; /* Version 3.0 */
     header.encoding = 1; /* Run length encoding */
-    header.bits_per_pixel = 8;
+    header.bits_per_pixel = 8; /* TODO: 1-bit monochrome black/white */
     header.window_xmin = 0;
     header.window_ymin = 0;
     header.window_xmax = symbol->bitmap_width - 1;
     header.window_ymax = symbol->bitmap_height - 1;
-    header.horiz_dpi = 300;
-    header.vert_dpi = 300;
+    header.horiz_dpi = symbol->dpmm ? (uint16_t) roundf(stripf(symbol->dpmm * 25.4f)) : 300;
+    header.vert_dpi = header.horiz_dpi;
 
     for (i = 0; i < 48; i++) {
         header.colourmap[i] = 0x00;
     }
 
     header.reserved = 0;
-    header.number_of_planes = 3;
+    header.number_of_planes = 3 + (fgalpha != 0xFF || bgalpha != 0xFF); /* TODO: 1-bit monochrome black/white */
 
     header.bytes_per_line = bytes_per_line;
 
@@ -98,7 +96,7 @@ INTERNAL int pcx_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
 #endif
         pcx_file = stdout;
     } else {
-        if (!(pcx_file = fopen(symbol->outfile, "wb"))) {
+        if (!(pcx_file = out_fopen(symbol->outfile, "wb"))) {
             sprintf(symbol->errtxt, "621: Could not open output file (%d: %.30s)", errno, strerror(errno));
             return ZINT_ERROR_FILE_ACCESS;
         }
@@ -107,74 +105,34 @@ INTERNAL int pcx_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
     fwrite(&header, sizeof(pcx_header_t), 1, pcx_file);
 
     for (row = 0; row < symbol->bitmap_height; row++) {
-        for (colour = 0; colour < 3; colour++) {
+        const unsigned char *const pb = pixelbuf + row * symbol->bitmap_width;
+        for (colour = 0; colour < header.number_of_planes; colour++) {
             for (column = 0; column < symbol->bitmap_width; column++) {
+                const unsigned char ch = pb[column];
                 switch (colour) {
                     case 0:
-                        switch (pixelbuf[(row * symbol->bitmap_width) + column]) {
-                            case 'W': /* White */
-                            case 'M': /* Magenta */
-                            case 'R': /* Red */
-                            case 'Y': /* Yellow */
-                                rle_row[column] = 255;
-                                break;
-                            case 'C': /* Cyan */
-                            case 'B': /* Blue */
-                            case 'G': /* Green */
-                            case 'K': /* Black */
-                                rle_row[column] = 0;
-                                break;
-                            case '1':
-                                rle_row[column] = fgred;
-                                break;
-                            default:
-                                rle_row[column] = bgred;
-                                break;
+                        if (ch == '0' || ch == '1') {
+                            rle_row[column] = ch != '0' ? fgred : bgred;
+                        } else {
+                            out_colour_char_to_rgb(ch, &rle_row[column], NULL, NULL);
                         }
                         break;
                     case 1:
-                        switch (pixelbuf[(row * symbol->bitmap_width) + column]) {
-                            case 'W': /* White */
-                            case 'C': /* Cyan */
-                            case 'Y': /* Yellow */
-                            case 'G': /* Green */
-                                rle_row[column] = 255;
-                                break;
-                            case 'B': /* Blue */
-                            case 'M': /* Magenta */
-                            case 'R': /* Red */
-                            case 'K': /* Black */
-                                rle_row[column] = 0;
-                                break;
-                            case '1':
-                                rle_row[column] = fggrn;
-                                break;
-                            default:
-                                rle_row[column] = bggrn;
-                                break;
+                        if (ch == '0' || ch == '1') {
+                            rle_row[column] = ch != '0' ? fggrn : bggrn;
+                        } else {
+                            out_colour_char_to_rgb(ch, NULL, &rle_row[column], NULL);
                         }
                         break;
                     case 2:
-                        switch (pixelbuf[(row * symbol->bitmap_width) + column]) {
-                            case 'W': /* White */
-                            case 'C': /* Cyan */
-                            case 'B': /* Blue */
-                            case 'M': /* Magenta */
-                                rle_row[column] = 255;
-                                break;
-                            case 'R': /* Red */
-                            case 'Y': /* Yellow */
-                            case 'G': /* Green */
-                            case 'K': /* Black */
-                                rle_row[column] = 0;
-                                break;
-                            case '1':
-                                rle_row[column] = fgblu;
-                                break;
-                            default:
-                                rle_row[column] = bgblu;
-                                break;
+                        if (ch == '0' || ch == '1') {
+                            rle_row[column] = ch != '0' ? fgblu : bgblu;
+                        } else {
+                            out_colour_char_to_rgb(ch, NULL, NULL, &rle_row[column]);
                         }
+                        break;
+                    case 3:
+                        rle_row[column] = ch != '0' ? fgalpha : bgalpha;
                         break;
                 }
             }
@@ -205,10 +163,24 @@ INTERNAL int pcx_pixel_plot(struct zint_symbol *symbol, unsigned char *pixelbuf)
         }
     }
 
+    if (ferror(pcx_file)) {
+        sprintf(symbol->errtxt, "622: Incomplete write to output (%d: %.30s)", errno, strerror(errno));
+        if (!output_to_stdout) {
+            (void) fclose(pcx_file);
+        }
+        return ZINT_ERROR_FILE_WRITE;
+    }
+
     if (output_to_stdout) {
-        fflush(pcx_file);
+        if (fflush(pcx_file) != 0) {
+            sprintf(symbol->errtxt, "623: Incomplete flush to output (%d: %.30s)", errno, strerror(errno));
+            return ZINT_ERROR_FILE_WRITE;
+        }
     } else {
-        fclose(pcx_file);
+        if (fclose(pcx_file) != 0) {
+            sprintf(symbol->errtxt, "624: Failure on closing output file (%d: %.30s)", errno, strerror(errno));
+            return ZINT_ERROR_FILE_WRITE;
+        }
     }
 
     return 0;

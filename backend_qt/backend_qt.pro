@@ -17,9 +17,9 @@ TARGET = QtZint
 INCLUDEPATH += ../backend
 
 #EDIT THIS !!!!
-DEFINES += ZINT_VERSION="\\\"2.11.0.9\\\""
+DEFINES += ZINT_VERSION="\\\"2.13.0\\\""
 
-!contains(DEFINES, NO_PNG) {
+!contains(DEFINES, ZINT_NO_PNG) {
     INCLUDEPATH += ../../lpng
     INCLUDEPATH += ../../zlib
 }
@@ -38,7 +38,7 @@ HEADERS +=  ../backend/aztec.h \
             ../backend/eci.h \
             ../backend/eci_sb.h \
             ../backend/emf.h \
-            ../backend/font.h \
+            ../backend/raster_font.h \
             ../backend/gb18030.h \
             ../backend/gb2312.h \
             ../backend/gbk.h \
@@ -56,6 +56,7 @@ HEADERS +=  ../backend/aztec.h \
             ../backend/pcx.h \
             ../backend/pdf417.h \
             ../backend/pdf417_tabs.h \
+            ../backend/pdf417_trace.h \
             ../backend/qr.h \
             ../backend/reedsol.h \
             ../backend/reedsol_logs.h \
@@ -116,7 +117,7 @@ SOURCES += ../backend/2of5.c \
            ../backend/dllversion.c \
            qzint.cpp
 
-VERSION = 2.11.0.9
+VERSION = 2.13.0
 
 #DESTDIR = .
 

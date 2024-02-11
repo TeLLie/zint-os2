@@ -1,5 +1,5 @@
 Name:      zint
-Version:   2.11.0
+Version:   2.13.0
 Release:   2%{?dist}
 Summary:   A barcode generator and library
 License:   GPLv3+
@@ -41,7 +41,7 @@ Requires:      %{name} = %{version}-%{release}
 %description -n zint-devel 
 C library and header files needed to develop applications using %{name}.
 The API documentation can be found ont the project website:
-http://www.zint.org.uk/zintSite/Manual.aspx
+https://zint.org.uk/manual/
 
 
 %package -n zint-qt

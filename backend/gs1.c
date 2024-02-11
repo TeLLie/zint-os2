@@ -1,7 +1,7 @@
 /* gs1.c - Verifies GS1 data */
 /*
     libzint - the open source barcode library
-    Copyright (C) 2009-2022 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2009-2023 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -129,6 +129,39 @@ static int cset39(const unsigned char *data, int data_len, int offset, int min, 
     return 1;
 }
 
+/* Validate of character set 64 (GSCN 21-307 Figure 7.11-3) */
+static int cset64(const unsigned char *data, int data_len, int offset, int min, int max, int *p_err_no,
+            int *p_err_posn, char err_msg[50]) {
+
+    data_len -= offset;
+
+    if (data_len < min) {
+        return 0;
+    }
+
+    if (data_len) {
+        const unsigned char *d = data + offset;
+        const unsigned char *const de = d + (data_len > max ? max : data_len);
+
+        for (; d < de; d++) {
+            /* 0-9, A-Z, a-z and "-", "_" */
+            if ((*d < '0' && *d != '-') || (*d > '9' && *d < 'A') || (*d > 'Z' && *d < 'a' && *d != '_')
+                    || *d > 'z') {
+                /* One or two "="s can be used as padding to mod 3 length */
+                if (*d == '=' && (d + 1 == de || (d + 2 == de && *(d + 1) == '=')) && data_len % 3 == 0) {
+                    break;
+                }
+                *p_err_no = 3;
+                *p_err_posn = d - data + 1;
+                sprintf(err_msg, "Invalid CSET 64 character '%c'", *d);
+                return 0;
+            }
+        }
+    }
+
+    return 1;
+}
+
 /* Check a check digit (GS1 General Specifications 7.9.1) */
 static int csum(const unsigned char *data, int data_len, int offset, int min, int max, int *p_err_no,
             int *p_err_posn, char err_msg[50], const int length_only) {
@@ -167,7 +200,6 @@ static int csum(const unsigned char *data, int data_len, int offset, int min, in
 /* Check alphanumeric check characters (GS1 General Specifications 7.9.5) */
 static int csumalpha(const unsigned char *data, int data_len, int offset, int min, int max, int *p_err_no,
             int *p_err_posn, char err_msg[50], const int length_only) {
-    (void)max;
 
     data_len -= offset;
 
@@ -846,7 +878,11 @@ static const unsigned char *coupon_vli(const unsigned char *data, const int data
     if ((vli < vli_min || vli > vli_max) && (vli != 9 || !vli_nine)) {
         *p_err_no = 3;
         *p_err_posn = d - data + 1;
-        sprintf(err_msg, vli < 0 ? "Non-numeric %s VLI '%c'" : "Invalid %s VLI '%c'", name, *d);
+        if (vli < 0) {
+            sprintf(err_msg, "Non-numeric %s VLI '%c'", name, *d);
+        } else {
+            sprintf(err_msg, "Invalid %s VLI '%c'", name, *d);
+        }
         return NULL;
     }
     d++;
@@ -1101,8 +1137,11 @@ static int couponcode(const unsigned char *data, int data_len, int offset, int m
 
                 *p_err_no = 3;
                 *p_err_posn = d - 1 - data + 1;
-                sprintf(err_msg, data_field < 0 ? "Non-numeric Data Field '%c'" : "Invalid Data Field '%c'",
-                    *(d - 1));
+                if (data_field < 0) {
+                    sprintf(err_msg, "Non-numeric Data Field '%c'", *(d - 1));
+                } else {
+                    sprintf(err_msg, "Invalid Data Field '%c'", *(d - 1));
+                }
                 return 0;
             }
         }
@@ -1172,36 +1211,117 @@ static int couponposoffer(const unsigned char *data, int data_len, int offset, i
     return 1;
 }
 
-/* Check WSG 84 latitude, longitude */
-static int latlong(const unsigned char *data, int data_len, int offset, int min, int max, int *p_err_no,
+/* Check WSG 84 latitude */
+static int latitude(const unsigned char *data, int data_len, int offset, int min, int max, int *p_err_no,
             int *p_err_posn, char err_msg[50], const int length_only) {
-    (void)max;
 
     data_len -= offset;
 
-    if (data_len < min || (data_len && data_len < 20)) {
+    if (data_len < min || (data_len && data_len < 10)) {
         return 0;
     }
 
     if (!length_only && data_len) {
         const unsigned char *d = data + offset;
         const unsigned char *const de = d + (data_len > max ? max : data_len);
-        uint64_t lat = 0, lng = 0;
+        uint64_t lat = 0;
 
         for (; d < de; d++) {
-            if (de - d > 10) {
-                lat *= 10;
-                lat += *d - '0';
-            } else {
-                lng *= 10;
-                lng += *d - '0';
-            }
+            lat *= 10;
+            lat += *d - '0';
         }
-        if (lat > 1800000000 || lng > 3600000000) {
+        if (lat > 1800000000) {
             *p_err_no = 3;
-            *p_err_posn = d - 1 - data + 1 - 10 * (lat > 1800000000);
-            sprintf(err_msg, "Invalid %s", lat > 1800000000 ? "latitude" : "longitude");
+            *p_err_posn = d - 1 - data + 1;
+            strcpy(err_msg, "Invalid latitude");
             return 0;
+        }
+    }
+
+    return 1;
+}
+
+/* Check WSG 84 longitude */
+static int longitude(const unsigned char *data, int data_len, int offset, int min, int max, int *p_err_no,
+            int *p_err_posn, char err_msg[50], const int length_only) {
+
+    data_len -= offset;
+
+    if (data_len < min || (data_len && data_len < 10)) {
+        return 0;
+    }
+
+    if (!length_only && data_len) {
+        const unsigned char *d = data + offset;
+        const unsigned char *const de = d + (data_len > max ? max : data_len);
+        uint64_t lng = 0;
+
+        for (; d < de; d++) {
+            lng *= 10;
+            lng += *d - '0';
+        }
+        if (lng > 3600000000) {
+            *p_err_no = 3;
+            *p_err_posn = d - 1 - data + 1;
+            strcpy(err_msg, "Invalid longitude");
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+/* Check AIDC media type (GSCN 22-345 Figure 3.8.22-2) */
+static int mediatype(const unsigned char *data, int data_len, int offset, int min, int max, int *p_err_no,
+            int *p_err_posn, char err_msg[50], const int length_only) {
+
+    data_len -= offset;
+
+    if (data_len < min || (data_len && data_len < 2)) {
+        return 0;
+    }
+
+    if (!length_only && data_len) {
+        const unsigned char *d = data + offset;
+        const unsigned char *const de = d + (data_len > max ? max : data_len);
+        unsigned int val = 0;
+
+        for (; d < de; d++) {
+            val *= 10;
+            val += *d - '0';
+        }
+        if (val == 0 || (val > 10 && val < 80)) {
+            *p_err_no = 3;
+            *p_err_posn = d - data + 1;
+            strcpy(err_msg, "Invalid AIDC media type");
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+/* Check negative temperature indicator (GSCN 22-353) */
+static int hyphen(const unsigned char *data, int data_len, int offset, int min, int max, int *p_err_no,
+            int *p_err_posn, char err_msg[50], const int length_only) {
+
+    data_len -= offset;
+
+    if (data_len < min) {
+        return 0;
+    }
+
+    if (!length_only && data_len) {
+        const unsigned char *d = data + offset;
+        const unsigned char *const de = d + (data_len > max ? max : data_len);
+
+        for (; d < de; d++) {
+            if (*d != '-') {
+                *p_err_no = 3;
+                *p_err_posn = d - data + 1;
+                strcpy(err_msg, "Invalid temperature indicator (hyphen only)");
+                return 0;
+            }
         }
     }
 
@@ -1212,7 +1332,7 @@ static int latlong(const unsigned char *data, int data_len, int offset, int min,
 #include "gs1_lint.h"
 
 /* Verify a GS1 input string */
-INTERNAL int gs1_verify(struct zint_symbol *symbol, const unsigned char source[], const int src_len,
+INTERNAL int gs1_verify(struct zint_symbol *symbol, const unsigned char source[], const int length,
                 unsigned char reduced[]) {
     int i, j, last_ai, ai_latch;
     int bracket_level, max_bracket_level, ai_length, max_ai_length, min_ai_length;
@@ -1221,14 +1341,14 @@ INTERNAL int gs1_verify(struct zint_symbol *symbol, const unsigned char source[]
     int error_value = 0;
     char obracket = symbol->input_mode & GS1PARENS_MODE ? '(' : '[';
     char cbracket = symbol->input_mode & GS1PARENS_MODE ? ')' : ']';
-    int ai_max = chr_cnt(source, src_len, obracket) + 1; /* Plus 1 so non-zero */
+    int ai_max = chr_cnt(source, length, obracket) + 1; /* Plus 1 so non-zero */
     int *ai_value = (int *) z_alloca(sizeof(int) * ai_max);
     int *ai_location = (int *) z_alloca(sizeof(int) * ai_max);
     int *data_location = (int *) z_alloca(sizeof(int) * ai_max);
     int *data_length = (int *) z_alloca(sizeof(int) * ai_max);
 
     /* Detect extended ASCII characters */
-    for (i = 0; i < src_len; i++) {
+    for (i = 0; i < length; i++) {
         if (source[i] >= 128) {
             strcpy(symbol->errtxt, "250: Extended ASCII characters are not supported by GS1");
             return ZINT_ERROR_INVALID_DATA;
@@ -1259,7 +1379,7 @@ INTERNAL int gs1_verify(struct zint_symbol *symbol, const unsigned char source[]
     max_ai_length = 0;
     min_ai_length = 5;
     ai_latch = 0;
-    for (i = 0; i < src_len; i++) {
+    for (i = 0; i < length; i++) {
         if (source[i] == obracket) {
             bracket_level++;
             if (bracket_level > max_bracket_level) {
@@ -1275,7 +1395,7 @@ INTERNAL int gs1_verify(struct zint_symbol *symbol, const unsigned char source[]
                 min_ai_length = ai_length;
             }
             /* Check zero-length AI has data */
-            if (ai_length == 0 && (i + 1 == src_len || source[i + 1] == obracket)) {
+            if (ai_length == 0 && (i + 1 == length || source[i + 1] == obracket)) {
                 ai_zero_len_no_data = 1;
             } else if (ai_length == 1) {
                 ai_single_digit = 1;
@@ -1326,7 +1446,7 @@ INTERNAL int gs1_verify(struct zint_symbol *symbol, const unsigned char source[]
 
     if (!(symbol->input_mode & GS1NOCHECK_MODE)) {
         ai_count = 0;
-        for (i = 1; i < src_len; i++) {
+        for (i = 1; i < length; i++) {
             if (source[i - 1] == obracket) {
                 ai_location[ai_count] = i;
                 for (j = 1; source[i + j] != cbracket; j++);
@@ -1345,7 +1465,7 @@ INTERNAL int gs1_verify(struct zint_symbol *symbol, const unsigned char source[]
                 data_location[i] = ai_location[i] + 3;
             }
             data_length[i] = 0;
-            while ((data_location[i] + data_length[i] < src_len)
+            while ((data_location[i] + data_length[i] < length)
                         && (source[data_location[i] + data_length[i]] != obracket)) {
                 data_length[i]++;
             }
@@ -1381,7 +1501,7 @@ INTERNAL int gs1_verify(struct zint_symbol *symbol, const unsigned char source[]
     /* Resolve AI data - put resulting string in 'reduced' */
     j = 0;
     ai_latch = 1;
-    for (i = 0; i < src_len; i++) {
+    for (i = 0; i < length; i++) {
         if ((source[i] != obracket) && (source[i] != cbracket)) {
             reduced[j++] = source[i];
         }
@@ -1390,20 +1510,22 @@ INTERNAL int gs1_verify(struct zint_symbol *symbol, const unsigned char source[]
             if (ai_latch == 0) {
                 reduced[j++] = '[';
             }
-            last_ai = to_int(source + i + 1, 2);
-            ai_latch = 0;
-            /* The following values from "GS1 General Specifications Release 21.0.1"
-               Figure 7.8.4-2 "Element strings with predefined length using GS1 Application Identifiers" */
-            if (
-                    ((last_ai >= 0) && (last_ai <= 4))
-                    || ((last_ai >= 11) && (last_ai <= 20))
-                    /* NOTE: as noted by Terry Burton the following complies with ISO/IEC 24724:2011 Table D.1,
-                       but clashes with TPX AI [235], introduced May 2019; awaiting feedback from GS1 */
-                    || (last_ai == 23) /* legacy support */ /* TODO: probably remove */
-                    || ((last_ai >= 31) && (last_ai <= 36))
-                    || (last_ai == 41)
-                    ) {
-                ai_latch = 1;
+            if (i + 1 != length) {
+                last_ai = to_int(source + i + 1, 2);
+                ai_latch = 0;
+                /* The following values from "GS1 General Specifications Release 21.0.1"
+                   Figure 7.8.4-2 "Element strings with predefined length using GS1 Application Identifiers" */
+                if (
+                        ((last_ai >= 0) && (last_ai <= 4))
+                        || ((last_ai >= 11) && (last_ai <= 20))
+                        /* NOTE: as noted by Terry Burton the following complies with ISO/IEC 24724:2011 Table D.1,
+                           but clashes with TPX AI [235], introduced May 2019; awaiting feedback from GS1 */
+                        || (last_ai == 23) /* legacy support */ /* TODO: probably remove */
+                        || ((last_ai >= 31) && (last_ai <= 36))
+                        || (last_ai == 41)
+                        ) {
+                    ai_latch = 1;
+                }
             }
         }
         /* The ']' character is simply dropped from the input */
@@ -1426,6 +1548,11 @@ INTERNAL char gs1_check_digit(const unsigned char source[], const int length) {
     }
 
     return itoc((10 - (count % 10)) % 10);
+}
+
+/* Helper to expose `iso3166_alpha2()` */
+INTERNAL int gs1_iso3166_alpha2(const unsigned char *cc) {
+    return iso3166_alpha2((const char *) cc);
 }
 
 /* vim: set ts=4 sw=4 et : */

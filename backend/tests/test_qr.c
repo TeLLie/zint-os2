@@ -1,6 +1,6 @@
 /*
     libzint - the open source barcode library
-    Copyright (C) 2019-2022 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2019-2023 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -31,9 +31,118 @@
 
 #include "testcommon.h"
 
-static void test_qr_options(int index, int debug) {
+static void test_qr_large(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
+        int option_1;
+        int option_2;
+        int option_3;
+        char *pattern;
+        int length;
+        int ret;
+        int expected_rows;
+        int expected_width;
+    };
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
+    struct item data[] = {
+        /*  0*/ { 1, 32, -1, "A", 2840, 0, 145, 145 },
+        /*  1*/ { 1, 32, -1, "A", 2841, ZINT_ERROR_TOO_LONG, -1, -1 },
+        /*  2*/ { 1, 33, -1, "A", 3009, 0, 149, 149 },
+        /*  3*/ { 1, 33, -1, "A", 3010, ZINT_ERROR_TOO_LONG, -1, -1 },
+        /*  4*/ { 1, 34, -1, "A", 3183, 0, 153, 153 },
+        /*  5*/ { 1, 34, -1, "A", 3184, ZINT_ERROR_TOO_LONG, -1, -1 },
+        /*  6*/ { 1, 35, -1, "A", 3351, 0, 157, 157 },
+        /*  7*/ { 1, 35, -1, "A", 3352, ZINT_ERROR_TOO_LONG, -1, -1 },
+        /*  8*/ { 1, 36, -1, "A", 3537, 0, 161, 161 },
+        /*  9*/ { 1, 36, -1, "A", 3538, ZINT_ERROR_TOO_LONG, -1, -1 },
+        /* 10*/ { 1, 37, -1, "A", 3729, 0, 165, 165 },
+        /* 11*/ { 1, 37, -1, "A", 3730, ZINT_ERROR_TOO_LONG, -1, -1 },
+        /* 12*/ { 1, 38, -1, "A", 3927, 0, 169, 169 },
+        /* 13*/ { 1, 38, -1, "A", 3928, ZINT_ERROR_TOO_LONG, -1, -1 },
+        /* 14*/ { 1, 39, -1, "A", 4087, 0, 173, 173 },
+        /* 15*/ { 1, 39, -1, "A", 4088, ZINT_ERROR_TOO_LONG, -1, -1 },
+        /* 16*/ { 1, 40, -1, "A", 4296, 0, 177, 177 }, /* ISO/IEC 18004:2015 Section 6.1 (e) (1) */
+        /* 17*/ { 1, 40, -1, "A", 4297, ZINT_ERROR_TOO_LONG, -1, -1 },
+    };
+    int data_size = ARRAY_SIZE(data);
+    int i, length, ret;
+    struct zint_symbol *symbol = NULL;
+
+    char data_buf[ZINT_MAX_DATA_LEN];
+
+    char escaped[ZINT_MAX_DATA_LEN];
+    char cmp_buf[177 * 177 + 1];
+    char cmp_msg[1024];
+
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
+
+    testStartSymbol("test_qr_large", &symbol);
+
+    for (i = 0; i < data_size; i++) {
+
+        if (testContinue(p_ctx, i)) continue;
+
+        symbol = ZBarcode_Create();
+        assert_nonnull(symbol, "Symbol not created\n");
+
+        testUtilStrCpyRepeat(data_buf, data[i].pattern, data[i].length);
+        assert_equal(data[i].length, (int) strlen(data_buf), "i:%d length %d != strlen(data_buf) %d\n", i, data[i].length, (int) strlen(data_buf));
+
+        length = testUtilSetSymbol(symbol, BARCODE_QRCODE, -1 /*input_mode*/, -1 /*eci*/, data[i].option_1, data[i].option_2, data[i].option_3 | FAST_MODE, -1 /*output_options*/, data_buf, data[i].length, debug);
+
+        ret = ZBarcode_Encode(symbol, (unsigned char *) data_buf, length);
+        assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
+
+        if (ret < ZINT_ERROR) {
+            assert_equal(symbol->rows, data[i].expected_rows, "i:%d symbol->rows %d != %d\n", i, symbol->rows, data[i].expected_rows);
+            assert_equal(symbol->width, data[i].expected_width, "i:%d symbol->width %d != %d\n", i, symbol->width, data[i].expected_width);
+        }
+
+        symbol->input_mode |= FAST_MODE;
+        ret = ZBarcode_Encode(symbol, (unsigned char *) data_buf, length);
+        assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
+
+        if (ret < ZINT_ERROR) {
+            assert_equal(symbol->rows, data[i].expected_rows, "i:%d symbol->rows %d != %d\n", i, symbol->rows, data[i].expected_rows);
+            assert_equal(symbol->width, data[i].expected_width, "i:%d symbol->width %d != %d\n", i, symbol->width, data[i].expected_width);
+
+            if (do_bwipp && testUtilCanBwipp(i, symbol, data[i].option_1, data[i].option_2, data[i].option_3, debug)) {
+                char modules_dump[177 * 177 + 1];
+                assert_notequal(testUtilModulesDump(symbol, modules_dump, sizeof(modules_dump)), -1, "i:%d testUtilModulesDump == -1\n", i);
+                ret = testUtilBwipp(i, symbol, data[i].option_1, data[i].option_2, data[i].option_3, data_buf, length, NULL, cmp_buf, sizeof(cmp_buf), NULL);
+                assert_zero(ret, "i:%d %s testUtilBwipp ret %d != 0\n", i, testUtilBarcodeName(symbol->symbology), ret);
+
+                ret = testUtilBwippCmp(symbol, cmp_msg, cmp_buf, modules_dump);
+                assert_zero(ret, "i:%d %s testUtilBwippCmp %d != 0 %s\n  actual: %s\nexpected: %s\n",
+                               i, testUtilBarcodeName(symbol->symbology), ret, cmp_msg, cmp_buf, modules_dump);
+            }
+            if (do_zxingcpp && testUtilCanZXingCPP(i, symbol, data_buf, length, debug)) {
+                int cmp_len, ret_len;
+                char modules_dump[177 * 177 + 1];
+                assert_notequal(testUtilModulesDump(symbol, modules_dump, sizeof(modules_dump)), -1, "i:%d testUtilModulesDump == -1\n", i);
+                ret = testUtilZXingCPP(i, symbol, data_buf, length, modules_dump, cmp_buf, sizeof(cmp_buf), &cmp_len);
+                assert_zero(ret, "i:%d %s testUtilZXingCPP ret %d != 0\n", i, testUtilBarcodeName(symbol->symbology), ret);
+
+                ret = testUtilZXingCPPCmp(symbol, cmp_msg, cmp_buf, cmp_len, data_buf, length, NULL /*primary*/, escaped, &ret_len);
+                assert_zero(ret, "i:%d %s testUtilZXingCPPCmp %d != 0 %s\n  actual: %.*s\nexpected: %.*s\n",
+                               i, testUtilBarcodeName(symbol->symbology), ret, cmp_msg, cmp_len, cmp_buf, ret_len, escaped);
+            }
+        }
+
+        ZBarcode_Delete(symbol);
+    }
+
+    testFinish();
+}
+
+static void test_qr_options(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
+
+    struct item {
+        int input_mode;
+        int eci;
         int option_1;
         int option_2;
         struct zint_structapp structapp;
@@ -42,77 +151,83 @@ static void test_qr_options(int index, int debug) {
         int ret_vector;
         int expected_size;
         int compare_previous;
+        char *expected;
     };
-    // 貫 U+8CAB kanji, in Shift JIS 0x8AD1 (\212\321), UTF-8 E8B2AB
-    // s/\/\*[ 0-9]*\*\//\=printf("\/*%3d*\/", line(".") - line("'<"))
+    /* 貫 U+8CAB kanji, in Shift JIS 0x8AD1 (\212\321), UTF-8 E8B2AB */
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
     struct item data[] = {
-        /*  0*/ { -1, -1, { 0, 0, "" }, "12345", 0, 0, 21, -1 }, // ECC auto-set to 1 (L), version auto-set to 1
-        /*  1*/ { 5, -1, { 0, 0, "" }, "12345", 0, 0, 21, 0 }, // ECC > 4 ignored
-        /*  2*/ { -1, 41, { 0, 0, "" }, "12345", 0, 0, 21, 0 }, // Version > 40 ignored
-        /*  3*/ { -1, 2, { 0, 0, "" }, "12345", 0, 0, 25, -1 }, // ECC auto-set to 4 (Q), version 2
-        /*  4*/ { 4, 2, { 0, 0, "" }, "12345", 0, 0, 25, 0 }, // ECC 4 (Q), version 2
-        /*  5*/ { 1, 2, { 0, 0, "" }, "12345", 0, 0, 25, 1 }, // ECC 1 (L), version 2
-        /*  6*/ { -1, -1, { 0, 0, "" }, "貫やぐ識禁", 0, 0, 21, -1 }, // ECC auto-set to 1 (L), version auto-set to 1
-        /*  7*/ { 1, -1, { 0, 0, "" }, "貫やぐ識禁", 0, 0, 21, 0 }, // Version auto-set to 1
-        /*  8*/ { -1, 1, { 0, 0, "" }, "貫やぐ識禁", 0, 0, 21, 0 }, // ECC auto-set to 1 (L)
-        /*  9*/ { 1, 1, { 0, 0, "" }, "貫やぐ識禁", 0, 0, 21, 0 },
-        /* 10*/ { 2, 1, { 0, 0, "" }, "貫やぐ識禁", ZINT_ERROR_TOO_LONG, -1, 0, -1 }, // ECC 2 (M), version 1
-        /* 11*/ { 2, -1, { 0, 0, "" }, "貫やぐ識禁", 0, 0, 25, -1 }, // Version auto-set to 2
-        /* 12*/ { 2, 2, { 0, 0, "" }, "貫やぐ識禁", 0, 0, 25, 0 },
-        /* 13*/ { 1, 2, { 0, 0, "" }, "貫やぐ識禁", 0, 0, 25, 1 },
-        /* 14*/ { -1, -1, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁", 0, 0, 29, -1 }, // ECC auto-set to 1 (L), version auto-set to 3
-        /* 15*/ { 1, 3, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁", 0, 0, 29, 0 },
-        /* 16*/ { 2, -1, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁", 0, 0, 33, -1 }, // ECC 2 (M), version auto-set to 4
-        /* 17*/ { 2, 4, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁", 0, 0, 33, 0 },
-        /* 18*/ { 3, -1, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁", 0, 0, 37, -1 }, // ECC 3 (Q), version auto-set to 5
-        /* 19*/ { 3, 5, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁", 0, 0, 37, 0 },
-        /* 20*/ { 4, -1, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁", 0, 0, 41, -1 }, // ECC 4 (H), version auto-set to 6
-        /* 21*/ { 4, 6, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁", 0, 0, 41, 0 },
-        /* 22*/ { -1, -1, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁花ほゃ過法ひなご札17能つーびれ投覧マ勝動エヨ額界よみ作皇ナヲニ打題ヌルヲ掲布益フが。入35能ト権話しこを断兆モヘ細情おじ名4減エヘイハ側機はょが意見想ハ業独案ユヲウ患職ヲ平美さ毎放どぽたけ家没べお化富べ町大シ情魚ッでれ一冬すぼめり。", 0, 0, 69, -1 }, // ECC auto-set to 1, version auto-set to 13
-        /* 23*/ { 1, 13, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁花ほゃ過法ひなご札17能つーびれ投覧マ勝動エヨ額界よみ作皇ナヲニ打題ヌルヲ掲布益フが。入35能ト権話しこを断兆モヘ細情おじ名4減エヘイハ側機はょが意見想ハ業独案ユヲウ患職ヲ平美さ毎放どぽたけ家没べお化富べ町大シ情魚ッでれ一冬すぼめり。", 0, 0, 69, 0 },
-        /* 24*/ { 4, -1, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁花ほゃ過法ひなご札17能つーびれ投覧マ勝動エヨ額界よみ作皇ナヲニ打題ヌルヲ掲布益フが。入35能ト権話しこを断兆モヘ細情おじ名4減エヘイハ側機はょが意見想ハ業独案ユヲウ患職ヲ平美さ毎放どぽたけ家没べお化富べ町大シ情魚ッでれ一冬すぼめり。", 0, 0, 101, -1 }, // ECC 4, version auto-set to 21
-        /* 25*/ { 4, 21, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁花ほゃ過法ひなご札17能つーびれ投覧マ勝動エヨ額界よみ作皇ナヲニ打題ヌルヲ掲布益フが。入35能ト権話しこを断兆モヘ細情おじ名4減エヘイハ側機はょが意見想ハ業独案ユヲウ患職ヲ平美さ毎放どぽたけ家没べお化富べ町大シ情魚ッでれ一冬すぼめり。", 0, 0, 101, 0 },
-        /* 26*/ { -1, -1, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁花ほゃ過法ひなご札17能つーびれ投覧マ勝動エヨ額界よみ作皇ナヲニ打題ヌルヲ掲布益フが。入35能ト権話しこを断兆モヘ細情おじ名4減エヘイハ側機はょが意見想ハ業独案ユヲウ患職ヲ平美さ毎放どぽたけ家没べお化富べ町大シ情魚ッでれ一冬すぼめり。社ト可化モマ試音ばじご育青康演ぴぎ権型固スで能麩ぜらもほ河都しちほラ収90作の年要とだむ部動ま者断チ第41一1米索焦茂げむしれ。測フ物使だて目月国スリカハ夏検にいへ児72告物ゆは載核ロアメヱ登輸どべゃ催行アフエハ議歌ワ河倫剖だ。記タケウ因載ヒイホヤ禁3輩彦関トえび肝区勝ワリロ成禁ぼよ界白ウヒキレ中島べせぜい各安うしぽリ覧生テ基一でむしゃ中新トヒキソ声碁スしび起田ア信大未ゅもばち。", 0, 0, 105, -1 }, // ECC auto-set to 1, version auto-set to 22
-        /* 27*/ { 1, 22, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁花ほゃ過法ひなご札17能つーびれ投覧マ勝動エヨ額界よみ作皇ナヲニ打題ヌルヲ掲布益フが。入35能ト権話しこを断兆モヘ細情おじ名4減エヘイハ側機はょが意見想ハ業独案ユヲウ患職ヲ平美さ毎放どぽたけ家没べお化富べ町大シ情魚ッでれ一冬すぼめり。社ト可化モマ試音ばじご育青康演ぴぎ権型固スで能麩ぜらもほ河都しちほラ収90作の年要とだむ部動ま者断チ第41一1米索焦茂げむしれ。測フ物使だて目月国スリカハ夏検にいへ児72告物ゆは載核ロアメヱ登輸どべゃ催行アフエハ議歌ワ河倫剖だ。記タケウ因載ヒイホヤ禁3輩彦関トえび肝区勝ワリロ成禁ぼよ界白ウヒキレ中島べせぜい各安うしぽリ覧生テ基一でむしゃ中新トヒキソ声碁スしび起田ア信大未ゅもばち。", 0, 0, 105, 0 },
-        /* 28*/ { 4, -1, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁花ほゃ過法ひなご札17能つーびれ投覧マ勝動エヨ額界よみ作皇ナヲニ打題ヌルヲ掲布益フが。入35能ト権話しこを断兆モヘ細情おじ名4減エヘイハ側機はょが意見想ハ業独案ユヲウ患職ヲ平美さ毎放どぽたけ家没べお化富べ町大シ情魚ッでれ一冬すぼめり。社ト可化モマ試音ばじご育青康演ぴぎ権型固スで能麩ぜらもほ河都しちほラ収90作の年要とだむ部動ま者断チ第41一1米索焦茂げむしれ。測フ物使だて目月国スリカハ夏検にいへ児72告物ゆは載核ロアメヱ登輸どべゃ催行アフエハ議歌ワ河倫剖だ。記タケウ因載ヒイホヤ禁3輩彦関トえび肝区勝ワリロ成禁ぼよ界白ウヒキレ中島べせぜい各安うしぽリ覧生テ基一でむしゃ中新トヒキソ声碁スしび起田ア信大未ゅもばち。", 0, 0, 153, 1 }, // ECC 4, version auto-set 34
-        /* 29*/ { 4, 34, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁花ほゃ過法ひなご札17能つーびれ投覧マ勝動エヨ額界よみ作皇ナヲニ打題ヌルヲ掲布益フが。入35能ト権話しこを断兆モヘ細情おじ名4減エヘイハ側機はょが意見想ハ業独案ユヲウ患職ヲ平美さ毎放どぽたけ家没べお化富べ町大シ情魚ッでれ一冬すぼめり。社ト可化モマ試音ばじご育青康演ぴぎ権型固スで能麩ぜらもほ河都しちほラ収90作の年要とだむ部動ま者断チ第41一1米索焦茂げむしれ。測フ物使だて目月国スリカハ夏検にいへ児72告物ゆは載核ロアメヱ登輸どべゃ催行アフエハ議歌ワ河倫剖だ。記タケウ因載ヒイホヤ禁3輩彦関トえび肝区勝ワリロ成禁ぼよ界白ウヒキレ中島べせぜい各安うしぽリ覧生テ基一でむしゃ中新トヒキソ声碁スしび起田ア信大未ゅもばち。", 0, 0, 153, 0 },
-        /* 30*/ { 4, -1, { 0, 0, "" }, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", 0, 0, 177, -1 }, // 1852 alphanumerics max for ECC 4 (H)
-        /* 31*/ { 1, -1, { 0, 0, "" }, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", 0, 0, 177, -1 }, // 4296 alphanumerics max for ECC 1 (L)
-        /* 32*/ { 4, -1, { 0, 0, "" }, "貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫", 0, -1, 0, -1 }, // 424 Kanji, ECC 4 (Q), version 1
-        /* 33*/ { 4, -1, { 0, 0, "" }, "貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫", ZINT_ERROR_TOO_LONG, -1, 0, -1 }, // 425 Kanji, ECC 4 (Q), version 1
-        /* 34*/ { 4, 1, { 0, 0, "" }, "12345678901234567", 0, 0, 21, -1 },
-        /* 35*/ { 4, 1, { 1, 2, "" }, "12345678901234567", ZINT_ERROR_TOO_LONG, -1, 0, -1 },
-        /* 36*/ { 4, 1, { 1, 2, "" }, "123456789012", ZINT_ERROR_TOO_LONG, -1, 0, -1 },
-        /* 37*/ { 4, 1, { 1, 2, "" }, "12345678901", 0, 0, 21, -1 },
-        /* 38*/ { 4, 1, { 3, 16, "123" }, "12345678901", 0, 0, 21, -1 },
-        /* 39*/ { 4, 1, { 3, 17, "123" }, "12345678901", ZINT_ERROR_INVALID_OPTION, -1, 0, -1 }, // Bad Structured Append count
-        /* 40*/ { 4, 1, { 3, 2, "123" }, "12345678901", ZINT_ERROR_INVALID_OPTION, -1, 0, -1 }, // Bad Structured Append index
-        /* 41*/ { 4, 1, { 1, 2, "256" }, "12345678901", ZINT_ERROR_INVALID_OPTION, -1, 0, -1 }, // Bad Structured Append ID
+        /*  0*/ { -1, -1, -1, -1, { 0, 0, "" }, "12345", 0, 0, 21, -1, "" }, /* ECC auto-set to 1 (L), version auto-set to 1 */
+        /*  1*/ { -1, -1, 5, -1, { 0, 0, "" }, "12345", 0, 0, 21, 0, "" }, /* ECC > 4 ignored */
+        /*  2*/ { -1, -1, -1, 41, { 0, 0, "" }, "12345", 0, 0, 21, 0, "" }, /* Version > 40 ignored */
+        /*  3*/ { -1, -1, -1, 2, { 0, 0, "" }, "12345", 0, 0, 25, -1, "" }, /* ECC auto-set to 4 (Q), version 2 */
+        /*  4*/ { -1, -1, 4, 2, { 0, 0, "" }, "12345", 0, 0, 25, 0, "" }, /* ECC 4 (Q), version 2 */
+        /*  5*/ { -1, -1, 1, 2, { 0, 0, "" }, "12345", 0, 0, 25, 1, "" }, /* ECC 1 (L), version 2 */
+        /*  6*/ { -1, -1, -1, -1, { 0, 0, "" }, "貫やぐ識禁", 0, 0, 21, -1, "" }, /* ECC auto-set to 1 (L), version auto-set to 1 */
+        /*  7*/ { -1, -1, 1, -1, { 0, 0, "" }, "貫やぐ識禁", 0, 0, 21, 0, "" }, /* Version auto-set to 1 */
+        /*  8*/ { -1, -1, -1, 1, { 0, 0, "" }, "貫やぐ識禁", 0, 0, 21, 0, "" }, /* ECC auto-set to 1 (L) */
+        /*  9*/ { -1, -1, 1, 1, { 0, 0, "" }, "貫やぐ識禁", 0, 0, 21, 0, "" },
+        /* 10*/ { -1, -1, 2, 1, { 0, 0, "" }, "貫やぐ識禁", ZINT_ERROR_TOO_LONG, -1, 0, -1, "Error 569: Input too long for selected symbol size" }, /* ECC 2 (M), version 1 */
+        /* 11*/ { -1, -1, 2, -1, { 0, 0, "" }, "貫やぐ識禁", 0, 0, 25, -1, "" }, /* Version auto-set to 2 */
+        /* 12*/ { -1, -1, 2, 2, { 0, 0, "" }, "貫やぐ識禁", 0, 0, 25, 0, "" },
+        /* 13*/ { -1, -1, 1, 2, { 0, 0, "" }, "貫やぐ識禁", 0, 0, 25, 1, "" },
+        /* 14*/ { -1, -1, -1, -1, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁", 0, 0, 29, -1, "" }, /* ECC auto-set to 1 (L), version auto-set to 3 */
+        /* 15*/ { -1, -1, 1, 3, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁", 0, 0, 29, 0, "" },
+        /* 16*/ { -1, -1, 2, -1, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁", 0, 0, 33, -1, "" }, /* ECC 2 (M), version auto-set to 4 */
+        /* 17*/ { -1, -1, 2, 4, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁", 0, 0, 33, 0, "" },
+        /* 18*/ { -1, -1, 3, -1, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁", 0, 0, 37, -1, "" }, /* ECC 3 (Q), version auto-set to 5 */
+        /* 19*/ { -1, -1, 3, 5, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁", 0, 0, 37, 0, "" },
+        /* 20*/ { -1, -1, 4, -1, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁", 0, 0, 41, -1, "" }, /* ECC 4 (H), version auto-set to 6 */
+        /* 21*/ { -1, -1, 4, 6, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁", 0, 0, 41, 0, "" },
+        /* 22*/ { -1, -1, -1, -1, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁花ほゃ過法ひなご札17能つーびれ投覧マ勝動エヨ額界よみ作皇ナヲニ打題ヌルヲ掲布益フが。入35能ト権話しこを断兆モヘ細情おじ名4減エヘイハ側機はょが意見想ハ業独案ユヲウ患職ヲ平美さ毎放どぽたけ家没べお化富べ町大シ情魚ッでれ一冬すぼめり。", 0, 0, 69, -1, "" }, /* ECC auto-set to 1, version auto-set to 13 */
+        /* 23*/ { -1, -1, 1, 13, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁花ほゃ過法ひなご札17能つーびれ投覧マ勝動エヨ額界よみ作皇ナヲニ打題ヌルヲ掲布益フが。入35能ト権話しこを断兆モヘ細情おじ名4減エヘイハ側機はょが意見想ハ業独案ユヲウ患職ヲ平美さ毎放どぽたけ家没べお化富べ町大シ情魚ッでれ一冬すぼめり。", 0, 0, 69, 0, "" },
+        /* 24*/ { -1, -1, 4, -1, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁花ほゃ過法ひなご札17能つーびれ投覧マ勝動エヨ額界よみ作皇ナヲニ打題ヌルヲ掲布益フが。入35能ト権話しこを断兆モヘ細情おじ名4減エヘイハ側機はょが意見想ハ業独案ユヲウ患職ヲ平美さ毎放どぽたけ家没べお化富べ町大シ情魚ッでれ一冬すぼめり。", 0, 0, 101, -1, "" }, /* ECC 4, version auto-set to 21 */
+        /* 25*/ { -1, -1, 4, 21, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁花ほゃ過法ひなご札17能つーびれ投覧マ勝動エヨ額界よみ作皇ナヲニ打題ヌルヲ掲布益フが。入35能ト権話しこを断兆モヘ細情おじ名4減エヘイハ側機はょが意見想ハ業独案ユヲウ患職ヲ平美さ毎放どぽたけ家没べお化富べ町大シ情魚ッでれ一冬すぼめり。", 0, 0, 101, 0, "" },
+        /* 26*/ { -1, -1, -1, -1, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁花ほゃ過法ひなご札17能つーびれ投覧マ勝動エヨ額界よみ作皇ナヲニ打題ヌルヲ掲布益フが。入35能ト権話しこを断兆モヘ細情おじ名4減エヘイハ側機はょが意見想ハ業独案ユヲウ患職ヲ平美さ毎放どぽたけ家没べお化富べ町大シ情魚ッでれ一冬すぼめり。社ト可化モマ試音ばじご育青康演ぴぎ権型固スで能麩ぜらもほ河都しちほラ収90作の年要とだむ部動ま者断チ第41一1米索焦茂げむしれ。測フ物使だて目月国スリカハ夏検にいへ児72告物ゆは載核ロアメヱ登輸どべゃ催行アフエハ議歌ワ河倫剖だ。記タケウ因載ヒイホヤ禁3輩彦関トえび肝区勝ワリロ成禁ぼよ界白ウヒキレ中島べせぜい各安うしぽリ覧生テ基一でむしゃ中新トヒキソ声碁スしび起田ア信大未ゅもばち。", 0, 0, 105, -1, "" }, /* ECC auto-set to 1, version auto-set to 22 */
+        /* 27*/ { -1, -1, 1, 22, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁花ほゃ過法ひなご札17能つーびれ投覧マ勝動エヨ額界よみ作皇ナヲニ打題ヌルヲ掲布益フが。入35能ト権話しこを断兆モヘ細情おじ名4減エヘイハ側機はょが意見想ハ業独案ユヲウ患職ヲ平美さ毎放どぽたけ家没べお化富べ町大シ情魚ッでれ一冬すぼめり。社ト可化モマ試音ばじご育青康演ぴぎ権型固スで能麩ぜらもほ河都しちほラ収90作の年要とだむ部動ま者断チ第41一1米索焦茂げむしれ。測フ物使だて目月国スリカハ夏検にいへ児72告物ゆは載核ロアメヱ登輸どべゃ催行アフエハ議歌ワ河倫剖だ。記タケウ因載ヒイホヤ禁3輩彦関トえび肝区勝ワリロ成禁ぼよ界白ウヒキレ中島べせぜい各安うしぽリ覧生テ基一でむしゃ中新トヒキソ声碁スしび起田ア信大未ゅもばち。", 0, 0, 105, 0, "" },
+        /* 28*/ { -1, -1, 4, -1, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁花ほゃ過法ひなご札17能つーびれ投覧マ勝動エヨ額界よみ作皇ナヲニ打題ヌルヲ掲布益フが。入35能ト権話しこを断兆モヘ細情おじ名4減エヘイハ側機はょが意見想ハ業独案ユヲウ患職ヲ平美さ毎放どぽたけ家没べお化富べ町大シ情魚ッでれ一冬すぼめり。社ト可化モマ試音ばじご育青康演ぴぎ権型固スで能麩ぜらもほ河都しちほラ収90作の年要とだむ部動ま者断チ第41一1米索焦茂げむしれ。測フ物使だて目月国スリカハ夏検にいへ児72告物ゆは載核ロアメヱ登輸どべゃ催行アフエハ議歌ワ河倫剖だ。記タケウ因載ヒイホヤ禁3輩彦関トえび肝区勝ワリロ成禁ぼよ界白ウヒキレ中島べせぜい各安うしぽリ覧生テ基一でむしゃ中新トヒキソ声碁スしび起田ア信大未ゅもばち。", 0, 0, 153, 1, "" }, /* ECC 4, version auto-set 34 */
+        /* 29*/ { -1, -1, 4, 34, { 0, 0, "" }, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁花ほゃ過法ひなご札17能つーびれ投覧マ勝動エヨ額界よみ作皇ナヲニ打題ヌルヲ掲布益フが。入35能ト権話しこを断兆モヘ細情おじ名4減エヘイハ側機はょが意見想ハ業独案ユヲウ患職ヲ平美さ毎放どぽたけ家没べお化富べ町大シ情魚ッでれ一冬すぼめり。社ト可化モマ試音ばじご育青康演ぴぎ権型固スで能麩ぜらもほ河都しちほラ収90作の年要とだむ部動ま者断チ第41一1米索焦茂げむしれ。測フ物使だて目月国スリカハ夏検にいへ児72告物ゆは載核ロアメヱ登輸どべゃ催行アフエハ議歌ワ河倫剖だ。記タケウ因載ヒイホヤ禁3輩彦関トえび肝区勝ワリロ成禁ぼよ界白ウヒキレ中島べせぜい各安うしぽリ覧生テ基一でむしゃ中新トヒキソ声碁スしび起田ア信大未ゅもばち。", 0, 0, 153, 0, "" },
+        /* 30*/ { -1, -1, 4, -1, { 0, 0, "" }, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", 0, 0, 177, -1, "" }, /* 1852 alphanumerics max for ECC 4 (H) */
+        /* 31*/ { -1, -1, 1, -1, { 0, 0, "" }, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", 0, 0, 177, -1, "" }, /* 4296 alphanumerics max for ECC 1 (L) */
+        /* 32*/ { -1, -1, 4, -1, { 0, 0, "" }, "貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫", 0, -1, 0, -1, "" }, /* 424 Kanji, ECC 4 (Q), version 1 */
+        /* 33*/ { -1, -1, 4, -1, { 0, 0, "" }, "貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫貫", ZINT_ERROR_TOO_LONG, -1, 0, -1, "Error 561: Input too long for selected error correction level" }, /* 425 Kanji, ECC 4 (Q), version 1 */
+        /* 34*/ { -1, -1, 4, 1, { 0, 0, "" }, "12345678901234567", 0, 0, 21, -1, "" },
+        /* 35*/ { -1, -1, 4, 1, { 1, 2, "" }, "12345678901234567", ZINT_ERROR_TOO_LONG, -1, 0, -1, "Error 569: Input too long for selected symbol size" },
+        /* 36*/ { -1, -1, 4, 1, { 1, 2, "" }, "123456789012", ZINT_ERROR_TOO_LONG, -1, 0, -1, "Error 569: Input too long for selected symbol size" },
+        /* 37*/ { -1, -1, 4, 1, { 1, 2, "" }, "12345678901", 0, 0, 21, -1, "" },
+        /* 38*/ { -1, -1, 4, 1, { 3, 16, "123" }, "12345678901", 0, 0, 21, -1, "" },
+        /* 39*/ { -1, -1, 4, 1, { 3, 17, "123" }, "12345678901", ZINT_ERROR_INVALID_OPTION, -1, 0, -1, "Error 750: Structured Append count out of range (2-16)" },
+        /* 40*/ { -1, -1, 4, 1, { 3, 2, "123" }, "12345678901", ZINT_ERROR_INVALID_OPTION, -1, 0, -1, "Error 751: Structured Append index out of range (1-2)" },
+        /* 41*/ { -1, -1, 4, 1, { 1, 2, "1234" }, "12345678901", ZINT_ERROR_INVALID_OPTION, -1, 0, -1, "Error 752: Structured Append ID too long (3 digit maximum)" },
+        /* 42*/ { -1, -1, 4, 1, { 1, 2, "12A" }, "12345678901", ZINT_ERROR_INVALID_OPTION, -1, 0, -1, "Error 753: Invalid Structured Append ID (digits only)" },
+        /* 43*/ { -1, -1, 4, 1, { 1, 2, "256" }, "12345678901", ZINT_ERROR_INVALID_OPTION, -1, 0, -1, "Error 754: Structured Append ID '256' out of range (0-255)" },
+        /* 44*/ { GS1_MODE, 3, -1, -1, { 0, 0, "" }, "[20]12", ZINT_WARN_NONCOMPLIANT, 0, 21, -1, "Warning 755: Using ECI in GS1 mode not supported by GS1 standards" },
+        /* 45*/ { GS1_MODE, -1, -1, -1, { 1, 2, "" }, "[20]12", ZINT_WARN_NONCOMPLIANT, 0, 21, -1, "Warning 756: Using Structured Append in GS1 mode not supported by GS1 standards" },
+        /* 46*/ { GS1_MODE, 3, -1, -1, { 1, 2, "" }, "[20]12", ZINT_WARN_NONCOMPLIANT, 0, 21, -1, "Warning 755: Using ECI in GS1 mode not supported by GS1 standards" }, /* ECI trumps Structured Append */
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     struct zint_symbol previous_symbol;
 
-    testStart("test_qr_options");
+    testStartSymbol("test_qr_options", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
-        if ((debug & ZINT_DEBUG_TEST_PRINT) && !(debug & ZINT_DEBUG_TEST_LESS_NOISY)) printf("i:%d\n", i);
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
 
-        length = testUtilSetSymbol(symbol, BARCODE_QRCODE, -1 /*input_mode*/, -1 /*eci*/, data[i].option_1, data[i].option_2, -1, -1 /*output_options*/, data[i].data, -1, debug);
+        length = testUtilSetSymbol(symbol, BARCODE_QRCODE, data[i].input_mode, data[i].eci, data[i].option_1, data[i].option_2, -1, -1 /*output_options*/, data[i].data, -1, debug);
         if (data[i].structapp.count) {
             symbol->structapp = data[i].structapp;
         }
 
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret_encode, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret_encode, symbol->errtxt);
-        if (index == -1 && data[i].compare_previous != -1) {
+        assert_zero(strcmp(symbol->errtxt, data[i].expected), "i:%d strcmp(%s, %s) != 0\n", i, symbol->errtxt, data[i].expected);
+        if (p_ctx->index == -1 && data[i].compare_previous != -1) {
             ret = testUtilSymbolCmp(symbol, &previous_symbol);
             assert_equal(!ret, !data[i].compare_previous, "i:%d testUtilSymbolCmp !ret %d != %d\n", i, ret, data[i].compare_previous);
         }
@@ -131,7 +246,8 @@ static void test_qr_options(int index, int debug) {
     testFinish();
 }
 
-static void test_qr_input(int index, int generate, int debug) {
+static void test_qr_input(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int input_mode;
@@ -146,20 +262,20 @@ static void test_qr_input(int index, int generate, int debug) {
         int zxingcpp_cmp;
         char *comment;
     };
-    // é U+00E9 in ISO 8859-1 plus other ISO 8859 (but not in ISO 8859-7 or ISO 8859-11), Win 1250 plus other Win, not in Shift JIS, UTF-8 C3A9
-    // β U+03B2 in ISO 8859-7 Greek (but not other ISO 8859 or Win page), in Shift JIS 0x83C0, UTF-8 CEB2
-    // ก U+0E01 in ISO 8859-11 Thai (but not other ISO 8859 or Win page), not in Shift JIS, UTF-8 E0B881
-    // Ж U+0416 in ISO 8859-5 Cyrillic (but not other ISO 8859), Win 1251, in Shift JIS 0x8447, UTF-8 D096
-    // ກ U+0E81 Lao not in any ISO 8859 (or Win page) or Shift JIS, UTF-8 E0BA81
-    // ¥ U+00A5 in ISO 8859-1 0xA5 (\245), in Shift JIS single-byte 0x5C (\134) (backslash); 0xA5 same codepoint as single-byte half-width katakana ･ (U+FF65) in Shift JIS (below), UTF-8 C2A5
-    // ･ U+FF65 half-width katakana, not in ISO/Win, in Shift JIS single-byte 0xA5 (\245), UTF-8 EFBDA5
-    // ¿ U+00BF in ISO 8859-1 0xBF (\277), not in Shift JIS; 0xBF same codepoint as single-byte half-width katakana ｿ (U+FF7F) in Shift JIS (below), UTF-8 C2BF
-    // ｿ U+FF7F half-width katakana, not in ISO/Win, in Shift JIS single-byte 0xBF (\277), UTF-8 EFBDBF
-    // ‾ U+203E overline, not in ISO/Win, in Shift JIS single-byte 0x7E (\176) (tilde), UTF-8 E280BE
-    // 点 U+70B9 kanji, in Shift JIS 0x935F (\223\137), UTF-8 E782B9
-    // 茗 U+8317 kanji, in Shift JIS 0xE4AA (\344\252), UTF-8 E88C97
-    // テ U+30C6 katakana, in Shift JIS 0x8365 (\203\145), UTF-8 E38386
-    // Á U+00C1, UTF-8 C381; ȁ U+0201, UTF-8 C881; Ȃ U+0202, UTF-8 C882; ¢ U+00A2, UTF-8 C2A2; á U+00E1, UTF-8 C3A1
+    /* é U+00E9 in ISO 8859-1 plus other ISO 8859 (but not in ISO 8859-7 or ISO 8859-11), Win 1250 plus other Win, not in Shift JIS, UTF-8 C3A9 */
+    /* β U+03B2 in ISO 8859-7 Greek (but not other ISO 8859 or Win page), in Shift JIS 0x83C0, UTF-8 CEB2 */
+    /* ก U+0E01 in ISO 8859-11 Thai (but not other ISO 8859 or Win page), not in Shift JIS, UTF-8 E0B881 */
+    /* Ж U+0416 in ISO 8859-5 Cyrillic (but not other ISO 8859), Win 1251, in Shift JIS 0x8447, UTF-8 D096 */
+    /* ກ U+0E81 Lao not in any ISO 8859 (or Win page) or Shift JIS, UTF-8 E0BA81 */
+    /* ¥ U+00A5 in ISO 8859-1 0xA5 (\245), in Shift JIS single-byte 0x5C (\134) (backslash); 0xA5 same codepoint as single-byte half-width katakana ･ (U+FF65) in Shift JIS (below), UTF-8 C2A5 */
+    /* ･ U+FF65 half-width katakana, not in ISO/Win, in Shift JIS single-byte 0xA5 (\245), UTF-8 EFBDA5 */
+    /* ¿ U+00BF in ISO 8859-1 0xBF (\277), not in Shift JIS; 0xBF same codepoint as single-byte half-width katakana ｿ (U+FF7F) in Shift JIS (below), UTF-8 C2BF */
+    /* ｿ U+FF7F half-width katakana, not in ISO/Win, in Shift JIS single-byte 0xBF (\277), UTF-8 EFBDBF */
+    /* ‾ U+203E overline, not in ISO/Win, in Shift JIS single-byte 0x7E (\176) (tilde), UTF-8 E280BE */
+    /* 点 U+70B9 kanji, in Shift JIS 0x935F (\223\137), UTF-8 E782B9 */
+    /* 茗 U+8317 kanji, in Shift JIS 0xE4AA (\344\252), UTF-8 E88C97 */
+    /* テ U+30C6 katakana, in Shift JIS 0x8365 (\203\145), UTF-8 E38386 */
+    /* Á U+00C1, UTF-8 C381; ȁ U+0201, UTF-8 C881; Ȃ U+0202, UTF-8 C882; ¢ U+00A2, UTF-8 C2A2; á U+00E1, UTF-8 C3A1 */
     struct item data[] = {
         /*  0*/ { UNICODE_MODE, 0, 4, 6 << 8, "é", 0, 0, "40 1E 90 EC 11 EC 11 EC 11", 1, 1, "B1 (ISO 8859-1)" },
         /*  1*/ { UNICODE_MODE, 3, 4, -1, "é", 0, 3, "70 34 01 E9 00 EC 11 EC 11", 1, 1, "ECI-3 B1 (ISO 8859-1)" },
@@ -309,35 +425,35 @@ static void test_qr_input(int index, int generate, int debug) {
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char escaped[4096];
     char cmp_buf[32768];
     char cmp_msg[1024];
 
-    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); // Only do BWIPP test if asked, too slow otherwise
-    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); // Only do ZXing-C++ test if asked, too slow otherwise
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
 
-    testStart("test_qr_input");
+    testStartSymbol("test_qr_input", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
-        if ((debug & ZINT_DEBUG_TEST_PRINT) && !(debug & ZINT_DEBUG_TEST_LESS_NOISY)) printf("i:%d\n", i);
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
 
-        debug |= ZINT_DEBUG_TEST; // Needed to get codeword dump in errtxt
+        debug |= ZINT_DEBUG_TEST; /* Needed to get codeword dump in errtxt */
 
         length = testUtilSetSymbol(symbol, BARCODE_QRCODE, data[i].input_mode, data[i].eci, data[i].option_1, -1, data[i].option_3, -1 /*output_options*/, data[i].data, -1, debug);
 
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
-        if (generate) {
+        if (p_ctx->generate) {
             printf("        /*%3d*/ { %s, %d, %d, %s, \"%s\", %s, %d, \"%s\", %d, %d, \"%s\" },\n",
-                    i, testUtilInputModeName(data[i].input_mode), data[i].eci, data[i].option_1, testUtilOption3Name(data[i].option_3),
+                    i, testUtilInputModeName(data[i].input_mode), data[i].eci, data[i].option_1,
+                    testUtilOption3Name(BARCODE_QRCODE, data[i].option_3),
                     testUtilEscape(data[i].data, length, escaped, sizeof(escaped)),
                     testUtilErrorName(data[i].ret), ret < ZINT_ERROR ? symbol->eci : -1, symbol->errtxt,
                     data[i].bwipp_cmp, data[i].zxingcpp_cmp, data[i].comment);
@@ -386,7 +502,8 @@ static void test_qr_input(int index, int generate, int debug) {
     testFinish();
 }
 
-static void test_qr_gs1(int index, int generate, int debug) {
+static void test_qr_gs1(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int input_mode;
@@ -395,59 +512,167 @@ static void test_qr_gs1(int index, int generate, int debug) {
         char *data;
         int ret;
         char *expected;
+        int bwipp_cmp;
         char *comment;
     };
     struct item data[] = {
-        /*  0*/ { GS1_MODE, 4, 7 << 8, "[01]12345678901231", 0, "51 04 00 B3 AA 37 DE 87 B1", "N16" },
-        /*  1*/ { GS1_MODE | GS1PARENS_MODE, 4, 7 << 8, "(01)12345678901231", 0, "51 04 00 B3 AA 37 DE 87 B1", "N16" },
-        /*  2*/ { GS1_MODE, 2, 4 << 8, "[01]04912345123459[15]970331[30]128[10]ABC123", 0, "51 07 40 A7 AC EA 80 15 9E 4F CA 52 D2 D3 84 09 D5 E0 28 FD 82 F0 C0 EC 11 EC 11 EC", "N29 A9" },
-        /*  3*/ { GS1_MODE | GS1PARENS_MODE, 2, 4 << 8, "(01)04912345123459(15)970331(30)128(10)ABC123", 0, "51 07 40 A7 AC EA 80 15 9E 4F CA 52 D2 D3 84 09 D5 E0 28 FD 82 F0 C0 EC 11 EC 11 EC", "N29 A9" },
-        /*  4*/ { GS1_MODE, 3, -1, "[91]12%[20]12", 0, "52 05 99 60 5F B5 35 80 01 08 00 EC 11", "A10(11)" },
-        /*  5*/ { GS1_MODE, 3, 1 << 8, "[91]123%[20]12", 0, "52 06 19 60 5E 2B 76 A0 5A 05 E0 EC 11", "A11(12)" },
-        /*  6*/ { GS1_MODE, 3, 6 << 8, "[91]1234%[20]12", 0, "52 06 99 60 5E 22 F6 A6 B0 00 21 00 EC", "A12(13)" },
-        /*  7*/ { GS1_MODE, 3, -1, "[91]12345%[20]12", 0, "51 01 F8 F3 A9 48 0F B5 35 80 01 08 00", "N7 A6(7) (same bit count as A13(14))" },
-        /*  8*/ { GS1_MODE, 3, 8 << 8, "[91]%%[20]12", 0, "52 05 99 6D A9 B5 35 80 01 08 00 EC 11", "A9(11)" },
-        /*  9*/ { GS1_MODE, 3, 6 << 8, "[91]%%%[20]12", 0, "52 06 99 6D A9 B5 36 A6 B0 00 21 00 EC", "A10(13)" },
-        /* 10*/ { GS1_MODE, 3, 6 << 8, "[91]A%%%%1234567890123AA%", 0, "52 05 99 63 D1 B5 36 A6 D4 98 40 D1 ED C8 C5 40 C3 20 21 CC DA 80", "A7(11) N13 A3(4)" },
-        /* 11*/ { GS1_MODE, 1, -1, "[91]%23%%6789%%%34567%%%%234%%%%%", 0, "(34) 52 17 19 6D A8 17 76 A6 D4 22 A5 C7 6A 6D 4D A8 22 C7 39 61 DA 9B 53 6A 6B 01 17 B5", "A31(46)" },
-        /* 12*/ { GS1_MODE, 2, 5 << 8, "[91]ABCDEFGHI[92]ABCDEF", 0, "52 0A 19 63 9A 8A 54 2A E1 6A 06 5C E6 A2 95 0A", "A20(23)" },
+        /*  0*/ { GS1_MODE, 4, 7 << 8, "[01]12345678901231", 0, "51 04 00 B3 AA 37 DE 87 B1", 1, "N16" },
+        /*  1*/ { GS1_MODE | GS1PARENS_MODE, 4, 7 << 8, "(01)12345678901231", 0, "51 04 00 B3 AA 37 DE 87 B1", 1, "N16" },
+        /*  2*/ { GS1_MODE, 2, 4 << 8, "[01]04912345123459[15]970331[30]128[10]ABC123", 0, "51 07 40 A7 AC EA 80 15 9E 4F CA 52 D2 D3 84 09 D5 E0 28 FD 82 F0 C0 EC 11 EC 11 EC", 1, "N29 A9" },
+        /*  3*/ { GS1_MODE | GS1PARENS_MODE, 2, 4 << 8, "(01)04912345123459(15)970331(30)128(10)ABC123", 0, "51 07 40 A7 AC EA 80 15 9E 4F CA 52 D2 D3 84 09 D5 E0 28 FD 82 F0 C0 EC 11 EC 11 EC", 1, "N29 A9" },
+        /*  4*/ { GS1_MODE, 3, -1, "[91]12%[20]12", 0, "52 05 99 60 5F B5 35 80 01 08 00 EC 11", 1, "A10(11)" },
+        /*  5*/ { GS1_MODE, 3, 1 << 8, "[91]123%[20]12", 0, "52 06 19 60 5E 2B 76 A0 5A 05 E0 EC 11", 1, "A11(12)" },
+        /*  6*/ { GS1_MODE, 3, 6 << 8, "[91]1234%[20]12", 0, "52 06 99 60 5E 22 F6 A6 B0 00 21 00 EC", 1, "A12(13)" },
+        /*  7*/ { GS1_MODE, 3, -1, "[91]12345%[20]12", 0, "51 01 F8 F3 A9 48 0F B5 35 80 01 08 00", 1, "N7 A6(7) (same bit count as A13(14))" },
+        /*  8*/ { GS1_MODE, 3, 8 << 8, "[91]%%[20]12", 0, "52 05 99 6D A9 B5 35 80 01 08 00 EC 11", 1, "A9(11)" },
+        /*  9*/ { GS1_MODE, 3, 6 << 8, "[91]%%%[20]12", 0, "52 06 99 6D A9 B5 36 A6 B0 00 21 00 EC", 1, "A10(13)" },
+        /* 10*/ { GS1_MODE, 3, 6 << 8, "[91]A%%%%1234567890123AA%", 0, "54 07 39 31 41 25 25 25 25 10 34 7B 72 31 50 30 C8 08 73 36 A0 00", 0, "B7 N13 A3(4); BWIPP different encoding (same no. codewords)" },
+        /* 11*/ { GS1_MODE, 1, -1, "[91]%23%%6789%%%34567%%%%234%%%%%", 0, "(34) 52 0C 99 6D A8 17 76 A6 D4 22 A5 C7 6A 6D 4D A8 22 C7 38 E8 18 4A 4A 4A 4A 64 66 68", 0, "A19(25) B12; BWIPP different encoding (same no. codewords, less padding)" },
+        /* 12*/ { GS1_MODE, 2, 5 << 8, "[91]ABCDEFGHI[92]ABCDEF", 0, "52 0A 19 63 9A 8A 54 2A E1 6A 06 5C E6 A2 95 0A", 1, "A20(23)" },
+        /* 13*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 5 << 8, "[]%", 0, "54 01 25 00 EC 11 EC 11 EC 11 EC 11 EC 11 EC 11", 0, "B1; BWIPP different encoding (A2)" },
+        /* 14*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 5 << 8, "[]%A", 0, "54 02 25 41 00 EC 11 EC 11 EC 11 EC 11 EC 11 EC", 0, "B2; BWIPP different encoding (A3)" },
+        /* 15*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 5 << 8, "[]A%", 0, "54 02 41 25 00 EC 11 EC 11 EC 11 EC 11 EC 11 EC", 0, "B2; BWIPP different encoding (A3)" },
+        /* 16*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 5 << 8, "[]%AA", 0, "52 02 6D 43 98 00 EC 11 EC 11 EC 11 EC 11 EC 11", 1, "A3(4)" },
+        /* 17*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 5 << 8, "[]A%A", 0, "52 02 1E 8D 70 00 EC 11 EC 11 EC 11 EC 11 EC 11", 1, "A3(4)" },
+        /* 18*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 5 << 8, "[]AA%", 0, "52 02 1C CD A8 00 EC 11 EC 11 EC 11 EC 11 EC 11", 1, "A3(4)" },
+        /* 19*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 5 << 8, "[]%%", 0, "54 02 25 25 00 EC 11 EC 11 EC 11 EC 11 EC 11 EC", 0, "B2; BWIPP different encoding (A4)" },
+        /* 20*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 5 << 8, "[]%%A", 0, "54 03 25 25 41 00 EC 11 EC 11 EC 11 EC 11 EC 11", 0, "B3; BWIPP different encoding (A5)" },
+        /* 21*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 5 << 8, "[]%A%", 0, "54 03 25 41 25 00 EC 11 EC 11 EC 11 EC 11 EC 11", 0, "B3; BWIPP different encoding (A5)" },
+        /* 22*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 5 << 8, "[]A%%", 0, "54 03 41 25 25 00 EC 11 EC 11 EC 11 EC 11 EC 11", 0, "B3; BWIPP different encoding (A5)" },
+        /* 23*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 5 << 8, "[]%AAA", 0, "52 02 ED 43 98 50 00 EC 11 EC 11 EC 11 EC 11 EC", 1, "A4(5)" },
+        /* 24*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 5 << 8, "[]A%AA", 0, "52 02 9E 8D 70 50 00 EC 11 EC 11 EC 11 EC 11 EC", 1, "A4(5)" },
+        /* 25*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 5 << 8, "[]A%AA", 0, "52 02 9E 8D 70 50 00 EC 11 EC 11 EC 11 EC 11 EC", 1, "A4(5)" },
+        /* 26*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 5 << 8, "[]AA%A", 0, "52 02 9C CD A8 50 00 EC 11 EC 11 EC 11 EC 11 EC", 1, "A4(5)" },
+        /* 27*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 5 << 8, "[]AAA%", 0, "52 02 9C C3 D1 30 00 EC 11 EC 11 EC 11 EC 11 EC", 1, "A4(5)" },
+        /* 28*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 5 << 8, "[]%%AA", 0, "54 04 25 25 41 41 00 EC 11 EC 11 EC 11 EC 11 EC", 0, "B4; BWIPP different encoding (A6) (same no. codewords)" },
+        /* 29*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 5 << 8, "[]%A%A", 0, "54 04 25 41 25 41 00 EC 11 EC 11 EC 11 EC 11 EC", 0, "B4; BWIPP different encoding (A6) (same no. codewords)" },
+        /* 30*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 5 << 8, "[]A%%A", 0, "54 04 41 25 25 41 00 EC 11 EC 11 EC 11 EC 11 EC", 0, "B4; BWIPP different encoding (A6) (same no. codewords)" },
+        /* 31*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 5 << 8, "[]A%A%", 0, "54 04 41 25 41 25 00 EC 11 EC 11 EC 11 EC 11 EC", 0, "B4; BWIPP different encoding (A6) (same no. codewords)" },
+        /* 32*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 5 << 8, "[]AA%%", 0, "54 04 41 41 25 25 00 EC 11 EC 11 EC 11 EC 11 EC", 0, "B4; BWIPP different encoding (A6) (same no. codewords)" },
+        /* 33*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%AAA", 0, "52 03 ED 4D A8 73 0A 00 EC 11 EC 11 EC 11 EC 11", 1, "A5(7)" },
+        /* 34*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%A%AA", 0, "52 03 ED 43 D1 AE 0A 00 EC 11 EC 11 EC 11 EC 11", 1, "A5(7)" },
+        /* 35*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]A%%AA", 0, "52 03 9E 8D A9 AE 0A 00 EC 11 EC 11 EC 11 EC 11", 1, "A5(7)" },
+        /* 36*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]A%A%A", 0, "52 03 9E 8D 71 B5 0A 00 EC 11 EC 11 EC 11 EC 11", 1, "A5(7)" },
+        /* 37*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]AA%%A", 0, "52 03 9C CD A9 B5 0A 00 EC 11 EC 11 EC 11 EC 11", 1, "A5(7)" },
+        /* 38*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]AA%A%", 0, "52 03 9C CD A8 7A 26 00 EC 11 EC 11 EC 11 EC 11", 1, "A5(7)" },
+        /* 39*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]AAA%%", 0, "52 03 9C C3 D1 B5 26 00 EC 11 EC 11 EC 11 EC 11", 1, "A5(7)" },
+        /* 40*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%%", 0, "54 03 25 25 25 00 EC 11 EC 11 EC 11 EC 11 EC 11", 0, "B3; BWIPP different encoding (A6)" },
+        /* 41*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%%A", 0, "54 04 25 25 25 41 00 EC 11 EC 11 EC 11 EC 11 EC", 0, "B4; BWIPP different encoding (A7)" },
+        /* 42*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%A%", 0, "54 04 25 25 41 25 00 EC 11 EC 11 EC 11 EC 11 EC", 0, "B4; BWIPP different encoding (A7)" },
+        /* 43*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%A%%", 0, "54 04 25 41 25 25 00 EC 11 EC 11 EC 11 EC 11 EC", 0, "B4; BWIPP different encoding (A7)" },
+        /* 44*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]A%%%", 0, "54 04 41 25 25 25 00 EC 11 EC 11 EC 11 EC 11 EC", 0, "B4; BWIPP different encoding (A7)" },
+        /* 45*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%%AA", 0, "54 05 25 25 25 41 41 00 EC 11 EC 11 EC 11 EC 11", 0, "B5; BWIPP different encoding (A8)" },
+        /* 46*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]AA%%%", 0, "54 05 41 41 25 25 25 00 EC 11 EC 11 EC 11 EC 11", 0, "B5; BWIPP different encoding (A8)" },
+        /* 47*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%%AAA", 0, "54 06 25 25 25 41 41 41 00 EC 11 EC 11 EC 11 EC", 0, "B6; BWIPP different encoding (A9)" },
+        /* 48*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]A%A%A%", 0, "54 06 41 25 41 25 41 25 00 EC 11 EC 11 EC 11 EC", 0, "B6; BWIPP different encoding (A9)" },
+        /* 49*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%AAAA", 0, "52 04 6D 4D A8 73 0E 60 00 EC 11 EC 11 EC 11 EC", 1, "A6(8)" },
+        /* 50*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%A%AAA", 0, "52 04 6D 43 D1 AE 0E 60 00 EC 11 EC 11 EC 11 EC", 1, "A6(8)" },
+        /* 51*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%AA%AA", 0, "52 04 6D 43 99 B5 0E 60 00 EC 11 EC 11 EC 11 EC", 1, "A6(8)" },
+        /* 52*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%AAA%A", 0, "52 04 6D 43 98 7A 35 C0 00 EC 11 EC 11 EC 11 EC", 1, "A6(8)" },
+        /* 53*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%AAAA%", 0, "52 04 6D 43 98 73 36 A0 00 EC 11 EC 11 EC 11 EC", 1, "A6(8)" },
+        /* 54*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]A%%AAA", 0, "52 04 1E 8D A9 AE 0E 60 00 EC 11 EC 11 EC 11 EC", 1, "A6(8)" },
+        /* 55*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]AA%%AA", 0, "52 04 1C CD A9 B5 0E 60 00 EC 11 EC 11 EC 11 EC", 1, "A6(8)" },
+        /* 56*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]AAA%%A", 0, "52 04 1C C3 D1 B5 35 C0 00 EC 11 EC 11 EC 11 EC", 1, "A6(8)" },
+        /* 57*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]AAAA%%", 0, "52 04 1C C3 99 B5 36 A0 00 EC 11 EC 11 EC 11 EC", 1, "A6(8)" },
+        /* 58*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%AAAAA", 0, "52 04 ED 4D A8 73 0E 61 40 EC 11 EC 11 EC 11 EC", 1, "A7(9)" },
+        /* 59*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%A%AAAA", 0, "52 04 ED 43 D1 AE 0E 61 40 EC 11 EC 11 EC 11 EC", 1, "A7(9)" },
+        /* 60*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%AA%AAA", 0, "52 04 ED 43 99 B5 0E 61 40 EC 11 EC 11 EC 11 EC", 1, "A7(9)" },
+        /* 61*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%AAA%AA", 0, "52 04 ED 43 98 7A 35 C1 40 EC 11 EC 11 EC 11 EC", 1, "A7(9)" },
+        /* 62*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%AAAA%A", 0, "52 04 ED 43 98 73 36 A1 40 EC 11 EC 11 EC 11 EC", 1, "A7(9)" },
+        /* 63*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%AAAAA%", 0, "52 04 ED 43 98 73 0F 44 C0 EC 11 EC 11 EC 11 EC", 1, "A7(9)" },
+        /* 64*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%%AAAAA", 0, "52 05 ED 4D A9 B5 0E 61 CC 28 00 EC 11 EC 11 EC", 1, "A8(11)" },
+        /* 65*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%A%AAAA", 0, "52 05 ED 4D A8 7A 35 C1 CC 28 00 EC 11 EC 11 EC", 1, "A8(11)" },
+        /* 66*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%AA%AAA", 0, "52 05 ED 4D A8 73 36 A1 CC 28 00 EC 11 EC 11 EC", 1, "A8(11)" },
+        /* 67*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%AAA%AA", 0, "52 05 ED 4D A8 73 0F 46 B8 28 00 EC 11 EC 11 EC", 1, "A8(11)" },
+        /* 68*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%AAAA%A", 0, "52 05 ED 4D A8 73 0E 66 D4 28 00 EC 11 EC 11 EC", 1, "A8(11)" },
+        /* 69*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%AAAAA%", 0, "52 05 ED 4D A8 73 0E 61 E8 98 00 EC 11 EC 11 EC", 1, "A8(11)" },
+        /* 70*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%A%%AAAA", 0, "52 05 ED 43 D1 B5 35 C1 CC 28 00 EC 11 EC 11 EC", 1, "A8(11)" },
+        /* 71*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%AA%%AAA", 0, "52 05 ED 43 99 B5 36 A1 CC 28 00 EC 11 EC 11 EC", 1, "A8(11)" },
+        /* 72*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%AAA%%AA", 0, "52 05 ED 43 98 7A 36 A6 B8 28 00 EC 11 EC 11 EC", 1, "A8(11)" },
+        /* 73*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%AAAA%%A", 0, "52 05 ED 43 98 73 36 A6 D4 28 00 EC 11 EC 11 EC", 1, "A8(11)" },
+        /* 74*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%AAAAA%%", 0, "52 05 ED 43 98 73 0F 46 D4 98 00 EC 11 EC 11 EC", 1, "A8(11)" },
+        /* 75*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]A%%%AAAA", 0, "52 05 9E 8D A9 B5 35 C1 CC 28 00 EC 11 EC 11 EC", 1, "A8(11)" },
+        /* 76*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]AA%%%AAA", 0, "52 05 9C CD A9 B5 36 A1 CC 28 00 EC 11 EC 11 EC", 1, "A8(11)" },
+        /* 77*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]AAA%%%AA", 0, "52 05 9C C3 D1 B5 36 A6 B8 28 00 EC 11 EC 11 EC", 1, "A8(11)" },
+        /* 78*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]AAAA%%%A", 0, "52 05 9C C3 99 B5 36 A6 D4 28 00 EC 11 EC 11 EC", 1, "A8(11)" },
+        /* 79*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]AAAAA%%%", 0, "52 05 9C C3 98 7A 36 A6 D4 98 00 EC 11 EC 11 EC", 1, "A8(11)" },
+        /* 80*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]A%A%A%AA", 0, "52 05 9E 8D 71 B5 0F 46 B8 28 00 EC 11 EC 11 EC", 1, "A8(11)" },
+        /* 81*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]A%A%AA%A", 0, "52 05 9E 8D 71 B5 0E 66 D4 28 00 EC 11 EC 11 EC", 1, "A8(11)" },
+        /* 82*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]A%A%AAA%", 0, "52 05 9E 8D 71 B5 0E 61 E8 98 00 EC 11 EC 11 EC", 1, "A8(11)" },
+        /* 83*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%A%A%AAA", 0, "52 05 ED 43 D1 AE 36 A1 CC 28 00 EC 11 EC 11 EC", 1, "A8(11)" },
+        /* 84*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%%%AAAAAA", 0, "52 07 6D 4D A9 B5 36 A1 CC 39 87 30 00 EC 11 EC", 1, "A10(14)" },
+        /* 85*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%%A%AAAAA", 0, "52 07 6D 4D A9 B5 0F 46 B8 39 87 30 00 EC 11 EC", 1, "A10(14)" },
+        /* 86*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%%AA%AAAA", 0, "52 07 6D 4D A9 B5 0E 66 D4 39 87 30 00 EC 11 EC", 1, "A10(14)" },
+        /* 87*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%%AAA%AAA", 0, "52 07 6D 4D A9 B5 0E 61 E8 D7 07 30 00 EC 11 EC", 1, "A10(14)" },
+        /* 88*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%%AAAA%AA", 0, "52 07 6D 4D A9 B5 0E 61 CC DA 87 30 00 EC 11 EC", 1, "A10(14)" },
+        /* 89*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%%AAAAA%A", 0, "52 07 6D 4D A9 B5 0E 61 CC 3D 1A E0 00 EC 11 EC", 1, "A10(14)" },
+        /* 90*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%%AAAAAA%", 0, "52 07 6D 4D A9 B5 0E 61 CC 39 9B 50 00 EC 11 EC", 1, "A10(14)" },
+        /* 91*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%A%%AAAAA", 0, "52 07 6D 4D A8 7A 36 A6 B8 39 87 30 00 EC 11 EC", 1, "A10(14)" },
+        /* 92*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%AA%%AAAA", 0, "52 07 6D 4D A8 73 36 A6 D4 39 87 30 00 EC 11 EC", 1, "A10(14)" },
+        /* 93*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%AAA%%AAA", 0, "52 07 6D 4D A8 73 0F 46 D4 D7 07 30 00 EC 11 EC", 1, "A10(14)" },
+        /* 94*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%AAAA%%AA", 0, "52 07 6D 4D A8 73 0E 66 D4 DA 87 30 00 EC 11 EC", 1, "A10(14)" },
+        /* 95*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%AAAAA%%A", 0, "52 07 6D 4D A8 73 0E 61 E8 DA 9A E0 00 EC 11 EC", 1, "A10(14)" },
+        /* 96*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%%AAAAAA%%", 0, "52 07 6D 4D A8 73 0E 61 CC DA 9B 50 00 EC 11 EC", 1, "A10(14)" },
+        /* 97*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%A%%%AAAAA", 0, "52 07 6D 43 D1 B5 36 A6 B8 39 87 30 00 EC 11 EC", 1, "A10(14)" },
+        /* 98*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%AA%%%AAAA", 0, "52 07 6D 43 99 B5 36 A6 D4 39 87 30 00 EC 11 EC", 1, "A10(14)" },
+        /* 99*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%AAA%%%AAA", 0, "52 07 6D 43 98 7A 36 A6 D4 D7 07 30 00 EC 11 EC", 1, "A10(14)" },
+        /*100*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%AAAA%%%AA", 0, "52 07 6D 43 98 73 36 A6 D4 DA 87 30 00 EC 11 EC", 1, "A10(14)" },
+        /*101*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%AAAAA%%%A", 0, "52 07 6D 43 98 73 0F 46 D4 DA 9A E0 00 EC 11 EC", 1, "A10(14)" },
+        /*102*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%AAAAAA%%%", 0, "52 07 6D 43 98 73 0E 66 D4 DA 9B 50 00 EC 11 EC", 1, "A10(14)" },
+        /*103*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]A%%%%AAAAA", 0, "52 07 1E 8D A9 B5 36 A6 B8 39 87 30 00 EC 11 EC", 1, "A10(14)" },
+        /*104*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]AA%%%%AAAA", 0, "52 07 1C CD A9 B5 36 A6 D4 39 87 30 00 EC 11 EC", 1, "A10(14)" },
+        /*105*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]AAA%%%%AAA", 0, "52 07 1C C3 D1 B5 36 A6 D4 D7 07 30 00 EC 11 EC", 1, "A10(14)" },
+        /*106*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]AAAA%%%%AA", 0, "52 07 1C C3 99 B5 36 A6 D4 DA 87 30 00 EC 11 EC", 1, "A10(14)" },
+        /*107*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]AAAAA%%%%A", 0, "52 07 1C C3 98 7A 36 A6 D4 DA 9A E0 00 EC 11 EC", 1, "A10(14)" },
+        /*108*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]AAAAAA%%%%", 0, "52 07 1C C3 98 73 36 A6 D4 DA 9B 50 00 EC 11 EC", 1, "A10(14)" },
+        /*109*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]A%A%A%A%AA", 0, "52 07 1E 8D 71 B5 0F 46 B8 DA 87 30 00 EC 11 EC", 1, "A10(14)" },
+        /*110*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]A%A%A%AA%A", 0, "52 07 1E 8D 71 B5 0F 46 B8 3D 1A E0 00 EC 11 EC", 1, "A10(14)" },
+        /*111*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]A%A%A%AAA%", 0, "52 07 1E 8D 71 B5 0F 46 B8 39 9B 50 00 EC 11 EC", 1, "A10(14)" },
+        /*112*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%A%A%A%AAA", 0, "52 07 6D 43 D1 AE 36 A1 E8 D7 07 30 00 EC 11 EC", 1, "A10(14)" },
+        /*113*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]A%%AA%A%AA", 0, "52 07 1E 8D A9 AE 0F 46 B8 DA 87 30 00 EC 11 EC", 1, "A10(14)" },
+        /*114*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%A%%AA%AAA", 0, "52 07 6D 43 D1 B5 35 C1 E8 D7 07 30 00 EC 11 EC", 1, "A10(14)" },
+        /*115*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%A%%AAA%AA", 0, "52 07 6D 43 D1 B5 35 C1 CC DA 87 30 00 EC 11 EC", 1, "A10(14)" },
+        /*116*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%A%%AAAA%A", 0, "52 07 6D 43 D1 B5 35 C1 CC 3D 1A E0 00 EC 11 EC", 1, "A10(14)" },
+        /*117*/ { GS1_MODE | GS1NOCHECK_MODE, 2, 3 << 8, "[]%A%%AAAAA%", 0, "52 07 6D 43 D1 B5 35 C1 CC 39 9B 50 00 EC 11 EC", 1, "A10(14)" },
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char escaped[4096];
     char cmp_buf[32768];
     char cmp_msg[1024];
 
-    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); // Only do BWIPP test if asked, too slow otherwise
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
 
-    testStart("test_qr_gs1");
+    testStartSymbol("test_qr_gs1", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
-        if ((debug & ZINT_DEBUG_TEST_PRINT) && !(debug & ZINT_DEBUG_TEST_LESS_NOISY)) printf("i:%d\n", i);
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
 
-        debug |= ZINT_DEBUG_TEST; // Needed to get codeword dump in errtxt
+        debug |= ZINT_DEBUG_TEST; /* Needed to get codeword dump in errtxt */
 
         length = testUtilSetSymbol(symbol, BARCODE_QRCODE, data[i].input_mode, -1 /*eci*/, data[i].option_1, -1, data[i].option_3, -1 /*output_options*/, data[i].data, -1, debug);
 
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
-        if (generate) {
-            printf("        /*%3d*/ { %s, %d, %d, \"%s\", %s, \"%s\", \"%s\" },\n",
-                    i, testUtilInputModeName(data[i].input_mode), data[i].option_1, data[i].option_3,
-                    testUtilEscape(data[i].data, length, escaped, sizeof(escaped)), testUtilErrorName(data[i].ret), symbol->errtxt, data[i].comment);
+        if (p_ctx->generate) {
+            printf("        /*%3d*/ { %s, %d, %s, \"%s\", %s, \"%s\", %d, \"%s\" },\n",
+                    i, testUtilInputModeName(data[i].input_mode), data[i].option_1,
+                    testUtilOption3Name(BARCODE_QRCODE, data[i].option_3),
+                    testUtilEscape(data[i].data, length, escaped, sizeof(escaped)), testUtilErrorName(data[i].ret),
+                    symbol->errtxt, data[i].bwipp_cmp, data[i].comment);
         } else {
             assert_zero(strcmp(symbol->errtxt, data[i].expected), "i:%d strcmp(%s, %s) != 0\n", i, symbol->errtxt, data[i].expected);
 
             if (do_bwipp && testUtilCanBwipp(i, symbol, data[i].option_1, -1, data[i].option_3, debug)) {
-                if (0 /*!data[i].bwipp_cmp*/) {
+                if (!data[i].bwipp_cmp) {
                     if (debug & ZINT_DEBUG_TEST_PRINT) printf("i:%d %s not BWIPP compatible (%s)\n", i, testUtilBarcodeName(symbol->symbology), data[i].comment);
                 } else {
                     char modules_dump[177 * 177 + 1];
@@ -460,6 +685,21 @@ static void test_qr_gs1(int index, int generate, int debug) {
                                    i, testUtilBarcodeName(symbol->symbology), ret, cmp_msg, cmp_buf, modules_dump);
                 }
             }
+            if (do_zxingcpp && testUtilCanZXingCPP(i, symbol, data[i].data, length, debug)) {
+                if (0 /*!data[i].zxingcpp_cmp*/) {
+                    if (debug & ZINT_DEBUG_TEST_PRINT) printf("i:%d %s not ZXing-C++ compatible (%s)\n", i, testUtilBarcodeName(symbol->symbology), data[i].comment);
+                } else {
+                    int cmp_len, ret_len;
+                    char modules_dump[177 * 177 + 1];
+                    assert_notequal(testUtilModulesDump(symbol, modules_dump, sizeof(modules_dump)), -1, "i:%d testUtilModulesDump == -1\n", i);
+                    ret = testUtilZXingCPP(i, symbol, data[i].data, length, modules_dump, cmp_buf, sizeof(cmp_buf), &cmp_len);
+                    assert_zero(ret, "i:%d %s testUtilZXingCPP ret %d != 0\n", i, testUtilBarcodeName(symbol->symbology), ret);
+
+                    ret = testUtilZXingCPPCmp(symbol, cmp_msg, cmp_buf, cmp_len, data[i].data, length, NULL /*primary*/, escaped, &ret_len);
+                    assert_zero(ret, "i:%d %s testUtilZXingCPPCmp %d != 0 %s\n  actual: %.*s\nexpected: %.*s\n",
+                                   i, testUtilBarcodeName(symbol->symbology), ret, cmp_msg, cmp_len, cmp_buf, ret_len, escaped);
+                }
+            }
         }
 
         ZBarcode_Delete(symbol);
@@ -468,12 +708,13 @@ static void test_qr_gs1(int index, int generate, int debug) {
     testFinish();
 }
 
-static void test_qr_optimize(int index, int generate, int debug) {
+static void test_qr_optimize(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int input_mode;
         int option_1;
-        int option_3; // OR-ed with ZINT_FULL_MULTIBYTE
+        int option_3; /* OR-ed with ZINT_FULL_MULTIBYTE */
         char *data;
         int ret;
         char *expected;
@@ -497,7 +738,7 @@ static void test_qr_optimize(int index, int generate, int debug) {
         /* 13*/ { UNICODE_MODE, 1, -1, "Golden ratio φ = 1.6180339887498948482045868343656381177203091798057628621354486227052604628189024497072072041893911374......", ZINT_WARN_NONCOMPLIANT, "Warning (80) 41 44 76 F6 C6 46 56 E2 07 26 17 46 96 F2 08 3D 32 03 D2 03 12 E1 19 26 A0 87 DC BB", 1, "B20 N100 A6 (nayuki.io - alpha/numeric/byte)" },
         /* 14*/ { UNICODE_MODE, 1, -1, "こんにちwa、世界！ αβγδ", ZINT_WARN_NONCOMPLIANT, "Warning (34) 41 B8 2B 18 2F 18 2C 98 2B F7 76 18 14 19 0A 28 A4 58 14 92 08 3B F8 3C 08 3C 18 3C", 1, "B27 (nayuki.io - kanji/european **NOT SAME** K4 B2 K4 A1 K4, less bits as nayuki (1.5.0) miscounting byte-mode input as UTF-8)" },
         /* 15*/ { UNICODE_MODE, 1, 2 << 8, "こんにちテwa、世界！ αβγδ", ZINT_WARN_NONCOMPLIANT, "Warning (34) 80 50 98 85 C4 29 21 3F 0D 2A 09 BB B0 C0 A0 C8 51 45 22 C0 A4 90 41 DF C1 E0 41 E0", 1, "K5 B19 (nayuki.io - kanji/european + extra leading kanji **NOT SAME** K5 B2 K4 A1 K4, same reason as above)" },
-        /* 16*/ { UNICODE_MODE, 1, 8 << 8, "67128177921547861663com.acme35584af52fa3-88d0-093b-6c14-b37ddafb59c528908608sg.com.dash.www0530329356521790265903SG.COM.NETS46968696003522G33250183309051017567088693441243693268766948304B2AE13344004SG.SGQR209710339366720B439682.63667470805057501195235502733744600368027857918629797829126902859SG8236HELLO FOO2517Singapore3272B815", 0, "(232) 10 52 9F 46 70 B3 5D DE 9A 1F A1 7B 1B 7B 69 73 0B 1B 6B 29 99 A9 A9 C1 A3 0B 31 A9", 0, "N20 B47 N9 B15 N22 A11 N14 A1 N47 A19 N15 A8 N65 A20 B8 A8 (nayuki.io - SGQR alpha/numeric/byte); BWIPP different encodation (B13 N3 at end instead of B8 A8)" },
+        /* 16*/ { UNICODE_MODE, 1, 8 << 8, "67128177921547861663com.acme35584af52fa3-88d0-093b-6c14-b37ddafb59c528908608sg.com.dash.www0530329356521790265903SG.COM.NETS46968696003522G33250183309051017567088693441243693268766948304B2AE13344004SG.SGQR209710339366720B439682.63667470805057501195235502733744600368027857918629797829126902859SG8236HELLO FOO2517Singapore3272B815", 0, "(232) 10 52 9F 46 70 B3 5D DE 9A 1F A1 7B 1B 7B 69 73 0B 1B 6B 29 99 A9 A9 C1 A3 0B 31 A9", 1, "N20 B47 N9 B15 N22 A11 N14 A1 N47 A19 N15 A8 N65 A20 B8 A8 (nayuki.io - SGQR alpha/numeric/byte)" },
         /* 17*/ { UNICODE_MODE, 4, 1 << 8, "纪", ZINT_WARN_USES_ECI, "Warning 71 A4 03 E7 BA AA 00 EC 11", 1, "ECI-26 B3 (UTF-8 E7BAAA, U+7EAA, not in Shift JIS)" },
         /* 18*/ { DATA_MODE, 4, 1 << 8, "纪", 0, "40 3E 7B AA A0 EC 11 EC 11", 1, "B3 (UTF-8 or Shift JIS, note ambiguous as 0xE7BA 0xAA happens to be valid Shift JIS 郤ｪ as well)" },
         /* 19*/ { UNICODE_MODE, 4, 1 << 8, "郤ｪ", ZINT_WARN_NONCOMPLIANT, "Warning 40 3E 7B AA A0 EC 11 EC 11", 1, "B3 (Shift JIS or UTF-8 E7BAAA 纪, see above)" },
@@ -508,39 +749,38 @@ static void test_qr_optimize(int index, int generate, int debug) {
         /* 24*/ { UNICODE_MODE, 3, -1, "AB1234567890123A", 0, "20 11 CD 10 34 7B 72 31 50 30 C8 02 50", 1, "A2 N13 A1" },
         /* 25*/ { UNICODE_MODE, 3, 2 << 8, "テaABCD1", ZINT_WARN_NONCOMPLIANT, "Warning 40 88 36 56 14 14 24 34 43 10 EC 11 EC", 1, "B8" },
         /* 26*/ { UNICODE_MODE, 3, -1, "テaABCDE1", ZINT_WARN_NONCOMPLIANT, "Warning 40 38 36 56 12 03 1C D4 52 9D C0 EC 11", 0, "B3 A6; BWIPP different encodation (B9)" },
-        /* 27*/ { UNICODE_MODE, 2, -1, "テéaABCDE1", ZINT_WARN_USES_ECI, "Warning 71 A4 06 E3 83 86 C3 A9 61 20 31 CD 45 29 DC 00", 0, "B6 A6; BWIPP different encodation (B12)" },
+        /* 27*/ { UNICODE_MODE, 2, -1, "テéaABCDE1", ZINT_WARN_USES_ECI, "Warning 71 A4 06 E3 83 86 C3 A9 61 20 31 CD 45 29 DC 00", 1, "B6 A6" },
         /* 28*/ { UNICODE_MODE, 2, -1, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁", ZINT_WARN_NONCOMPLIANT, "Warning (44) 80 83 A8 85 88 25 CA 2F 40 B0 53 C2 44 98 41 00 4A 02 0E A8 F8 F5 0D 30 4C 35 A1 CC", 0, "K8 N1 K8 B3; BWIPP different encodation (K8 N1 K8 N1 K1)" },
         /* 29*/ { UNICODE_MODE, 1, -1, "貫やぐ識禁ぱい再2間変字全ノレ没無8裁花ほゃ過法ひなご札17能つーびれ投覧マ勝動エヨ額界よみ作皇ナヲニ打題ヌルヲ掲布益フが。入35能ト権話しこを断兆モヘ細情おじ名4減エヘイハ側機はょが意見想ハ業独案ユヲウ患職ヲ平美さ毎放どぽたけ家没べお化富べ町大シ情魚ッでれ一冬すぼめり。社ト可化モマ試音ばじご育青康演ぴぎ権型固スで能麩ぜらもほ河都しちほラ収90作の年要とだむ部動ま者断チ第41一1米索焦茂げむしれ。測フ物使だて目月国スリカハ夏検にいへ児72告物ゆは載核ロアメヱ登輸どべゃ催行アフエハ議歌ワ河倫剖だ。記タケウ因載ヒイホヤ禁3輩彦関トえび肝区勝ワリロ成禁ぼよ界白ウヒキレ中島べせぜい各安うしぽリ覧生テ基一でむしゃ中新トヒキソ声碁スしび起田ア信大未ゅもばち。", ZINT_WARN_NONCOMPLIANT, "Warning (589) 80 20 EA 21 62 09 72 8B D0 2C 14 F0 91 26 10 40 04 A0 08 3A A3 E3 D4 34 C1 30 D6 87", 0, "K8 N1 K8 N1 K10 N2 K33 N2 K16 N1 K89 N2 K14 B5 K28 N2 K40 N1 K65; BWIPP different encodation (same except A2 B6 instead of B5)" },
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char escaped[4096];
     char cmp_buf[32768];
     char cmp_msg[1024];
 
-    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); // Only do BWIPP test if asked, too slow otherwise
-    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); // Only do ZXing-C++ test if asked, too slow otherwise
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
 
-    testStart("test_qr_optimize");
+    testStartSymbol("test_qr_optimize", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
-        if ((debug & ZINT_DEBUG_TEST_PRINT) && !(debug & ZINT_DEBUG_TEST_LESS_NOISY)) printf("i:%d\n", i);
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
 
-        debug |= ZINT_DEBUG_TEST; // Needed to get codeword dump in errtxt
+        debug |= ZINT_DEBUG_TEST; /* Needed to get codeword dump in errtxt */
 
         length = testUtilSetSymbol(symbol, BARCODE_QRCODE, data[i].input_mode, -1 /*eci*/, data[i].option_1, -1, data[i].option_3 | ZINT_FULL_MULTIBYTE, -1 /*output_options*/, data[i].data, -1, debug);
 
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
-        if (generate) {
+        if (p_ctx->generate) {
             printf("        /*%3d*/ { %s, %d, %d, \"%s\", %s, \"%s\", %d, \"%s\" },\n",
                     i, testUtilInputModeName(data[i].input_mode), data[i].option_1, data[i].option_3, testUtilEscape(data[i].data, length, escaped, sizeof(escaped)),
                     testUtilErrorName(data[i].ret), symbol->errtxt, data[i].bwipp_cmp, data[i].comment);
@@ -580,7 +820,8 @@ static void test_qr_optimize(int index, int generate, int debug) {
     testFinish();
 }
 
-static void test_qr_encode(int index, int generate, int debug) {
+static void test_qr_encode(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int symbology;
@@ -600,7 +841,7 @@ static void test_qr_encode(int index, int generate, int debug) {
         char *comment;
         char *expected;
     };
-    // や U+3084 kanji, in Shift JIS 0x82E2 (\202\342), UTF-8 E38284; its 2nd byte 0xE2 + 0x40-FC also form Shift JIS
+    /* や U+3084 kanji, in Shift JIS 0x82E2 (\202\342), UTF-8 E38284; its 2nd byte 0xE2 + 0x40-FC also form Shift JIS */
     struct item data[] = {
         /*  0*/ { BARCODE_QRCODE, UNICODE_MODE, -1, -1, -1, -1, { 0, 0, "" }, "QR Code Symbol", -1, 0, 21, 21, 0, "ISO 18004 Figure 1 **NOT SAME** uses mask 110 instead of 101; BWIPP uses 101",
                     "111111101001101111111"
@@ -821,7 +1062,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000100001110111000"
                     "111111101001011100101"
                 },
-        /*  9*/ { BARCODE_QRCODE, GS1_MODE, -1, 1, -1, -1, { 0, 0, "" }, "[01]09501101530003[8200]http://example.com", -1, 0, 25, 25, 0, "GS1 General Specifications 21.0.1 Figure 5.1-7 **NOT SAME** figure uses Byte encodation only; BWIPP uses mask 001",
+        /*  9*/ { BARCODE_QRCODE, GS1_MODE, -1, 1, -1, -1, { 0, 0, "" }, "[01]09501101530003[8200]http://example.com", -1, 0, 25, 25, 0, "GS1 General Specifications 20.0 Figure 5.1-7 (note pre-21.0.1) **NOT SAME** figure uses Byte encodation only; BWIPP uses mask 001",
                     "1111111001101101001111111"
                     "1000001010010101001000001"
                     "1011101011111010101011101"
@@ -848,7 +1089,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "1000001010110101100111010"
                     "1111111011101100010010111"
                 },
-        /* 10*/ { BARCODE_QRCODE, GS1_MODE, -1, 1, -1, 2 << 8, { 0, 0, "" }, "[01]09501101530003[8200]http://example.com", -1, 0, 25, 25, 1, "GS1 General Specifications 21.0.1 Figure 5.1-7, explicit mask 001, same as BWIPP",
+        /* 10*/ { BARCODE_QRCODE, GS1_MODE, -1, 1, -1, 2 << 8, { 0, 0, "" }, "[01]09501101530003[8200]http://example.com", -1, 0, 25, 25, 1, "GS1 General Specifications 20.0 Figure 5.1-7 (note pre-21.0.1), explicit mask 001, same as BWIPP",
                     "1111111010111000001111111"
                     "1000001011100100101000001"
                     "1011101000111101101011101"
@@ -875,7 +1116,61 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "1000001011110010100000010"
                     "1111111010111001000111101"
                 },
-        /* 11*/ { BARCODE_QRCODE, GS1_MODE, -1, 2, -1, -1, { 0, 0, "" }, "[01]00857674002010[8200]http://www.gs1.org/", -1, 0, 29, 29, 0, "GS1 General Specifications 21.0.1 Figure 5.7.3-1, same (mask 011); BWIPP uses mask 101",
+        /* 11*/ { BARCODE_QRCODE, GS1_MODE, -1, 1, -1, -1, { 0, 0, "" }, "[01]09501101530003[10]640311[21]20FOOPC20", -1, 0, 25, 25, 0, "GS1 General Specifications 22.0 Figure 5.1-7 (note changed 21.0.1) **NOT SAME** figure uses Byte encodation only; BWIPP uses mask 101",
+                    "1111111011101111001111111"
+                    "1000001011100111001000001"
+                    "1011101010110011101011101"
+                    "1011101011010000001011101"
+                    "1011101000000001101011101"
+                    "1000001010011101001000001"
+                    "1111111010101010101111111"
+                    "0000000001001001100000000"
+                    "1100111000010100000101111"
+                    "1000100011101110001111100"
+                    "1111101000011100000000101"
+                    "1000010000110100010011011"
+                    "1100111110101100110100000"
+                    "1011000011000100011101001"
+                    "0001111001000001101101010"
+                    "0000010100101001110110010"
+                    "1100001111110110111110101"
+                    "0000000011101010100010000"
+                    "1111111001111111101011000"
+                    "1000001011110100100010110"
+                    "1011101010001101111110101"
+                    "1011101001100110100111011"
+                    "1011101001100001010101110"
+                    "1000001010001010110001100"
+                    "1111111010110110111110011"
+                },
+        /* 12*/ { BARCODE_QRCODE, GS1_MODE, -1, 1, -1, 6 << 8, { 0, 0, "" }, "[01]09501101530003[10]640311[21]20FOOPC20", -1, 0, 25, 25, 1, "GS1 General Specifications 22.0 Figure 5.1-7 (note changed 21.0.1) **NOT SAME** figure uses Byte encodation only, explicit mask 101, same as BWIPP",
+                    "1111111000011110101111111"
+                    "1000001001100001001000001"
+                    "1011101000001011001011101"
+                    "1011101010001011001011101"
+                    "1011101011000110101011101"
+                    "1000001000011011001000001"
+                    "1111111010101010101111111"
+                    "0000000000110000000000000"
+                    "1100011101010011000011000"
+                    "1100000111001010101011000"
+                    "0111011000100100111000010"
+                    "0001100001001101101010100"
+                    "1101001111011101000101110"
+                    "1101000101000010011011001"
+                    "1001001001111001010101101"
+                    "1011000111110010101101001"
+                    "1011001000110001111111101"
+                    "0000000011101100100010000"
+                    "1111111011110001101011001"
+                    "1000001010001101100011001"
+                    "1011101001001010111111101"
+                    "1011101001000010000011111"
+                    "1011101001011001101101001"
+                    "1000001011110011001000011"
+                    "1111111011000111001111101"
+                },
+        /* 13*/ { BARCODE_QRCODE, GS1_MODE, -1, 2, -1, -1, { 0, 0, "" }, "[01]00857674002010[8200]http://www.gs1.org/", -1, 0, 29, 29, 0, "GS1 General Specifications 22.0 Figure 5.7.3-1, same (mask 011); BWIPP uses mask 101",
                     "11111110100101110101001111111"
                     "10000010111101001000001000001"
                     "10111010010000001110001011101"
@@ -906,7 +1201,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "10000010010111010001110010100"
                     "11111110101111111011110100110"
                 },
-        /* 12*/ { BARCODE_QRCODE, GS1_MODE, -1, 2, -1, 6 << 8, { 0, 0, "" }, "[01]00857674002010[8200]http://www.gs1.org/", -1, 0, 29, 29, 1, "GS1 General Specifications 21.0.1 Figure 5.7.3-1, explicit mask 101, same as BWIPP",
+        /* 14*/ { BARCODE_QRCODE, GS1_MODE, -1, 2, -1, 6 << 8, { 0, 0, "" }, "[01]00857674002010[8200]http://www.gs1.org/", -1, 0, 29, 29, 1, "GS1 General Specifications 22.0 Figure 5.7.3-1, explicit mask 101, same as BWIPP",
                     "11111110001000011000101111111"
                     "10000010111011101110101000001"
                     "10111010101011010101001011101"
@@ -937,7 +1232,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "10000010001111101001001010011"
                     "11111110111001001101000010000"
                 },
-        /* 13*/ { BARCODE_HIBC_QR, -1, 0, 2, -1, -1, { 0, 0, "" }, "H123ABC01234567890", -1, 0, 21, 21, 1, "ANSI/HIBC 2.6 - 2016 Figure C5 same (mask 001)",
+        /* 15*/ { BARCODE_HIBC_QR, -1, 0, 2, -1, -1, { 0, 0, "" }, "H123ABC01234567890", -1, 0, 21, 21, 1, "ANSI/HIBC 2.6 - 2016 Figure C5 same (mask 001)",
                     "111111101010001111111"
                     "100000100100101000001"
                     "101110101011001011101"
@@ -960,7 +1255,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000100100101111001"
                     "111111101111011001111"
                 },
-        /* 14*/ { BARCODE_HIBC_QR, -1, 0, 2, -1, -1, { 0, 0, "" }, "/EU720060FF0/O523201", -1, 0, 25, 25, 0, "HIBC/PAS Section 2.2 2nd Purchase Order **NOT SAME** uses mask 100 instead of 011; BWIPP uses mask 011",
+        /* 16*/ { BARCODE_HIBC_QR, -1, 0, 2, -1, -1, { 0, 0, "" }, "/EU720060FF0/O523201", -1, 0, 25, 25, 0, "HIBC/PAS Section 2.2 2nd Purchase Order **NOT SAME** uses mask 100 instead of 011; BWIPP uses mask 011",
                     "1111111011011110101111111"
                     "1000001001001111001000001"
                     "1011101001010010001011101"
@@ -987,7 +1282,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "1000001000010100100011111"
                     "1111111010101101111000001"
                 },
-        /* 15*/ { BARCODE_HIBC_QR, -1, 0, 2, -1, 4 << 8, { 0, 0, "" }, "/EU720060FF0/O523201", -1, 0, 25, 25, 1, "HIBC/PAS Section 2.2 2nd Purchase Order same, explicit mask 011",
+        /* 17*/ { BARCODE_HIBC_QR, -1, 0, 2, -1, 4 << 8, { 0, 0, "" }, "/EU720060FF0/O523201", -1, 0, 25, 25, 1, "HIBC/PAS Section 2.2 2nd Purchase Order same, explicit mask 011",
                     "1111111010011001101111111"
                     "1000001011010011001000001"
                     "1011101000000111001011101"
@@ -1014,7 +1309,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "1000001001000001110110101"
                     "1111111011101010111111001"
                 },
-        /* 16*/ { BARCODE_HIBC_QR, -1, 0, 2, -1, -1, { 0, 0, "" }, "/KN12345", -1, 0, 21, 21, 1, "HIBC/PAS Section 2.2 Asset Tag **NOT SAME** uses mask 000 instead of 100",
+        /* 18*/ { BARCODE_HIBC_QR, -1, 0, 2, -1, -1, { 0, 0, "" }, "/KN12345", -1, 0, 21, 21, 1, "HIBC/PAS Section 2.2 Asset Tag **NOT SAME** uses mask 000 instead of 100",
                     "111111100000101111111"
                     "100000101010101000001"
                     "101110100011001011101"
@@ -1037,7 +1332,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000100100001100111"
                     "111111101000101110101"
                 },
-        /* 17*/ { BARCODE_HIBC_QR, -1, 0, 2, -1, 5 << 8, { 0, 0, "" }, "/KN12345", -1, 0, 21, 21, 1, "HIBC/PAS Section 2.2 Asset Tag, same, explicit mask 100",
+        /* 19*/ { BARCODE_HIBC_QR, -1, 0, 2, -1, 5 << 8, { 0, 0, "" }, "/KN12345", -1, 0, 21, 21, 1, "HIBC/PAS Section 2.2 Asset Tag, same, explicit mask 100",
                     "111111101010101111111"
                     "100000100111001000001"
                     "101110100110101011101"
@@ -1060,7 +1355,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000100110011110101"
                     "111111101010111100111"
                 },
-        /* 18*/ { BARCODE_QRCODE, UNICODE_MODE, -1, 1, -1, -1, { 0, 0, "" }, "12345678901234567890123456789012345678901", -1, 0, 21, 21, 1, "Max capacity ECC 1 Version 1 41 numbers",
+        /* 20*/ { BARCODE_QRCODE, UNICODE_MODE, -1, 1, -1, -1, { 0, 0, "" }, "12345678901234567890123456789012345678901", -1, 0, 21, 21, 1, "Max capacity ECC 1 Version 1 41 numbers",
                     "111111101001001111111"
                     "100000101100101000001"
                     "101110101011101011101"
@@ -1083,7 +1378,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101000101001010"
                     "111111101010110000111"
                 },
-        /* 19*/ { BARCODE_QRCODE, UNICODE_MODE, -1, 2, -1, -1, { 0, 0, "" }, "12345678901234567890123456789012345678901", -1, 0, 25, 25, 1, "ECC 2 auto-sets version 2",
+        /* 21*/ { BARCODE_QRCODE, UNICODE_MODE, -1, 2, -1, -1, { 0, 0, "" }, "12345678901234567890123456789012345678901", -1, 0, 25, 25, 1, "ECC 2 auto-sets version 2",
                     "1111111011001110101111111"
                     "1000001001000000001000001"
                     "1011101011001111101011101"
@@ -1110,7 +1405,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "1000001000000100111010110"
                     "1111111010011100001100111"
                 },
-        /* 20*/ { BARCODE_QRCODE, UNICODE_MODE, -1, 4, 10, -1, { 0, 0, "" }, "点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点", -1, ZINT_WARN_NONCOMPLIANT, 57, 57, 1, "Max capacity ECC 4 Version 10 74 kanji",
+        /* 22*/ { BARCODE_QRCODE, UNICODE_MODE, -1, 4, 10, -1, { 0, 0, "" }, "点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点", -1, ZINT_WARN_NONCOMPLIANT, 57, 57, 1, "Max capacity ECC 4 Version 10 74 kanji",
                     "111111100111100000011001000011111100010010011011001111111"
                     "100000100011100101110000101000101001101111000001001000001"
                     "101110101001011100010001111110111100101001100011001011101"
@@ -1169,7 +1464,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000100110011101110011001101110110101010001101000011011"
                     "111111100010001101010110001001000001001011001001011001011"
                 },
-        /* 21*/ { BARCODE_QRCODE, UNICODE_MODE, -1, 4, 27, -1, { 0, 0, "" }, "点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点", -1, ZINT_WARN_NONCOMPLIANT, 125, 125, 1, "Max capacity ECC 4 Version 27 385 kanji",
+        /* 23*/ { BARCODE_QRCODE, UNICODE_MODE, -1, 4, 27, -1, { 0, 0, "" }, "点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点", -1, ZINT_WARN_NONCOMPLIANT, 125, 125, 1, "Max capacity ECC 4 Version 27 385 kanji",
                     "11111110101001001100111100100011110001010011110000001100010110100011101010111000011101101001011111001111101101101001101111111"
                     "10000010110001101110011001101111000101001011011001100110101000101010011110000000101000100101101110110000011110100110001000001"
                     "10111010100000000100000101000101111001011001010100100100100000000101100011010001100111101010010101101101101101101101001011101"
@@ -1296,7 +1591,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "10000010010111001111010001100001010001010110110001100000111101011100000010010111101001001100101101111011011001000001101001110"
                     "11111110000000010001110110000001010111011111000000111111010101110100101000110111000101101011001100000101101101101001100111111"
                 },
-        /* 22*/ { BARCODE_QRCODE, UNICODE_MODE, -1, 4, 40, -1, { 0, 0, "" }, "点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点" "点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点", -1, ZINT_WARN_NONCOMPLIANT, 177, 177, 1, "Max capacity ECC 4 Version 40 784 kanji",
+        /* 24*/ { BARCODE_QRCODE, UNICODE_MODE, -1, 4, 40, -1, { 0, 0, "" }, "点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点" "点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点点", -1, ZINT_WARN_NONCOMPLIANT, 177, 177, 1, "Max capacity ECC 4 Version 40 784 kanji",
                     "111111101010001111111101101110111010110111001110101000010001011011011101001110110011111011010000010101001010011110010000010110111111001001011111101000010010111111001010001111111"
                     "100000101010110001001000101111011001001100100110110000000111110101111011110001101110000111000100101111010011001111100111111001001011011011110011011111111001000010010010101000001"
                     "101110101001001101111001110010010100000000111001001011111000001001111111101010000111011010011010010001111010111001100011000011110100101110001010110001011110011011011010001011101"
@@ -1475,7 +1770,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000100000010000101110000100011000011110011100010100000011111110010100001100010010001001110010000000110010100111101101010110111111001000101010011011011000011110111110000000000"
                     "111111100000001110110110101010011010010100111111101001111101110111010110101111000111011001110100010111000100111000011011001011010011010011010101111010000011100001000011111011001"
                 },
-        /* 23*/ { BARCODE_QRCODE, UNICODE_MODE, -1, 4, -1, ZINT_FULL_MULTIBYTE, { 0, 0, "" }, "áA", -1, 0, 21, 21, 1, "Mask automatic (001)",
+        /* 25*/ { BARCODE_QRCODE, UNICODE_MODE, -1, 4, -1, ZINT_FULL_MULTIBYTE, { 0, 0, "" }, "áA", -1, 0, 21, 21, 1, "Mask automatic (001)",
                     "111111100101101111111"
                     "100000101001101000001"
                     "101110101010101011101"
@@ -1498,7 +1793,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000100100111010000"
                     "111111100011001000110"
                 },
-        /* 24*/ { BARCODE_QRCODE, UNICODE_MODE, -1, 4, -1, ZINT_FULL_MULTIBYTE | (8 << 8), { 0, 0, "" }, "áA", -1, 0, 21, 21, 1, "Mask 111",
+        /* 26*/ { BARCODE_QRCODE, UNICODE_MODE, -1, 4, -1, ZINT_FULL_MULTIBYTE | (8 << 8), { 0, 0, "" }, "áA", -1, 0, 21, 21, 1, "Mask 111",
                     "111111101000101111111"
                     "100000101110101000001"
                     "101110100110101011101"
@@ -1521,7 +1816,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000100011111101000"
                     "111111100111010100101"
                 },
-        /* 25*/ { BARCODE_QRCODE, UNICODE_MODE, -1, 4, -1, ZINT_FULL_MULTIBYTE | (9 << 8), { 0, 0, "" }, "áA", -1, 0, 21, 21, 1, "Mask > 111 ignored",
+        /* 27*/ { BARCODE_QRCODE, UNICODE_MODE, -1, 4, -1, ZINT_FULL_MULTIBYTE | (9 << 8), { 0, 0, "" }, "áA", -1, 0, 21, 21, 1, "Mask > 111 ignored",
                     "111111100101101111111"
                     "100000101001101000001"
                     "101110101010101011101"
@@ -1544,7 +1839,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000100100111010000"
                     "111111100011001000110"
                 },
-        /* 26*/ { BARCODE_QRCODE, UNICODE_MODE, -1, 2, 1, -1, { 0, 0, "" }, "1234567890", -1, 0, 21, 21, 0, "test_print example, automatic mask 001 (same score as mask 010); BWIPP uses mask 010",
+        /* 28*/ { BARCODE_QRCODE, UNICODE_MODE, -1, 2, 1, -1, { 0, 0, "" }, "1234567890", -1, 0, 21, 21, 0, "test_print example, automatic mask 001 (same score as mask 010); BWIPP uses mask 010",
                     "111111101001101111111"
                     "100000100100101000001"
                     "101110101001001011101"
@@ -1567,7 +1862,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000100001011000010"
                     "111111101011111111111"
                 },
-        /* 27*/ { BARCODE_QRCODE, UNICODE_MODE, -1, 2, 1, 3 << 8, { 0, 0, "" }, "1234567890", -1, 0, 21, 21, 1, "test_print example, explicit mask 010",
+        /* 29*/ { BARCODE_QRCODE, UNICODE_MODE, -1, 2, 1, 3 << 8, { 0, 0, "" }, "1234567890", -1, 0, 21, 21, 1, "test_print example, explicit mask 010",
                     "111111100010101111111"
                     "100000100000001000001"
                     "101110101010001011101"
@@ -1590,7 +1885,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000100101111100110"
                     "111111101000100100100"
                 },
-        /* 28*/ { BARCODE_QRCODE, UNICODE_MODE, -1, 1, 2, 2 << 8, { 0, 0, "" }, "?ややややwやややや ややややや", -1, ZINT_WARN_NONCOMPLIANT, 25, 25, 1, "Data with Shift JIS '2nd byte 1st byte' matches; explicit mask 001 (auto 000) to match BWIPP",
+        /* 30*/ { BARCODE_QRCODE, UNICODE_MODE, -1, 1, 2, 2 << 8, { 0, 0, "" }, "?ややややwやややや ややややや", -1, ZINT_WARN_NONCOMPLIANT, 25, 25, 1, "Data with Shift JIS '2nd byte 1st byte' matches; explicit mask 001 (auto 000) to match BWIPP",
                     "1111111010111110001111111"
                     "1000001011100101001000001"
                     "1011101000111110101011101"
@@ -1617,30 +1912,30 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "1000001010100110000011100"
                     "1111111011001111010111001"
                 },
-        /* 29*/ { BARCODE_QRCODE, UNICODE_MODE, 3, 2, -1, -1, { 0, 0, "" }, "sn:7QPB4MN", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 3 Example 1 **NOT SAME** different encodation; BWIPP same encodation as example but uses mask 001 instead of 011",
-                    "111111101111101111111"
-                    "100000101000101000001"
-                    "101110100011001011101"
-                    "101110101001001011101"
-                    "101110100001001011101"
-                    "100000100011101000001"
+        /* 31*/ { BARCODE_QRCODE, UNICODE_MODE, 3, 2, -1, 5 << 8, { 0, 0, "" }, "sn:7QPB4MN", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 3 Example 1 **NOT SAME** different encodation; explicit mask 100 (auto 011) to match BWIPP",
+                    "111111101011101111111"
+                    "100000100001001000001"
+                    "101110100110001011101"
+                    "101110101010101011101"
+                    "101110101000101011101"
+                    "100000101001001000001"
                     "111111101010101111111"
-                    "000000001001100000000"
-                    "101101110101101001011"
-                    "101110000011110001101"
-                    "000000110101000100101"
-                    "010111000001000110010"
-                    "001011110000111111000"
-                    "000000001101010110001"
-                    "111111101001110010100"
-                    "100000101000011101011"
-                    "101110100010111111101"
-                    "101110101000001100010"
-                    "101110101000111000000"
-                    "100000100011000001010"
-                    "111111101010111110000"
+                    "000000001111100000000"
+                    "100010111111011111001"
+                    "110010011111101101110"
+                    "001110111011001010100"
+                    "000010010100010011000"
+                    "010111101100100011011"
+                    "000000001100100111111"
+                    "111111101100100111110"
+                    "100000100011111110111"
+                    "101110101011001110011"
+                    "101110100010100110111"
+                    "101110100011011011100"
+                    "100000100101001111011"
+                    "111111101000010100101"
                 },
-        /* 30*/ { BARCODE_QRCODE, UNICODE_MODE, 3, 2, -1, -1, { 0, 0, "" }, "price:£20.00", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 3 Example 2",
+        /* 32*/ { BARCODE_QRCODE, UNICODE_MODE, 3, 2, -1, -1, { 0, 0, "" }, "price:£20.00", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 3 Example 2",
                     "111111101111101111111"
                     "100000101101001000001"
                     "101110100001101011101"
@@ -1663,7 +1958,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000100101101011110"
                     "111111101100010111000"
                 },
-        /* 31*/ { BARCODE_QRCODE, UNICODE_MODE, 3, 1, -1, -1, { 0, 0, "" }, "C:\\DOCS\\EXAMPLE.TXT", -1, 0, 25, 25, 0, "AIM ITS/04-023:2022 ECI 3 Example 3 **NOT SAME** different encodation; BWIPP same encodation as Zint but uses mask 000 instead of 100",
+        /* 33*/ { BARCODE_QRCODE, UNICODE_MODE, 3, 1, -1, -1, { 0, 0, "" }, "C:\\DOCS\\EXAMPLE.TXT", -1, 0, 25, 25, 0, "AIM ITS/04-023:2022 ECI 3 Example 3 **NOT SAME** different encodation; BWIPP same encodation as Zint but uses mask 000 instead of 100",
                     "1111111011101001001111111"
                     "1000001011100010101000001"
                     "1011101010110001001011101"
@@ -1690,7 +1985,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "1000001011001010011000001"
                     "1111111011010111011011111"
                 },
-        /* 32*/ { BARCODE_QRCODE, UNICODE_MODE, 3, 1, -1, 1 << 8, { 0, 0, "" }, "C:\\DOCS\\EXAMPLE.TXT", -1, 0, 25, 25, 1, "AIM ITS/04-023:2022 ECI 3 Example 3 **NOT SAME** different encodation",
+        /* 34*/ { BARCODE_QRCODE, UNICODE_MODE, 3, 1, -1, 1 << 8, { 0, 0, "" }, "C:\\DOCS\\EXAMPLE.TXT", -1, 0, 25, 25, 1, "AIM ITS/04-023:2022 ECI 3 Example 3 **NOT SAME** different encodation",
                     "1111111001001101101111111"
                     "1000001000111001101000001"
                     "1011101011101010001011101"
@@ -1717,7 +2012,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "1000001011101110111100101"
                     "1111111011110011111111011"
                 },
-        /* 33*/ { BARCODE_QRCODE, UNICODE_MODE, 4, 1, -1, -1, { 0, 0, "" }, "Študentska št. 2198390", -1, 0, 25, 25, 0, "AIM ITS/04-023:2022 ECI 4 Example 1 **NOT SAME** different encodation; BWIPP same encodation as Zint but uses mask 011 instead of 100",
+        /* 35*/ { BARCODE_QRCODE, UNICODE_MODE, 4, 1, -1, -1, { 0, 0, "" }, "Študentska št. 2198390", -1, 0, 25, 25, 0, "AIM ITS/04-023:2022 ECI 4 Example 1 **NOT SAME** different encodation; BWIPP same encodation as Zint but uses mask 011 instead of 100",
                     "1111111010000110001111111"
                     "1000001010011110101000001"
                     "1011101011001111101011101"
@@ -1744,7 +2039,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "1000001011110101110010101"
                     "1111111010101100000011011"
                 },
-        /* 34*/ { BARCODE_QRCODE, UNICODE_MODE, 4, 1, -1, 4 << 8, { 0, 0, "" }, "Študentska št. 2198390", -1, 0, 25, 25, 1, "AIM ITS/04-023:2022 ECI 4 Example 1 **NOT SAME** different encodation",
+        /* 36*/ { BARCODE_QRCODE, UNICODE_MODE, 4, 1, -1, 4 << 8, { 0, 0, "" }, "Študentska št. 2198390", -1, 0, 25, 25, 1, "AIM ITS/04-023:2022 ECI 4 Example 1 **NOT SAME** different encodation",
                     "1111111011000001001111111"
                     "1000001000000010101000001"
                     "1011101010011010101011101"
@@ -1771,7 +2066,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "1000001010100000100111111"
                     "1111111011101011000100011"
                 },
-        /* 35*/ { BARCODE_QRCODE, UNICODE_MODE, 4, 1, -1, -1, { 0, 0, "" }, "Szczegółowe dane kontaktowe:+48 22 694 60 00", -1, 0, 29, 29, 0, "AIM ITS/04-023:2022 ECI 4 Example 2 **NOT SAME** different encodation; BWIPP same encodation as example but uses mask 100 instead of 111",
+        /* 37*/ { BARCODE_QRCODE, UNICODE_MODE, 4, 1, -1, -1, { 0, 0, "" }, "Szczegółowe dane kontaktowe:+48 22 694 60 00", -1, 0, 29, 29, 0, "AIM ITS/04-023:2022 ECI 4 Example 2 **NOT SAME** different encodation; BWIPP same encodation as example but uses mask 100 instead of 111",
                     "11111110000111011111001111111"
                     "10000010011001101100101000001"
                     "10111010000010110011101011101"
@@ -1802,7 +2097,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "10000010110011101010011100110"
                     "11111110101010100011111001100"
                 },
-        /* 36*/ { BARCODE_QRCODE, UNICODE_MODE, 5, 1, -1, -1, { 0, 0, "" }, "Liĥtenŝtejno", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 5 Example 1; BWIPP uses mask 011 instead of 101",
+        /* 38*/ { BARCODE_QRCODE, UNICODE_MODE, 5, 1, -1, -1, { 0, 0, "" }, "Liĥtenŝtejno", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 5 Example 1; BWIPP uses mask 011 instead of 101",
                     "111111100111101111111"
                     "100000100101001000001"
                     "101110100100001011101"
@@ -1825,7 +2120,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101010010111111"
                     "111111101011110000010"
                 },
-        /* 37*/ { BARCODE_QRCODE, UNICODE_MODE, 5, 1, -1, 4 << 8, { 0, 0, "" }, "Liĥtenŝtejno", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 5 Example 1 **NOT SAME** explicit mask 011",
+        /* 39*/ { BARCODE_QRCODE, UNICODE_MODE, 5, 1, -1, 4 << 8, { 0, 0, "" }, "Liĥtenŝtejno", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 5 Example 1 **NOT SAME** explicit mask 011",
                     "111111101100101111111"
                     "100000100100101000001"
                     "101110101010101011101"
@@ -1848,7 +2143,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101011111110010"
                     "111111101101000110100"
                 },
-        /* 38*/ { BARCODE_QRCODE, UNICODE_MODE, 6, 1, -1, -1, { 0, 0, "" }, "Lietuvą", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 6 Example 1",
+        /* 40*/ { BARCODE_QRCODE, UNICODE_MODE, 6, 1, -1, -1, { 0, 0, "" }, "Lietuvą", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 6 Example 1",
                     "111111101000101111111"
                     "100000101010001000001"
                     "101110100000101011101"
@@ -1871,7 +2166,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101011011111011"
                     "111111101111111010101"
                 },
-        /* 39*/ { BARCODE_QRCODE, UNICODE_MODE, 7, 1, -1, -1, { 0, 0, "" }, "Россия", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 7 Example 1",
+        /* 41*/ { BARCODE_QRCODE, UNICODE_MODE, 7, 1, -1, -1, { 0, 0, "" }, "Россия", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 7 Example 1",
                     "111111100010101111111"
                     "100000101010101000001"
                     "101110101011001011101"
@@ -1894,7 +2189,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101011100101011"
                     "111111101100010100110"
                 },
-        /* 40*/ { BARCODE_QRCODE, UNICODE_MODE, 7, 1, -1, -1, { 0, 0, "" }, "Монголулс", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 7 Example 2; BWIPP uses mask 000 instead of 111",
+        /* 42*/ { BARCODE_QRCODE, UNICODE_MODE, 7, 1, -1, -1, { 0, 0, "" }, "Монголулс", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 7 Example 2; BWIPP uses mask 000 instead of 111",
                     "111111100101101111111"
                     "100000101101001000001"
                     "101110101100101011101"
@@ -1917,7 +2212,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101011000010111"
                     "111111101001110100110"
                 },
-        /* 41*/ { BARCODE_QRCODE, UNICODE_MODE, 7, 1, -1, 1 << 8, { 0, 0, "" }, "Монголулс", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 7 Example 2 **NOT SAME** explicit mask 000",
+        /* 43*/ { BARCODE_QRCODE, UNICODE_MODE, 7, 1, -1, 1 << 8, { 0, 0, "" }, "Монголулс", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 7 Example 2 **NOT SAME** explicit mask 000",
                     "111111100101101111111"
                     "100000100111001000001"
                     "101110101101101011101"
@@ -1940,7 +2235,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101001010000101"
                     "111111101000111101111"
                 },
-        /* 42*/ { BARCODE_QRCODE, UNICODE_MODE, 8, 1, -1, -1, { 0, 0, "" }, "جواز السفر", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 8 Example 1",
+        /* 44*/ { BARCODE_QRCODE, UNICODE_MODE, 8, 1, -1, -1, { 0, 0, "" }, "جواز السفر", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 8 Example 1",
                     "111111100010101111111"
                     "100000101010101000001"
                     "101110101011001011101"
@@ -1963,7 +2258,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101110000010011"
                     "111111101000010100010"
                 },
-        /* 43*/ { BARCODE_QRCODE, UNICODE_MODE, 8, 1, -1, -1, { 0, 0, "" }, "المنشأ: المملكة العربية السعودية", -1, 0, 29, 29, 0, "AIM ITS/04-023:2022 ECI 8 Example 2; BWIPP uses mask 000 instead of 010",
+        /* 45*/ { BARCODE_QRCODE, UNICODE_MODE, 8, 1, -1, -1, { 0, 0, "" }, "المنشأ: المملكة العربية السعودية", -1, 0, 29, 29, 0, "AIM ITS/04-023:2022 ECI 8 Example 2; BWIPP uses mask 000 instead of 010",
                     "11111110001011110110001111111"
                     "10000010101001111101001000001"
                     "10111010000011010110101011101"
@@ -1994,7 +2289,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "10000010100011001101001000101"
                     "11111110110010101010110010100"
                 },
-        /* 44*/ { BARCODE_QRCODE, UNICODE_MODE, 8, 1, -1, 1 << 8, { 0, 0, "" }, "المنشأ: المملكة العربية السعودية", -1, 0, 29, 29, 1, "AIM ITS/04-023:2022 ECI 8 Example 2 **NOT SAME** explicit mask 000",
+        /* 46*/ { BARCODE_QRCODE, UNICODE_MODE, 8, 1, -1, 1 << 8, { 0, 0, "" }, "المنشأ: المملكة العربية السعودية", -1, 0, 29, 29, 1, "AIM ITS/04-023:2022 ECI 8 Example 2 **NOT SAME** explicit mask 000",
                     "11111110010011001110101111111"
                     "10000010001110111010001000001"
                     "10111010111011101110001011101"
@@ -2025,7 +2320,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "10000010100100001010001111101"
                     "11111110101010010010001010011"
                 },
-        /* 45*/ { BARCODE_QRCODE, UNICODE_MODE, 9, 1, -1, -1, { 0, 0, "" }, "Μέρος #. α123", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 9 Example 1 **NOT SAME** example uses mask 111 instead of 000",
+        /* 47*/ { BARCODE_QRCODE, UNICODE_MODE, 9, 1, -1, -1, { 0, 0, "" }, "Μέρος #. α123", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 9 Example 1 **NOT SAME** example uses mask 111 instead of 000",
                     "111111100100101111111"
                     "100000100111001000001"
                     "101110101100101011101"
@@ -2048,7 +2343,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101111110111001"
                     "111111101101001101111"
                 },
-        /* 46*/ { BARCODE_QRCODE, UNICODE_MODE, 9, 1, -1, 8 << 8, { 0, 0, "" }, "Μέρος #. α123", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 9 Example 1 with explicit mask 111; BWIPP uses mask 000",
+        /* 48*/ { BARCODE_QRCODE, UNICODE_MODE, 9, 1, -1, 8 << 8, { 0, 0, "" }, "Μέρος #. α123", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 9 Example 1 with explicit mask 111; BWIPP uses mask 000",
                     "111111100100101111111"
                     "100000101101001000001"
                     "101110101101101011101"
@@ -2071,7 +2366,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101101100101011"
                     "111111101100000100110"
                 },
-        /* 47*/ { BARCODE_QRCODE, UNICODE_MODE, 9, 1, -1, 1 << 8, { 0, 0, "" }, "Μέρος #. α123", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 9 Example 1 **NOT SAME** explicit mask 000",
+        /* 49*/ { BARCODE_QRCODE, UNICODE_MODE, 9, 1, -1, 1 << 8, { 0, 0, "" }, "Μέρος #. α123", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 9 Example 1 **NOT SAME** explicit mask 000",
                     "111111100100101111111"
                     "100000100111001000001"
                     "101110101100101011101"
@@ -2094,7 +2389,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101111110111001"
                     "111111101101001101111"
                 },
-        /* 48*/ { BARCODE_QRCODE, UNICODE_MODE, 10, 1, -1, -1, { 0, 0, "" }, "דרכון", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 10 Example 1; BWIPP uses mask 000 instead of 101",
+        /* 50*/ { BARCODE_QRCODE, UNICODE_MODE, 10, 1, -1, -1, { 0, 0, "" }, "דרכון", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 10 Example 1; BWIPP uses mask 000 instead of 101",
                     "111111100000101111111"
                     "100000100010101000001"
                     "101110100011101011101"
@@ -2117,7 +2412,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101111111010011"
                     "111111101110100011010"
                 },
-        /* 49*/ { BARCODE_QRCODE, UNICODE_MODE, 10, 1, -1, 1 << 8, { 0, 0, "" }, "דרכון", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 10 Example 1 **NOT SAME** explicit mask 000",
+        /* 51*/ { BARCODE_QRCODE, UNICODE_MODE, 10, 1, -1, 1 << 8, { 0, 0, "" }, "דרכון", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 10 Example 1 **NOT SAME** explicit mask 000",
                     "111111100101101111111"
                     "100000100111001000001"
                     "101110101101101011101"
@@ -2140,7 +2435,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101010001111101"
                     "111111101000101101011"
                 },
-        /* 50*/ { BARCODE_QRCODE, UNICODE_MODE, 10, 1, -1, -1, { 0, 0, "" }, "מספר חלק: A20200715001", -1, 0, 25, 25, 0, "AIM ITS/04-023:2022 ECI 10 Example 2 **NOT SAME** different encodation; BWIPP uses mask 000 instead of 100",
+        /* 52*/ { BARCODE_QRCODE, UNICODE_MODE, 10, 1, -1, -1, { 0, 0, "" }, "מספר חלק: A20200715001", -1, 0, 25, 25, 0, "AIM ITS/04-023:2022 ECI 10 Example 2 **NOT SAME** different encodation; BWIPP uses mask 000 instead of 100",
                     "1111111011101100001111111"
                     "1000001011100001001000001"
                     "1011101010110001001011101"
@@ -2167,7 +2462,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "1000001011001010100011101"
                     "1111111011010110001000011"
                 },
-        /* 51*/ { BARCODE_QRCODE, UNICODE_MODE, 10, 1, -1, 1 << 8, { 0, 0, "" }, "מספר חלק: A20200715001", -1, 0, 25, 25, 1, "AIM ITS/04-023:2022 ECI 10 Example 2 **NOT SAME** different encodation",
+        /* 53*/ { BARCODE_QRCODE, UNICODE_MODE, 10, 1, -1, 1 << 8, { 0, 0, "" }, "מספר חלק: A20200715001", -1, 0, 25, 25, 1, "AIM ITS/04-023:2022 ECI 10 Example 2 **NOT SAME** different encodation",
                     "1111111001001000101111111"
                     "1000001000111010001000001"
                     "1011101011101010001011101"
@@ -2194,7 +2489,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "1000001011101110000111001"
                     "1111111011110010101100111"
                 },
-        /* 52*/ { BARCODE_QRCODE, UNICODE_MODE, 11, 1, -1, -1, { 0, 0, "" }, "Amerika Birleşik Devletleri", -1, 0, 25, 25, 1, "AIM ITS/04-023:2022 ECI 11 Example 1",
+        /* 54*/ { BARCODE_QRCODE, UNICODE_MODE, 11, 1, -1, -1, { 0, 0, "" }, "Amerika Birleşik Devletleri", -1, 0, 25, 25, 1, "AIM ITS/04-023:2022 ECI 11 Example 1",
                     "1111111000111100101111111"
                     "1000001001101101001000001"
                     "1011101000001000101011101"
@@ -2221,7 +2516,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "1000001010110000111010110"
                     "1111111010110101100010101"
                 },
-        /* 53*/ { BARCODE_QRCODE, UNICODE_MODE, 11, 1, -1, -1, { 0, 0, "" }, "Biniş kartı #120921039", -1, 0, 25, 25, 0, "AIM ITS/04-023:2022 ECI 11 Example 2 **NOT SAME** different encodation; BWIPP same encodation as Zint but uses mask 101 instead of 111",
+        /* 55*/ { BARCODE_QRCODE, UNICODE_MODE, 11, 1, -1, -1, { 0, 0, "" }, "Biniş kartı #120921039", -1, 0, 25, 25, 0, "AIM ITS/04-023:2022 ECI 11 Example 2 **NOT SAME** different encodation; BWIPP same encodation as Zint but uses mask 101 instead of 111",
                     "1111111000100110101111111"
                     "1000001011100110001000001"
                     "1011101010000001001011101"
@@ -2248,7 +2543,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "1000001011100010011100111"
                     "1111111010001001010010011"
                 },
-        /* 54*/ { BARCODE_QRCODE, UNICODE_MODE, 11, 1, -1, 6 << 8, { 0, 0, "" }, "Biniş kartı #120921039", -1, 0, 25, 25, 1, "AIM ITS/04-023:2022 ECI 11 Example 2 **NOT SAME** different encodation",
+        /* 56*/ { BARCODE_QRCODE, UNICODE_MODE, 11, 1, -1, 6 << 8, { 0, 0, "" }, "Biniş kartı #120921039", -1, 0, 25, 25, 1, "AIM ITS/04-023:2022 ECI 11 Example 2 **NOT SAME** different encodation",
                     "1111111001110011101111111"
                     "1000001000011111101000001"
                     "1011101001110000101011101"
@@ -2275,7 +2570,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "1000001010101101010011110"
                     "1111111011011100000111001"
                 },
-        /* 55*/ { BARCODE_QRCODE, UNICODE_MODE, 12, 1, -1, -1, { 0, 0, "" }, "Kūrybiškumą", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 12 Example 1; BWIPP uses mask 111 instead of 100",
+        /* 57*/ { BARCODE_QRCODE, UNICODE_MODE, 12, 1, -1, -1, { 0, 0, "" }, "Kūrybiškumą", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 12 Example 1; BWIPP uses mask 111 instead of 100",
                     "111111101111101111111"
                     "100000101010101000001"
                     "101110101000001011101"
@@ -2298,7 +2593,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101011110001011"
                     "111111101001101100001"
                 },
-        /* 56*/ { BARCODE_QRCODE, UNICODE_MODE, 12, 1, -1, 8 << 8, { 0, 0, "" }, "Kūrybiškumą", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 12 Example 1 **NOT SAME** explicit mask 111",
+        /* 58*/ { BARCODE_QRCODE, UNICODE_MODE, 12, 1, -1, 8 << 8, { 0, 0, "" }, "Kūrybiškumą", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 12 Example 1 **NOT SAME** explicit mask 111",
                     "111111100101101111111"
                     "100000101101001000001"
                     "101110101100101011101"
@@ -2321,7 +2616,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101011110001011"
                     "111111101010110111010"
                 },
-        /* 57*/ { BARCODE_QRCODE, UNICODE_MODE, 13, 1, -1, -1, { 0, 0, "" }, "บาร๋แค่ด", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 13 Example 1; BWIPP uses mask 001 instead of 111",
+        /* 59*/ { BARCODE_QRCODE, UNICODE_MODE, 13, 1, -1, -1, { 0, 0, "" }, "บาร๋แค่ด", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 13 Example 1; BWIPP uses mask 001 instead of 111",
                     "111111100010101111111"
                     "100000101010101000001"
                     "101110101011001011101"
@@ -2344,7 +2639,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101011100101011"
                     "111111101010000100010"
                 },
-        /* 58*/ { BARCODE_QRCODE, UNICODE_MODE, 13, 1, -1, 2 << 8, { 0, 0, "" }, "บาร๋แค่ด", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 13 Example 1 **NOT SAME** explicit mask 001",
+        /* 60*/ { BARCODE_QRCODE, UNICODE_MODE, 13, 1, -1, 2 << 8, { 0, 0, "" }, "บาร๋แค่ด", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 13 Example 1 **NOT SAME** explicit mask 001",
                     "111111101111101111111"
                     "100000101101101000001"
                     "101110100111001011101"
@@ -2367,7 +2662,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101100100010011"
                     "111111101110011000001"
                 },
-        /* 59*/ { BARCODE_QRCODE, UNICODE_MODE, 15, 1, -1, -1, { 0, 0, "" }, "uzņēmums", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 15 Example 1; BWIPP uses mask 011 instead of 111",
+        /* 61*/ { BARCODE_QRCODE, UNICODE_MODE, 15, 1, -1, -1, { 0, 0, "" }, "uzņēmums", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 15 Example 1; BWIPP uses mask 011 instead of 111",
                     "111111100010101111111"
                     "100000101010101000001"
                     "101110101011001011101"
@@ -2390,7 +2685,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101111100101011"
                     "111111101000000101010"
                 },
-        /* 60*/ { BARCODE_QRCODE, UNICODE_MODE, 15, 1, -1, 4 << 8, { 0, 0, "" }, "uzņēmums", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 15 Example 1 **NOT SAME** explicit mask 011",
+        /* 62*/ { BARCODE_QRCODE, UNICODE_MODE, 15, 1, -1, 4 << 8, { 0, 0, "" }, "uzņēmums", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 15 Example 1 **NOT SAME** explicit mask 011",
                     "111111101100101111111"
                     "100000100100101000001"
                     "101110101010101011101"
@@ -2413,7 +2708,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101001101011010"
                     "111111101001110100100"
                 },
-        /* 61*/ { BARCODE_QRCODE, UNICODE_MODE, 16, 1, -1, -1, { 0, 0, "" }, "ṁórṡáċ", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 16 Example 1; BWIPP uses mask 001 instead of 111",
+        /* 63*/ { BARCODE_QRCODE, UNICODE_MODE, 16, 1, -1, -1, { 0, 0, "" }, "ṁórṡáċ", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 16 Example 1; BWIPP uses mask 001 instead of 111",
                     "111111100010101111111"
                     "100000101010101000001"
                     "101110101011001011101"
@@ -2436,7 +2731,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101101100001011"
                     "111111101010010001010"
                 },
-        /* 62*/ { BARCODE_QRCODE, UNICODE_MODE, 16, 1, -1, 2 << 8, { 0, 0, "" }, "ṁórṡáċ", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 16 Example 1 **NOT SAME** explicit mask 001",
+        /* 64*/ { BARCODE_QRCODE, UNICODE_MODE, 16, 1, -1, 2 << 8, { 0, 0, "" }, "ṁórṡáċ", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 16 Example 1 **NOT SAME** explicit mask 001",
                     "111111101111101111111"
                     "100000101101101000001"
                     "101110100111001011101"
@@ -2459,7 +2754,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101010100110011"
                     "111111101110001101001"
                 },
-        /* 63*/ { BARCODE_QRCODE, UNICODE_MODE, 17, 1, -1, -1, { 0, 0, "" }, "Price: €13.50", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 17 Example 1",
+        /* 65*/ { BARCODE_QRCODE, UNICODE_MODE, 17, 1, -1, -1, { 0, 0, "" }, "Price: €13.50", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 17 Example 1",
                     "111111100100101111111"
                     "100000101101001000001"
                     "101110101101101011101"
@@ -2482,7 +2777,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101000100101111"
                     "111111101101110110110"
                 },
-        /* 64*/ { BARCODE_QRCODE, UNICODE_MODE, 18, 1, -1, -1, { 0, 0, "" }, "Te słowa są głębokie", -1, 0, 25, 25, 0, "AIM ITS/04-023:2022 ECI 18 Example 1; BWIPP uses mask 001 instead of 100",
+        /* 66*/ { BARCODE_QRCODE, UNICODE_MODE, 18, 1, -1, -1, { 0, 0, "" }, "Te słowa są głębokie", -1, 0, 25, 25, 0, "AIM ITS/04-023:2022 ECI 18 Example 1; BWIPP uses mask 001 instead of 100",
                     "1111111010000111001111111"
                     "1000001010011000001000001"
                     "1011101011001100001011101"
@@ -2509,7 +2804,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "1000001011110101011011101"
                     "1111111010001100000011111"
                 },
-        /* 65*/ { BARCODE_QRCODE, UNICODE_MODE, 18, 1, -1, 2 << 8, { 0, 0, "" }, "Te słowa są głębokie", -1, 0, 25, 25, 1, "AIM ITS/04-023:2022 ECI 18 Example 1 **NOT SAME** explicit mask 001",
+        /* 67*/ { BARCODE_QRCODE, UNICODE_MODE, 18, 1, -1, 2 << 8, { 0, 0, "" }, "Te słowa są głębokie", -1, 0, 25, 25, 1, "AIM ITS/04-023:2022 ECI 18 Example 1 **NOT SAME** explicit mask 001",
                     "1111111011110110101111111"
                     "1000001010010110001000001"
                     "1011101001000010001011101"
@@ -2536,7 +2831,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "1000001010000100101010011"
                     "1111111011111101110010001"
                 },
-        /* 66*/ { BARCODE_QRCODE, UNICODE_MODE, 20, 1, -1, -1, { 0, 0, "" }, "バーコード", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 20 Example 1; BWIPP uses mask 011 instead of 111",
+        /* 68*/ { BARCODE_QRCODE, UNICODE_MODE, 20, 1, -1, -1, { 0, 0, "" }, "バーコード", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 20 Example 1; BWIPP uses mask 011 instead of 111",
                     "111111100010101111111"
                     "100000101010101000001"
                     "101110101011001011101"
@@ -2559,7 +2854,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101011100110011"
                     "111111101010000101010"
                 },
-        /* 67*/ { BARCODE_QRCODE, UNICODE_MODE, 20, 1, -1, 4 << 8, { 0, 0, "" }, "バーコード", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 20 Example 1 **NOT SAME** explicit mask 011",
+        /* 69*/ { BARCODE_QRCODE, UNICODE_MODE, 20, 1, -1, 4 << 8, { 0, 0, "" }, "バーコード", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 20 Example 1 **NOT SAME** explicit mask 011",
                     "111111101100101111111"
                     "100000100100101000001"
                     "101110101010101011101"
@@ -2582,7 +2877,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101101101000010"
                     "111111101011110100100"
                 },
-        /* 68*/ { BARCODE_QRCODE, UNICODE_MODE, 20, 1, -1, -1, { 0, 0, "" }, "東京都", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 20 Example 2; BWIPP uses mask 000 instead of 100",
+        /* 70*/ { BARCODE_QRCODE, UNICODE_MODE, 20, 1, -1, -1, { 0, 0, "" }, "東京都", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 20 Example 2; BWIPP uses mask 000 instead of 100",
                     "111111101111101111111"
                     "100000101010101000001"
                     "101110101000001011101"
@@ -2605,7 +2900,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101010011010011"
                     "111111101100111011001"
                 },
-        /* 69*/ { BARCODE_QRCODE, UNICODE_MODE, 20, 1, -1, 1 << 8, { 0, 0, "" }, "東京都", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 20 Example 2 **NOT SAME** explicit mask 000",
+        /* 71*/ { BARCODE_QRCODE, UNICODE_MODE, 20, 1, -1, 1 << 8, { 0, 0, "" }, "東京都", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 20 Example 2 **NOT SAME** explicit mask 000",
                     "111111100101101111111"
                     "100000100111001000001"
                     "101110101101101011101"
@@ -2628,7 +2923,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101000001000001"
                     "111111101110101001011"
                 },
-        /* 70*/ { BARCODE_QRCODE, UNICODE_MODE, 21, 1, -1, -1, { 0, 0, "" }, "Študentska št. 2198390", -1, 0, 25, 25, 1, "AIM ITS/04-023:2022 ECI 21 Example 1 **NOT SAME** different encodation",
+        /* 72*/ { BARCODE_QRCODE, UNICODE_MODE, 21, 1, -1, -1, { 0, 0, "" }, "Študentska št. 2198390", -1, 0, 25, 25, 1, "AIM ITS/04-023:2022 ECI 21 Example 1 **NOT SAME** different encodation",
                     "1111111010000110001111111"
                     "1000001010011110101000001"
                     "1011101011001111101011101"
@@ -2655,7 +2950,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "1000001010010101110010101"
                     "1111111010101100000011011"
                 },
-        /* 71*/ { BARCODE_QRCODE, UNICODE_MODE, 22, 1, -1, -1, { 0, 0, "" }, "Россия", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 22 Example 1",
+        /* 73*/ { BARCODE_QRCODE, UNICODE_MODE, 22, 1, -1, -1, { 0, 0, "" }, "Россия", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 22 Example 1",
                     "111111100010101111111"
                     "100000101010101000001"
                     "101110101011001011101"
@@ -2678,7 +2973,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101001100001011"
                     "111111101100010100110"
                 },
-        /* 72*/ { BARCODE_QRCODE, UNICODE_MODE, 22, 1, -1, -1, { 0, 0, "" }, "Монголулс", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 22 Example 2; BWIPP uses mask 000 instead of 100",
+        /* 74*/ { BARCODE_QRCODE, UNICODE_MODE, 22, 1, -1, -1, { 0, 0, "" }, "Монголулс", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 22 Example 2; BWIPP uses mask 000 instead of 100",
                     "111111101111101111111"
                     "100000101010101000001"
                     "101110101000001011101"
@@ -2701,7 +2996,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101001000100111"
                     "111111101000101111101"
                 },
-        /* 73*/ { BARCODE_QRCODE, UNICODE_MODE, 22, 1, -1, 1 << 8, { 0, 0, "" }, "Монголулс", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 22 Example 2 **NOT SAME** explicit mask 000",
+        /* 75*/ { BARCODE_QRCODE, UNICODE_MODE, 22, 1, -1, 1 << 8, { 0, 0, "" }, "Монголулс", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 22 Example 2 **NOT SAME** explicit mask 000",
                     "111111100101101111111"
                     "100000100111001000001"
                     "101110101101101011101"
@@ -2724,7 +3019,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101011010110101"
                     "111111101010111101111"
                 },
-        /* 74*/ { BARCODE_QRCODE, UNICODE_MODE, 23, 1, -1, -1, { 0, 0, "" }, "bœuf", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 23 Example 1; BWIPP uses mask 000 instead of 111",
+        /* 76*/ { BARCODE_QRCODE, UNICODE_MODE, 23, 1, -1, -1, { 0, 0, "" }, "bœuf", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 23 Example 1; BWIPP uses mask 000 instead of 111",
                     "111111100010101111111"
                     "100000101010101000001"
                     "101110101011001011101"
@@ -2747,7 +3042,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101001100100011"
                     "111111101000010110110"
                 },
-        /* 75*/ { BARCODE_QRCODE, UNICODE_MODE, 23, 1, -1, 1 << 8, { 0, 0, "" }, "bœuf", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 23 Example 1 ** NOT SAME** explicit mask 000",
+        /* 77*/ { BARCODE_QRCODE, UNICODE_MODE, 23, 1, -1, 1 << 8, { 0, 0, "" }, "bœuf", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 23 Example 1 ** NOT SAME** explicit mask 000",
                     "111111100010101111111"
                     "100000100000101000001"
                     "101110101010001011101"
@@ -2770,7 +3065,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101011110110001"
                     "111111101001011111111"
                 },
-        /* 76*/ { BARCODE_QRCODE, UNICODE_MODE, 24, 1, -1, -1, { 0, 0, "" }, "جواز السفر", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 24 Example 1",
+        /* 78*/ { BARCODE_QRCODE, UNICODE_MODE, 24, 1, -1, -1, { 0, 0, "" }, "جواز السفر", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 24 Example 1",
                     "111111100010101111111"
                     "100000100000101000001"
                     "101110101010001011101"
@@ -2793,7 +3088,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101010001000001"
                     "111111101101011101011"
                 },
-        /* 77*/ { BARCODE_QRCODE, UNICODE_MODE, 24, 1, -1, -1, { 0, 0, "" }, "المنشأ: المملكة العربية السعودية", -1, 0, 29, 29, 0, "AIM ITS/04-023:2022 ECI 24 Example 2; BWIPP uses mask 000 instead of 100",
+        /* 79*/ { BARCODE_QRCODE, UNICODE_MODE, 24, 1, -1, -1, { 0, 0, "" }, "المنشأ: المملكة العربية السعودية", -1, 0, 29, 29, 0, "AIM ITS/04-023:2022 ECI 24 Example 2; BWIPP uses mask 000 instead of 100",
                     "11111110111010000111101111111"
                     "10000010111000001100101000001"
                     "10111010101101011000101011101"
@@ -2824,7 +3119,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "10000010111101000011000110100"
                     "11111110111011010111000011010"
                 },
-        /* 78*/ { BARCODE_QRCODE, UNICODE_MODE, 24, 1, -1, 1 << 8, { 0, 0, "" }, "المنشأ: المملكة العربية السعودية", -1, 0, 29, 29, 1, "AIM ITS/04-023:2022 ECI 24 Example 2 **NOT SAME** explicit mask 000",
+        /* 80*/ { BARCODE_QRCODE, UNICODE_MODE, 24, 1, -1, 1 << 8, { 0, 0, "" }, "المنشأ: المملكة العربية السعودية", -1, 0, 29, 29, 1, "AIM ITS/04-023:2022 ECI 24 Example 2 **NOT SAME** explicit mask 000",
                     "11111110010011001110101111111"
                     "10000010001110111010001000001"
                     "10111010111011101110001011101"
@@ -2855,7 +3150,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "10000010110100001010001111101"
                     "11111110110010011110001010011"
                 },
-        /* 79*/ { BARCODE_QRCODE, UNICODE_MODE, 25, 1, -1, -1, { 0, 0, "" }, "条码", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 25 Example 1",
+        /* 81*/ { BARCODE_QRCODE, UNICODE_MODE, 25, 1, -1, -1, { 0, 0, "" }, "条码", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 25 Example 1",
                     "111111100010101111111"
                     "100000100000101000001"
                     "101110101010001011101"
@@ -2878,7 +3173,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101011110101101"
                     "111111101111011010111"
                 },
-        /* 80*/ { BARCODE_QRCODE, UNICODE_MODE, 25, 1, -1, -1, { 0, 0, "" }, "バーコード", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 25 Example 2; BWIPP uses mask 000 instead of 111",
+        /* 82*/ { BARCODE_QRCODE, UNICODE_MODE, 25, 1, -1, -1, { 0, 0, "" }, "バーコード", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 25 Example 2; BWIPP uses mask 000 instead of 111",
                     "111111100010101111111"
                     "100000101010101000001"
                     "101110101011001011101"
@@ -2901,7 +3196,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101001000001011"
                     "111111101110000101110"
                 },
-        /* 81*/ { BARCODE_QRCODE, UNICODE_MODE, 25, 1, -1, 1 << 8, { 0, 0, "" }, "バーコード", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 25 Example 2 **NOT SAME** explicit mask 000",
+        /* 83*/ { BARCODE_QRCODE, UNICODE_MODE, 25, 1, -1, 1 << 8, { 0, 0, "" }, "バーコード", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 25 Example 2 **NOT SAME** explicit mask 000",
                     "111111100010101111111"
                     "100000100000101000001"
                     "101110101010001011101"
@@ -2924,7 +3219,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101011010011001"
                     "111111101111001100111"
                 },
-        /* 82*/ { BARCODE_QRCODE, UNICODE_MODE, 25, 1, -1, -1, { 0, 0, "" }, "바코드", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 25 Example 3",
+        /* 84*/ { BARCODE_QRCODE, UNICODE_MODE, 25, 1, -1, -1, { 0, 0, "" }, "바코드", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 25 Example 3",
                     "111111100010101111111"
                     "100000100000101000001"
                     "101110101010001011101"
@@ -2947,7 +3242,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101101110000101"
                     "111111101001011111011"
                 },
-        /* 83*/ { BARCODE_QRCODE, UNICODE_MODE, 26, 1, -1, -1, { 0, 0, "" }, "条码", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 26 Example 1; BWIPP uses mask 000 instead of 111",
+        /* 85*/ { BARCODE_QRCODE, UNICODE_MODE, 26, 1, -1, -1, { 0, 0, "" }, "条码", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 26 Example 1; BWIPP uses mask 000 instead of 111",
                     "111111100010101111111"
                     "100000101010101000001"
                     "101110101011001011101"
@@ -2970,7 +3265,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101111100101011"
                     "111111101110010100110"
                 },
-        /* 84*/ { BARCODE_QRCODE, UNICODE_MODE, 26, 1, -1, 1 << 8, { 0, 0, "" }, "条码", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 26 Example 1 **NOT SAME** explicit mask 000",
+        /* 86*/ { BARCODE_QRCODE, UNICODE_MODE, 26, 1, -1, 1 << 8, { 0, 0, "" }, "条码", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 26 Example 1 **NOT SAME** explicit mask 000",
                     "111111100010101111111"
                     "100000100000101000001"
                     "101110101010001011101"
@@ -2993,7 +3288,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101101110111001"
                     "111111101111011101111"
                 },
-        /* 85*/ { BARCODE_QRCODE, UNICODE_MODE, 26, 2, -1, -1, { 0, 0, "" }, "バーコード", -1, 0, 25, 25, 0, "AIM ITS/04-023:2022 ECI 26 Example 2; BWIPP uses mask 101 instead of 010",
+        /* 87*/ { BARCODE_QRCODE, UNICODE_MODE, 26, 2, -1, -1, { 0, 0, "" }, "バーコード", -1, 0, 25, 25, 0, "AIM ITS/04-023:2022 ECI 26 Example 2; BWIPP uses mask 101 instead of 010",
                     "1111111001111101001111111"
                     "1000001001001111001000001"
                     "1011101011101101001011101"
@@ -3020,7 +3315,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "1000001001110010100111010"
                     "1111111010110001001010111"
                 },
-        /* 86*/ { BARCODE_QRCODE, UNICODE_MODE, 26, 2, -1, 6 << 8, { 0, 0, "" }, "バーコード", -1, 0, 25, 25, 1, "AIM ITS/04-023:2022 ECI 26 Example 2 **NOT SAME** explicit mask 101",
+        /* 88*/ { BARCODE_QRCODE, UNICODE_MODE, 26, 2, -1, 6 << 8, { 0, 0, "" }, "バーコード", -1, 0, 25, 25, 1, "AIM ITS/04-023:2022 ECI 26 Example 2 **NOT SAME** explicit mask 101",
                     "1111111001001011101111111"
                     "1000001010001110001000001"
                     "1011101011101101001011101"
@@ -3047,7 +3342,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "1000001000110011100110010"
                     "1111111010000111111100001"
                 },
-        /* 87*/ { BARCODE_QRCODE, UNICODE_MODE, 26, 2, -1, -1, { 0, 0, "" }, "바코드", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 26 Example 3; BWIPP uses mask 111 instead of 001",
+        /* 89*/ { BARCODE_QRCODE, UNICODE_MODE, 26, 2, -1, -1, { 0, 0, "" }, "바코드", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 26 Example 3; BWIPP uses mask 111 instead of 001",
                     "111111101011001111111"
                     "100000100001001000001"
                     "101110101100101011101"
@@ -3070,7 +3365,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000100010011011011"
                     "111111101011111001101"
                 },
-        /* 88*/ { BARCODE_QRCODE, UNICODE_MODE, 26, 2, -1, 8 << 8, { 0, 0, "" }, "바코드", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 26 Example 3 **NOT SAME** explicit mask 111",
+        /* 90*/ { BARCODE_QRCODE, UNICODE_MODE, 26, 2, -1, 8 << 8, { 0, 0, "" }, "바코드", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 26 Example 3 **NOT SAME** explicit mask 111",
                     "111111100110001111111"
                     "100000100110001000001"
                     "101110100000101011101"
@@ -3093,30 +3388,30 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000100101011100011"
                     "111111101111100101110"
                 },
-        /* 89*/ { BARCODE_QRCODE, UNICODE_MODE, 27, 2, -1, -1, { 0, 0, "" }, "sn:7QPB4MN", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 27 Example 1 **NOT SAME** different encodation; BWIPP same encodation as example but uses mask 111 instead of 010",
+        /* 91*/ { BARCODE_QRCODE, UNICODE_MODE, 27, 2, -1, 5 << 8, { 0, 0, "" }, "sn:7QPB4MN", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 27 Example 1 **NOT SAME** different encodation; explicit mask 100 (auto 011) to match BWIPP",
+                    "111111101110101111111"
+                    "100000100110001000001"
+                    "101110100011001011101"
+                    "101110101101001011101"
+                    "101110101100101011101"
+                    "100000101001001000001"
                     "111111101010101111111"
-                    "100000101111101000001"
-                    "101110100110001011101"
-                    "101110101110101011101"
-                    "101110100101001011101"
-                    "100000100011101000001"
-                    "111111101010101111111"
-                    "000000001101100000000"
-                    "101101110111101001011"
-                    "000110001101110001101"
-                    "100000100001000100101"
-                    "100111000011000110010"
-                    "010011101010111111000"
-                    "000000001011010110001"
-                    "111111101101110010100"
-                    "100000101100011101011"
-                    "101110100010111111100"
-                    "101110101010001100000"
-                    "101110101110111000000"
-                    "100000100011000001010"
-                    "111111101000111110000"
+                    "000000001011100000000"
+                    "100010111101011111001"
+                    "011010010001101101110"
+                    "101110101111001010100"
+                    "110010010110010011000"
+                    "001111110110100011011"
+                    "000000001010100111111"
+                    "111111101000100111110"
+                    "100000100111111110111"
+                    "101110101011001110010"
+                    "101110100000100110101"
+                    "101110100101011011100"
+                    "100000100101001111011"
+                    "111111101010010100101"
                 },
-        /* 90*/ { BARCODE_QRCODE, UNICODE_MODE, 28, 1, -1, -1, { 0, 0, "" }, "條碼", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 28 Example 1",
+        /* 92*/ { BARCODE_QRCODE, UNICODE_MODE, 28, 1, -1, -1, { 0, 0, "" }, "條碼", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 28 Example 1",
                     "111111100010101111111"
                     "100000100000101000001"
                     "101110101010001011101"
@@ -3139,7 +3434,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101101110000101"
                     "111111101101011111111"
                 },
-        /* 91*/ { BARCODE_QRCODE, UNICODE_MODE, 29, 1, -1, -1, { 0, 0, "" }, "条码", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 29 Example 1",
+        /* 93*/ { BARCODE_QRCODE, UNICODE_MODE, 29, 1, -1, -1, { 0, 0, "" }, "条码", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 29 Example 1",
                     "111111100010101111111"
                     "100000100000101000001"
                     "101110101010001011101"
@@ -3162,7 +3457,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101111110111001"
                     "111111101101011100011"
                 },
-        /* 92*/ { BARCODE_QRCODE, UNICODE_MODE, 29, 1, -1, -1, { 0, 0, "" }, "北京", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 29 Example 2",
+        /* 94*/ { BARCODE_QRCODE, UNICODE_MODE, 29, 1, -1, -1, { 0, 0, "" }, "北京", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 29 Example 2",
                     "111111100100101111111"
                     "100000101001001000001"
                     "101110100100001011101"
@@ -3185,7 +3480,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101100000111011"
                     "111111101011010110010"
                 },
-        /* 93*/ { BARCODE_QRCODE, UNICODE_MODE, 30, 1, -1, -1, { 0, 0, "" }, "바코드", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 30 Example 1; BWIPP uses mask 000 instead of 111",
+        /* 95*/ { BARCODE_QRCODE, UNICODE_MODE, 30, 1, -1, -1, { 0, 0, "" }, "바코드", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 30 Example 1; BWIPP uses mask 000 instead of 111",
                     "111111100010101111111"
                     "100000101010101000001"
                     "101110101011001011101"
@@ -3208,7 +3503,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101001100010011"
                     "111111101110010101110"
                 },
-        /* 94*/ { BARCODE_QRCODE, UNICODE_MODE, 30, 1, -1, 1 << 8, { 0, 0, "" }, "바코드", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 30 Example 1 **NOT SAME** explicit mask 000",
+        /* 96*/ { BARCODE_QRCODE, UNICODE_MODE, 30, 1, -1, 1 << 8, { 0, 0, "" }, "바코드", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 30 Example 1 **NOT SAME** explicit mask 000",
                     "111111100010101111111"
                     "100000100000101000001"
                     "101110101010001011101"
@@ -3231,7 +3526,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101011110000001"
                     "111111101111011100111"
                 },
-        /* 95*/ { BARCODE_QRCODE, UNICODE_MODE, 30, 1, -1, -1, { 0, 0, "" }, "서울", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 30 Example 2",
+        /* 97*/ { BARCODE_QRCODE, UNICODE_MODE, 30, 1, -1, -1, { 0, 0, "" }, "서울", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 30 Example 2",
                     "111111100010101111111"
                     "100000100000101000001"
                     "101110101010001011101"
@@ -3254,7 +3549,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101001110110101"
                     "111111101011011101011"
                 },
-        /* 96*/ { BARCODE_QRCODE, UNICODE_MODE, 31, 1, -1, -1, { 0, 0, "" }, "条码", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 31 Example 1",
+        /* 98*/ { BARCODE_QRCODE, UNICODE_MODE, 31, 1, -1, -1, { 0, 0, "" }, "条码", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 31 Example 1",
                     "111111100010101111111"
                     "100000100000101000001"
                     "101110101010001011101"
@@ -3277,7 +3572,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101011110111001"
                     "111111101101011100011"
                 },
-        /* 97*/ { BARCODE_QRCODE, UNICODE_MODE, 31, 1, -1, -1, { 0, 0, "" }, "北京", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 31 Example 2; BWIPP uses mask 011 instead of 010",
+        /* 99*/ { BARCODE_QRCODE, UNICODE_MODE, 31, 1, -1, -1, { 0, 0, "" }, "北京", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 31 Example 2; BWIPP uses mask 011 instead of 010",
                     "111111100100101111111"
                     "100000101001001000001"
                     "101110100100001011101"
@@ -3300,7 +3595,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101000000111011"
                     "111111101011010110010"
                 },
-        /* 98*/ { BARCODE_QRCODE, UNICODE_MODE, 31, 1, -1, 4 << 8, { 0, 0, "" }, "北京", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 31 Example 2 **NOT SAME** explicit mask 011",
+        /*100*/ { BARCODE_QRCODE, UNICODE_MODE, 31, 1, -1, 4 << 8, { 0, 0, "" }, "北京", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 31 Example 2 **NOT SAME** explicit mask 011",
                     "111111101100101111111"
                     "100000100100101000001"
                     "101110101010101011101"
@@ -3323,7 +3618,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101101101010110"
                     "111111101101100000100"
                 },
-        /* 99*/ { BARCODE_QRCODE, UNICODE_MODE, 31, 1, -1, -1, { 0, 0, "" }, "條碼", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 31 Example 3",
+        /*101*/ { BARCODE_QRCODE, UNICODE_MODE, 31, 1, -1, -1, { 0, 0, "" }, "條碼", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 31 Example 3",
                     "111111100010101111111"
                     "100000100000101000001"
                     "101110101010001011101"
@@ -3346,7 +3641,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101001110110001"
                     "111111101111011110111"
                 },
-        /*100*/ { BARCODE_QRCODE, UNICODE_MODE, 32, 1, -1, -1, { 0, 0, "" }, "条码", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 32 Example 1",
+        /*102*/ { BARCODE_QRCODE, UNICODE_MODE, 32, 1, -1, -1, { 0, 0, "" }, "条码", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 32 Example 1",
                     "111111100100101111111"
                     "100000101001001000001"
                     "101110100100001011101"
@@ -3369,7 +3664,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101100000110111"
                     "111111101111010010010"
                 },
-        /*101*/ { BARCODE_QRCODE, UNICODE_MODE, 32, 1, -1, -1, { 0, 0, "" }, "北京", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 32 Example 2; BWIPP uses mask 011 instead of 111",
+        /*103*/ { BARCODE_QRCODE, UNICODE_MODE, 32, 1, -1, -1, { 0, 0, "" }, "北京", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 32 Example 2; BWIPP uses mask 011 instead of 111",
                     "111111100010101111111"
                     "100000101010101000001"
                     "101110101011001011101"
@@ -3392,7 +3687,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101101100100111"
                     "111111101000010001010"
                 },
-        /*102*/ { BARCODE_QRCODE, UNICODE_MODE, 32, 1, -1, 4 << 8, { 0, 0, "" }, "北京", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 32 Example 2 **NOT SAME** explicit mask 011",
+        /*104*/ { BARCODE_QRCODE, UNICODE_MODE, 32, 1, -1, 4 << 8, { 0, 0, "" }, "北京", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 32 Example 2 **NOT SAME** explicit mask 011",
                     "111111101100101111111"
                     "100000100100101000001"
                     "101110101010101011101"
@@ -3415,7 +3710,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101011101010110"
                     "111111101001100000100"
                 },
-        /*103*/ { BARCODE_QRCODE, UNICODE_MODE, 32, 1, -1, -1, { 0, 0, "" }, "條碼", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 32 Example 3; BWIPP uses mask 011 instead of 001",
+        /*105*/ { BARCODE_QRCODE, UNICODE_MODE, 32, 1, -1, -1, { 0, 0, "" }, "條碼", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 32 Example 3; BWIPP uses mask 011 instead of 001",
                     "111111101111101111111"
                     "100000101101101000001"
                     "101110100111001011101"
@@ -3438,7 +3733,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101010100011011"
                     "111111101110001011101"
                 },
-        /*104*/ { BARCODE_QRCODE, UNICODE_MODE, 32, 1, -1, 4 << 8, { 0, 0, "" }, "條碼", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 32 Example 3 **NOT SAME** explicit mask 011",
+        /*106*/ { BARCODE_QRCODE, UNICODE_MODE, 32, 1, -1, 4 << 8, { 0, 0, "" }, "條碼", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 32 Example 3 **NOT SAME** explicit mask 011",
                     "111111101100101111111"
                     "100000100100101000001"
                     "101110101010101011101"
@@ -3461,7 +3756,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101011101010010"
                     "111111101011100110000"
                 },
-        /*105*/ { BARCODE_QRCODE, UNICODE_MODE, 32, 1, -1, -1, { 0, 0, "" }, "པེ་ཅིང།", -1, 0, 25, 25, 1, "AIM ITS/04-023:2022 ECI 32 Example 4",
+        /*107*/ { BARCODE_QRCODE, UNICODE_MODE, 32, 1, -1, -1, { 0, 0, "" }, "པེ་ཅིང།", -1, 0, 25, 25, 1, "AIM ITS/04-023:2022 ECI 32 Example 4",
                     "1111111011110110001111111"
                     "1000001000011010101000001"
                     "1011101010110101101011101"
@@ -3488,7 +3783,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "1000001010111111111010111"
                     "1111111010011101100000011"
                 },
-        /*106*/ { BARCODE_QRCODE, UNICODE_MODE, 32, 1, -1, -1, { 0, 0, "" }, "バーコード", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 32 Example 5; BWIPP uses mask 011 instead of 111",
+        /*108*/ { BARCODE_QRCODE, UNICODE_MODE, 32, 1, -1, -1, { 0, 0, "" }, "バーコード", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 32 Example 5; BWIPP uses mask 011 instead of 111",
                     "111111100010101111111"
                     "100000101010101000001"
                     "101110101011001011101"
@@ -3511,7 +3806,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101001010101111"
                     "111111101110010110110"
                 },
-        /*107*/ { BARCODE_QRCODE, UNICODE_MODE, 32, 1, -1, 4 << 8, { 0, 0, "" }, "バーコード", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 32 Example 5 **NOT SAME** explicit mask 011",
+        /*109*/ { BARCODE_QRCODE, UNICODE_MODE, 32, 1, -1, 4 << 8, { 0, 0, "" }, "バーコード", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 32 Example 5 **NOT SAME** explicit mask 011",
                     "111111101100101111111"
                     "100000100100101000001"
                     "101110101010101011101"
@@ -3534,7 +3829,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101111011011110"
                     "111111101111100111000"
                 },
-        /*108*/ { BARCODE_QRCODE, UNICODE_MODE, 32, 1, -1, -1, { 0, 0, "" }, "바코드", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 32 Example 6; BWIPP uses mask 011 instead of 111",
+        /*110*/ { BARCODE_QRCODE, UNICODE_MODE, 32, 1, -1, -1, { 0, 0, "" }, "바코드", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 32 Example 6; BWIPP uses mask 011 instead of 111",
                     "111111100010101111111"
                     "100000101010101000001"
                     "101110101011001011101"
@@ -3557,7 +3852,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101110100001011"
                     "111111101101101010110"
                 },
-        /*109*/ { BARCODE_QRCODE, UNICODE_MODE, 32, 1, -1, 4 << 8, { 0, 0, "" }, "바코드", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 32 Example 6 **NOT SAME** explicit mask 011",
+        /*111*/ { BARCODE_QRCODE, UNICODE_MODE, 32, 1, -1, 4 << 8, { 0, 0, "" }, "바코드", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 32 Example 6 **NOT SAME** explicit mask 011",
                     "111111101100101111111"
                     "100000100100101000001"
                     "101110101010101011101"
@@ -3580,7 +3875,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101000101111010"
                     "111111101100011011000"
                 },
-        /*110*/ { BARCODE_QRCODE, UNICODE_MODE, 33, 1, -1, -1, { 0, 0, "" }, "条码", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 33 Example 1; BWIPP uses mask 111 instead of 010",
+        /*112*/ { BARCODE_QRCODE, UNICODE_MODE, 33, 1, -1, -1, { 0, 0, "" }, "条码", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 33 Example 1; BWIPP uses mask 111 instead of 010",
                     "111111100100101111111"
                     "100000101001001000001"
                     "101110100100001011101"
@@ -3603,7 +3898,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101010000010111"
                     "111111101101010001110"
                 },
-        /*111*/ { BARCODE_QRCODE, UNICODE_MODE, 33, 1, -1, 8 << 8, { 0, 0, "" }, "条码", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 33 Example 1 **NOT SAME** explicit mask 111",
+        /*113*/ { BARCODE_QRCODE, UNICODE_MODE, 33, 1, -1, 8 << 8, { 0, 0, "" }, "条码", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 33 Example 1 **NOT SAME** explicit mask 111",
                     "111111100010101111111"
                     "100000101010101000001"
                     "101110101011001011101"
@@ -3626,7 +3921,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101001100001011"
                     "111111101010010110110"
                 },
-        /*112*/ { BARCODE_QRCODE, UNICODE_MODE, 33, 1, -1, -1, { 0, 0, "" }, "バーコード", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 33 Example 2",
+        /*114*/ { BARCODE_QRCODE, UNICODE_MODE, 33, 1, -1, -1, { 0, 0, "" }, "バーコード", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 33 Example 2",
                     "111111100010101111111"
                     "100000100000101000001"
                     "101110101010001011101"
@@ -3649,7 +3944,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101100111010101"
                     "111111101110111010111"
                 },
-        /*113*/ { BARCODE_QRCODE, UNICODE_MODE, 33, 1, -1, -1, { 0, 0, "" }, "바코드", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 33 Example 3; BWIPP uses mask 000 instead of 111",
+        /*115*/ { BARCODE_QRCODE, UNICODE_MODE, 33, 1, -1, -1, { 0, 0, "" }, "바코드", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 33 Example 3; BWIPP uses mask 000 instead of 111",
                     "111111100010101111111"
                     "100000101010101000001"
                     "101110101011001011101"
@@ -3672,7 +3967,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101111100110011"
                     "111111101000010101110"
                 },
-        /*114*/ { BARCODE_QRCODE, UNICODE_MODE, 33, 1, -1, 1 << 8, { 0, 0, "" }, "바코드", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 33 Example 3 **NOT SAME** explicit mask 000",
+        /*116*/ { BARCODE_QRCODE, UNICODE_MODE, 33, 1, -1, 1 << 8, { 0, 0, "" }, "바코드", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 33 Example 3 **NOT SAME** explicit mask 000",
                     "111111100010101111111"
                     "100000100000101000001"
                     "101110101010001011101"
@@ -3695,7 +3990,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101101110100001"
                     "111111101001011100111"
                 },
-        /*115*/ { BARCODE_QRCODE, UNICODE_MODE, 34, 1, -1, -1, { 0, 0, "" }, "条码", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 34 Example 1",
+        /*117*/ { BARCODE_QRCODE, UNICODE_MODE, 34, 1, -1, -1, { 0, 0, "" }, "条码", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 34 Example 1",
                     "111111100010101111111"
                     "100000101010101000001"
                     "101110101011001011101"
@@ -3718,7 +4013,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101011100100011"
                     "111111101110000110010"
                 },
-        /*116*/ { BARCODE_QRCODE, UNICODE_MODE, 34, 1, -1, -1, { 0, 0, "" }, "バーコード", -1, 0, 25, 25, 1, "AIM ITS/04-023:2022 ECI 34 Example 2",
+        /*118*/ { BARCODE_QRCODE, UNICODE_MODE, 34, 1, -1, -1, { 0, 0, "" }, "バーコード", -1, 0, 25, 25, 1, "AIM ITS/04-023:2022 ECI 34 Example 2",
                     "1111111000100010001111111"
                     "1000001001000100101000001"
                     "1011101010010011001011101"
@@ -3745,7 +4040,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "1000001010110001010101001"
                     "1111111010001000110010111"
                 },
-        /*117*/ { BARCODE_QRCODE, UNICODE_MODE, 34, 1, -1, -1, { 0, 0, "" }, "바코드", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 34 Example 3",
+        /*119*/ { BARCODE_QRCODE, UNICODE_MODE, 34, 1, -1, -1, { 0, 0, "" }, "바코드", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 34 Example 3",
                     "111111100010101111111"
                     "100000100000101000001"
                     "101110101010001011101"
@@ -3768,7 +4063,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101101010000101"
                     "111111101010101010111"
                 },
-        /*118*/ { BARCODE_QRCODE, UNICODE_MODE, 35, 1, -1, -1, { 0, 0, "" }, "条码", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 35 Example 1",
+        /*120*/ { BARCODE_QRCODE, UNICODE_MODE, 35, 1, -1, -1, { 0, 0, "" }, "条码", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 35 Example 1",
                     "111111100010101111111"
                     "100000101010101000001"
                     "101110101011001011101"
@@ -3791,7 +4086,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101011100111011"
                     "111111101110000011110"
                 },
-        /*119*/ { BARCODE_QRCODE, UNICODE_MODE, 35, 1, -1, -1, { 0, 0, "" }, "バーコード", -1, 0, 25, 25, 1, "AIM ITS/04-023:2022 ECI 35 Example 2",
+        /*121*/ { BARCODE_QRCODE, UNICODE_MODE, 35, 1, -1, -1, { 0, 0, "" }, "バーコード", -1, 0, 25, 25, 1, "AIM ITS/04-023:2022 ECI 35 Example 2",
                     "1111111000100110101111111"
                     "1000001001000111001000001"
                     "1011101010010110101011101"
@@ -3818,7 +4113,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "1000001010110001010010101"
                     "1111111011001000101010111"
                 },
-        /*120*/ { BARCODE_QRCODE, UNICODE_MODE, 35, 1, -1, -1, { 0, 0, "" }, "바코드", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 35 Example 3; BWIPP uses mask 011 instead of 111",
+        /*122*/ { BARCODE_QRCODE, UNICODE_MODE, 35, 1, -1, -1, { 0, 0, "" }, "바코드", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 35 Example 3; BWIPP uses mask 011 instead of 111",
                     "111111100010101111111"
                     "100000101010101000001"
                     "101110101011001011101"
@@ -3841,7 +4136,7 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101000111111011"
                     "111111101101000011110"
                 },
-        /*121*/ { BARCODE_QRCODE, UNICODE_MODE, 35, 1, -1, 4 << 8, { 0, 0, "" }, "바코드", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 35 Example 3 **NOT SAME** explicit mask 011",
+        /*123*/ { BARCODE_QRCODE, UNICODE_MODE, 35, 1, -1, 4 << 8, { 0, 0, "" }, "바코드", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 35 Example 3 **NOT SAME** explicit mask 011",
                     "111111101100101111111"
                     "100000100100101000001"
                     "101110101010101011101"
@@ -3864,30 +4159,30 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101110110001010"
                     "111111101100110010000"
                 },
-        /*122*/ { BARCODE_QRCODE, UNICODE_MODE, 170, 1, -1, -1, { 0, 0, "" }, "sn:7QPB4MN", -1, 0, 21, 21, 0, "AIM ITS/04-023:2022 ECI 170 Example 1 **NOT SAME** different encodation; BWIPP same encodation as example but uses mask 011 instead of 111",
-                    "111111101100101111111"
-                    "100000100100101000001"
+        /*124*/ { BARCODE_QRCODE, UNICODE_MODE, 170, 1, -1, 5 << 8, { 0, 0, "" }, "sn:7QPB4MN", -1, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 170 Example 1 **NOT SAME** different encodation; explicit mask 100 (auto 011) to match BWIPP",
+                    "111111101000101111111"
+                    "100000101101001000001"
+                    "101110101111101011101"
                     "101110101010101011101"
-                    "101110101001001011101"
-                    "101110101110001011101"
-                    "100000100000001000001"
+                    "101110100111101011101"
+                    "100000101010101000001"
                     "111111101010101111111"
-                    "000000000110000000000"
-                    "111100101010010011101"
-                    "100111011110101010100"
-                    "001010111010111001011"
-                    "010110010100100010011"
-                    "111011100011010010001"
-                    "000000001011011110000"
-                    "111111100100011111111"
-                    "100000100010110100100"
-                    "101110100101110100101"
-                    "101110101100101011010"
-                    "101110101100000100001"
-                    "100000101000110010110"
-                    "111111101011100010100"
+                    "000000000000000000000"
+                    "110011100000100101111"
+                    "111011000010110110111"
+                    "000100110100110111010"
+                    "000011000001110111001"
+                    "100111111111001110010"
+                    "000000001010101111110"
+                    "111111100001001010101"
+                    "100000101001010111000"
+                    "101110101100000101011"
+                    "101110100110000001111"
+                    "101110100111100111101"
+                    "100000101110111100111"
+                    "111111101001001000001"
                 },
-        /*123*/ { BARCODE_QRCODE, DATA_MODE, 899, 1, -1, -1, { 0, 0, "" }, "\000\001\002\133\134\135\375\376\377", 9, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 899 Example 1",
+        /*125*/ { BARCODE_QRCODE, DATA_MODE, 899, 1, -1, -1, { 0, 0, "" }, "\000\001\002\133\134\135\375\376\377", 9, 0, 21, 21, 1, "AIM ITS/04-023:2022 ECI 899 Example 1",
                     "111111101111101111111"
                     "100000101101101000001"
                     "101110100111001011101"
@@ -3910,24 +4205,69 @@ static void test_qr_encode(int index, int generate, int debug) {
                     "100000101111111000011"
                     "111111101000010110101"
                 },
+        /*126*/ { BARCODE_QRCODE, UNICODE_MODE, -1, -1, -1, -1, { 0, 0, "" }, "ABCDEFGHI", 9, 0, 21, 21, 0, "Automatic mask 011; BWIPP uses mask 111",
+                    "111111100000001111111"
+                    "100000100111101000001"
+                    "101110100000001011101"
+                    "101110100110001011101"
+                    "101110101100101011101"
+                    "100000100011001000001"
+                    "111111101010101111111"
+                    "000000001101100000000"
+                    "001100111101111010000"
+                    "100111011101100101110"
+                    "010011111000101001010"
+                    "110100001001011011010"
+                    "011101110001100101111"
+                    "000000001011110001011"
+                    "111111101100111110111"
+                    "100000100100101110000"
+                    "101110100111101011111"
+                    "101110101111110010010"
+                    "101110101000100101100"
+                    "100000100001111110000"
+                    "111111100101000111010"
+                },
+        /*127*/ { BARCODE_QRCODE, UNICODE_MODE | FAST_MODE, -1, -1, -1, -1, { 0, 0, "" }, "ABCDEFGHI", 9, 0, 21, 21, 0, "Fast automatic mask 010; BWIPP uses mask 111",
+                    "111111101000001111111"
+                    "100000101010001000001"
+                    "101110101110101011101"
+                    "101110100110001011101"
+                    "101110100001001011101"
+                    "100000101101101000001"
+                    "111111101010101111111"
+                    "000000001000000000000"
+                    "001110101011011100111"
+                    "100111011101100101110"
+                    "111110110101000100111"
+                    "000010011111101101100"
+                    "011101110001100101111"
+                    "000000001110011100110"
+                    "111111100010001000001"
+                    "100000100100101110000"
+                    "101110101010000110010"
+                    "101110101001000100100"
+                    "101110101000100101100"
+                    "100000100100010011101"
+                    "111111100011110001100"
+                },
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char escaped[4096];
     char cmp_buf[32768];
     char cmp_msg[1024];
 
-    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); // Only do BWIPP test if asked, too slow otherwise
-    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); // Only do ZXing-C++ test if asked, too slow otherwise
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
 
-    testStart("test_qr_encode");
+    testStartSymbol("test_qr_encode", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
-        if ((debug & ZINT_DEBUG_TEST_PRINT) && !(debug & ZINT_DEBUG_TEST_LESS_NOISY)) printf("i:%d\n", i);
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -3942,10 +4282,10 @@ static void test_qr_encode(int index, int generate, int debug) {
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
-        if (generate) {
+        if (p_ctx->generate) {
             printf("        /*%3d*/ { %s, %s, %d, %d, %d, %s, { %d, %d, \"%s\" }, \"%s\", %d, %s, %d, %d, %d, \"%s\",\n",
                     i, testUtilBarcodeName(data[i].symbology), testUtilInputModeName(data[i].input_mode),
-                    data[i].eci, data[i].option_1, data[i].option_2, testUtilOption3Name(data[i].option_3),
+                    data[i].eci, data[i].option_1, data[i].option_2, testUtilOption3Name(data[i].symbology, data[i].option_3),
                     data[i].structapp.index, data[i].structapp.count, data[i].structapp.id,
                     testUtilEscape(data[i].data, length, escaped, sizeof(escaped)), data[i].length, testUtilErrorName(data[i].ret),
                     symbol->rows, symbol->width, data[i].bwipp_cmp, data[i].comment);
@@ -3992,7 +4332,8 @@ static void test_qr_encode(int index, int generate, int debug) {
     testFinish();
 }
 
-static void test_qr_encode_segs(int index, int generate, int debug) {
+static void test_qr_encode_segs(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int symbology;
@@ -4234,21 +4575,20 @@ static void test_qr_encode_segs(int index, int generate, int debug) {
     };
     int data_size = ARRAY_SIZE(data);
     int i, j, seg_count, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char escaped[4096];
     char cmp_buf[32768];
     char cmp_msg[1024];
 
-    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); // Only do BWIPP test if asked, too slow otherwise
-    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); // Only do ZXing-C++ test if asked, too slow otherwise
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
 
-    testStart("test_qr_encode_segs");
+    testStartSymbol("test_qr_encode_segs", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
-        if ((debug & ZINT_DEBUG_TEST_PRINT) && !(debug & ZINT_DEBUG_TEST_LESS_NOISY)) printf("i:%d\n", i);
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -4264,7 +4604,7 @@ static void test_qr_encode_segs(int index, int generate, int debug) {
         ret = ZBarcode_Encode_Segs(symbol, data[i].segs, seg_count);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode_Segs ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
-        if (generate) {
+        if (p_ctx->generate) {
             char escaped1[4096];
             char escaped2[4096];
             int length = data[i].segs[0].length == -1 ? (int) ustrlen(data[i].segs[0].source) : data[i].segs[0].length;
@@ -4272,7 +4612,7 @@ static void test_qr_encode_segs(int index, int generate, int debug) {
             int length2 = data[i].segs[2].length == -1 ? (int) ustrlen(data[i].segs[2].source) : data[i].segs[2].length;
             printf("        /*%3d*/ { %s, %s, %d, %d, %s, { %d, %d, \"%s\" }, { { TU(\"%s\"), %d, %d }, { TU(\"%s\"), %d, %d }, { TU(\"%s\"), %d, %d } }, %s, %d, %d, %d, \"%s\",\n",
                     i, testUtilBarcodeName(data[i].symbology), testUtilInputModeName(data[i].input_mode),
-                    data[i].option_1, data[i].option_2, testUtilOption3Name(data[i].option_3),
+                    data[i].option_1, data[i].option_2, testUtilOption3Name(data[i].symbology, data[i].option_3),
                     data[i].structapp.index, data[i].structapp.count, data[i].structapp.id,
                     testUtilEscape((const char *) data[i].segs[0].source, length, escaped, sizeof(escaped)), data[i].segs[0].length, data[i].segs[0].eci,
                     testUtilEscape((const char *) data[i].segs[1].source, length1, escaped1, sizeof(escaped1)), data[i].segs[1].length, data[i].segs[1].eci,
@@ -4335,10 +4675,13 @@ static void test_qr_encode_segs(int index, int generate, int debug) {
 
 #include <time.h>
 
-#define TEST_PERF_ITERATIONS    1000
+#define TEST_PERF_ITER_MILLES   5
+#define TEST_PERF_ITERATIONS    (TEST_PERF_ITER_MILLES * 1000)
+#define TEST_PERF_TIME(arg)     (((arg) * 1000.0) / CLOCKS_PER_SEC)
 
-// Not a real test, just performance indicator
-static void test_qr_perf(int index, int debug) {
+/* Not a real test, just performance indicator */
+static void test_qr_perf(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int symbology;
@@ -4353,39 +4696,126 @@ static void test_qr_perf(int index, int debug) {
         char *comment;
     };
     struct item data[] = {
-        /*  0*/ { BARCODE_QRCODE, UNICODE_MODE, -1, -1,
+        /*  0*/ { BARCODE_QRCODE, UNICODE_MODE, -1, -1, "12345678901234", 0, 21, 21, "14 chars, Numeric mode" },
+        /*  1*/ { BARCODE_QRCODE, UNICODE_MODE, -1, -1, "ABC 123 ABC 123 ABCD", 0, 21, 21, "20 chars, Alphanumeric" },
+        /*  2*/ { BARCODE_QRCODE, UNICODE_MODE, -1, -1, "ABCde fG H 123456 IJKlmn, 1234567890 opQ Rst uvwxyz. 1234", 0, 29, 29, "57 chars, Alphanumeric" },
+        /*  3*/ { BARCODE_QRCODE, UNICODE_MODE, -1, -1,
                     "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点",
-                    0, 37, 37, "107 chars, Mixed modes" },
-        /*  1*/ { BARCODE_QRCODE, UNICODE_MODE, -1, -1,
-                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
-                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
-                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
-                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
-                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
-                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
-                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    ZINT_WARN_NONCOMPLIANT, 37, 37, "107 chars, Mixed modes" },
+        /*  4*/ { BARCODE_QRCODE, UNICODE_MODE, -1, -1,
                     "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
                     "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点",
-                    0, 105, 105, "963 chars, Mixed modes" },
+                    ZINT_WARN_NONCOMPLIANT, 53, 53, "214 chars, Mixed modes" },
+        /*  5*/ { BARCODE_QRCODE, UNICODE_MODE, -1, -1,
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点",
+                    ZINT_WARN_NONCOMPLIANT, 73, 73, "428 chars, Mixed modes" },
+        /*  6*/ { BARCODE_QRCODE, UNICODE_MODE, -1, -1,
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点",
+                    ZINT_WARN_NONCOMPLIANT, 105, 105, "963 chars, Mixed modes" },
+        /*  7*/ { BARCODE_QRCODE, UNICODE_MODE, -1, -1,
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 12345678901234567890123456 点点点点点点点点点点点点点点点点点点点点点点点点点点",
+                    ZINT_WARN_NONCOMPLIANT, 133, 133, "1498 chars, Mixed modes" },
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
+    struct zint_symbol *symbol;
 
-    clock_t start, total_encode = 0, total_buffer = 0, diff_encode, diff_buffer;
+    clock_t start;
+    clock_t total_create = 0, total_encode = 0, total_buffer = 0;
+    clock_t diff_create, diff_encode, diff_buffer;
+    int comment_max = 0;
 
     if (!(debug & ZINT_DEBUG_TEST_PERFORMANCE)) { /* -d 256 */
         return;
     }
 
+    for (i = 0; i < data_size; i++) if ((int) strlen(data[i].comment) > comment_max) comment_max = (int) strlen(data[i].comment);
+
+    printf("Iterations %d\n", TEST_PERF_ITERATIONS);
+
+    printf("FAST_MODE\n");
     for (i = 0; i < data_size; i++) {
         int j;
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
-        diff_encode = diff_buffer = 0;
+        diff_create = diff_encode = diff_buffer = 0;
 
         for (j = 0; j < TEST_PERF_ITERATIONS; j++) {
-            struct zint_symbol *symbol = ZBarcode_Create();
+            int input_mode = data[i].input_mode == -1 ? FAST_MODE : (data[i].input_mode | FAST_MODE);
+            start = clock();
+            symbol = ZBarcode_Create();
+            diff_create += clock() - start;
+            assert_nonnull(symbol, "Symbol not created\n");
+
+            length = testUtilSetSymbol(symbol, data[i].symbology, input_mode, -1 /*eci*/, data[i].option_1, data[i].option_2, -1, -1 /*output_options*/, data[i].data, -1, debug);
+
+            start = clock();
+            ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
+            diff_encode += clock() - start;
+            assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
+
+            #if 0
+            assert_equal(symbol->rows, data[i].expected_rows, "i:%d symbol->rows %d != %d (%s)\n", i, symbol->rows, data[i].expected_rows, data[i].data);
+            assert_equal(symbol->width, data[i].expected_width, "i:%d symbol->width %d != %d (%s)\n", i, symbol->width, data[i].expected_width, data[i].data);
+            #endif
+
+            start = clock();
+            ret = ZBarcode_Buffer(symbol, 0 /*rotate_angle*/);
+            diff_buffer += clock() - start;
+            assert_zero(ret, "i:%d ZBarcode_Buffer ret %d != 0 (%s)\n", i, ret, symbol->errtxt);
+
+            ZBarcode_Delete(symbol);
+        }
+
+        printf("%*s: encode % 8gms, buffer % 8gms, create % 8gms\n", comment_max, data[i].comment,
+                TEST_PERF_TIME(diff_encode), TEST_PERF_TIME(diff_buffer), TEST_PERF_TIME(diff_create));
+
+        total_create += diff_create;
+        total_encode += diff_encode;
+        total_buffer += diff_buffer;
+    }
+    if (p_ctx->index != -1) {
+        printf("%*s: encode % 8gms, buffer % 8gms, create % 8gms\n", comment_max, "totals",
+                TEST_PERF_TIME(total_encode), TEST_PERF_TIME(total_buffer), TEST_PERF_TIME(total_create));
+    }
+
+    printf("OPTIMIZED\n");
+    for (i = 0; i < data_size; i++) {
+        int j;
+
+        if (testContinue(p_ctx, i)) continue;
+
+        diff_create = diff_encode = diff_buffer = 0;
+
+        for (j = 0; j < TEST_PERF_ITERATIONS; j++) {
+            start = clock();
+            symbol = ZBarcode_Create();
+            diff_create += clock() - start;
             assert_nonnull(symbol, "Symbol not created\n");
 
             length = testUtilSetSymbol(symbol, data[i].symbology, data[i].input_mode, -1 /*eci*/, data[i].option_1, data[i].option_2, -1, -1 /*output_options*/, data[i].data, -1, debug);
@@ -4406,17 +4836,21 @@ static void test_qr_perf(int index, int debug) {
             ZBarcode_Delete(symbol);
         }
 
-        printf("%s: diff_encode %gms, diff_buffer %gms\n", data[i].comment, diff_encode * 1000.0 / CLOCKS_PER_SEC, diff_buffer * 1000.0 / CLOCKS_PER_SEC);
+        printf("%*s: encode % 8gms, buffer % 8gms, create % 8gms\n", comment_max, data[i].comment,
+                TEST_PERF_TIME(diff_encode), TEST_PERF_TIME(diff_buffer), TEST_PERF_TIME(diff_create));
 
+        total_create += diff_create;
         total_encode += diff_encode;
         total_buffer += diff_buffer;
     }
-    if (index != -1) {
-        printf("totals: encode %gms, buffer %gms\n", total_encode * 1000.0 / CLOCKS_PER_SEC, total_buffer * 1000.0 / CLOCKS_PER_SEC);
+    if (p_ctx->index != -1) {
+        printf("%*s: encode % 8gms, buffer % 8gms, create % 8gms\n", comment_max, "totals",
+                TEST_PERF_TIME(total_encode), TEST_PERF_TIME(total_buffer), TEST_PERF_TIME(total_create));
     }
 }
 
-static void test_microqr_options(int index, int debug) {
+static void test_microqr_options(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int option_1;
@@ -4427,83 +4861,83 @@ static void test_microqr_options(int index, int debug) {
         int expected_size;
         int compare_previous;
     };
-    // s/\/\*[ 0-9]*\*\//\=printf("\/*%3d*\/", line(".") - line("'<"))
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
     struct item data[] = {
-        /*  0*/ { -1, -1, "12345", 0, 0, 11, -1 }, // ECC auto-set to 1 (L), version auto-set to 1
-        /*  1*/ { 1, -1, "12345", 0, 0, 11, 0 }, // ECC 1 (L), version auto-set to 1
-        /*  2*/ { 2, -1, "12345", 0, 0, 13, 1 }, // ECC 2 (M), version auto-set to 2
-        /*  3*/ { 3, -1, "12345", 0, 0, 17, 1 }, // ECC 3 (Q), version auto-set to 3
+        /*  0*/ { -1, -1, "12345", 0, 0, 11, -1 }, /* ECC auto-set to 1 (L), version auto-set to 1 */
+        /*  1*/ { 1, -1, "12345", 0, 0, 11, 0 }, /* ECC 1 (L), version auto-set to 1 */
+        /*  2*/ { 2, -1, "12345", 0, 0, 13, 1 }, /* ECC 2 (M), version auto-set to 2 */
+        /*  3*/ { 3, -1, "12345", 0, 0, 17, 1 }, /* ECC 3 (Q), version auto-set to 3 */
         /*  4*/ { 4, -1, "12345", ZINT_ERROR_INVALID_OPTION, -1, 0, -1 },
-        /*  5*/ { -1, 1, "12345", 0, 0, 11, -1 }, // ECC auto-set to 1, version 1
-        /*  6*/ { -1, 2, "12345", 0, 0, 13, 1 }, // ECC auto-set to 2, version 2
+        /*  5*/ { -1, 1, "12345", 0, 0, 11, -1 }, /* ECC auto-set to 1, version 1 */
+        /*  6*/ { -1, 2, "12345", 0, 0, 13, 1 }, /* ECC auto-set to 2, version 2 */
         /*  7*/ { 2, 2, "12345", 0, 0, 13, 0 },
-        /*  8*/ { -1, 3, "12345", 0, 0, 15, 1 }, // ECC auto-set to 2, version 3
+        /*  8*/ { -1, 3, "12345", 0, 0, 15, 1 }, /* ECC auto-set to 2, version 3 */
         /*  9*/ { 2, 3, "12345", 0, 0, 15, 0 },
         /* 10*/ { 1, 3, "12345", 0, 0, 15, 1 },
-        /* 11*/ { -1, 4, "12345", 0, 0, 17, 1 }, // ECC auto-set to 3, version 4
-        /* 12*/ { 3, 4, "12345", 0, 0, 17, 0 }, // ECC auto-set to 3, version 4
+        /* 11*/ { -1, 4, "12345", 0, 0, 17, 1 }, /* ECC auto-set to 3, version 4 */
+        /* 12*/ { 3, 4, "12345", 0, 0, 17, 0 }, /* ECC auto-set to 3, version 4 */
         /* 13*/ { 2, 4, "12345", 0, 0, 17, 1 },
-        /* 14*/ { -1, 5, "12345", 0, 0, 11, -1 }, // Size > 4 ignored
-        /* 15*/ { 1, 5, "12345", 0, 0, 11, 0 }, // Ignored also if ECC given
-        /* 16*/ { 1, 1, "12345", 0, 0, 11, 0 }, // ECC 1, version 1
-        /* 17*/ { 1, 2, "12345", 0, 0, 13, 1 }, // ECC 1, version 2
-        /* 18*/ { 1, 3, "12345", 0, 0, 15, 1 }, // ECC 1, version 3
-        /* 19*/ { 1, 4, "12345", 0, 0, 17, 1 }, // ECC 1, version 4
+        /* 14*/ { -1, 5, "12345", 0, 0, 11, -1 }, /* Size > 4 ignored */
+        /* 15*/ { 1, 5, "12345", 0, 0, 11, 0 }, /* Ignored also if ECC given */
+        /* 16*/ { 1, 1, "12345", 0, 0, 11, 0 }, /* ECC 1, version 1 */
+        /* 17*/ { 1, 2, "12345", 0, 0, 13, 1 }, /* ECC 1, version 2 */
+        /* 18*/ { 1, 3, "12345", 0, 0, 15, 1 }, /* ECC 1, version 3 */
+        /* 19*/ { 1, 4, "12345", 0, 0, 17, 1 }, /* ECC 1, version 4 */
         /* 20*/ { 2, 1, "12345", ZINT_ERROR_INVALID_OPTION, -1, 0, -1 },
-        /* 21*/ { 2, 2, "12345", 0, -1, 13, -1 }, // ECC 2, version 2
-        /* 22*/ { 2, 3, "12345", 0, -1, 15, 1 }, // ECC 2, version 3
-        /* 23*/ { 2, 4, "12345", 0, -1, 17, 1 }, // ECC 2, version 4
+        /* 21*/ { 2, 2, "12345", 0, -1, 13, -1 }, /* ECC 2, version 2 */
+        /* 22*/ { 2, 3, "12345", 0, -1, 15, 1 }, /* ECC 2, version 3 */
+        /* 23*/ { 2, 4, "12345", 0, -1, 17, 1 }, /* ECC 2, version 4 */
         /* 24*/ { 3, 1, "12345", ZINT_ERROR_INVALID_OPTION, -1, 0, -1 },
         /* 25*/ { 3, 2, "12345", ZINT_ERROR_INVALID_OPTION, -1, 0, -1 },
         /* 26*/ { 3, 3, "12345", ZINT_ERROR_INVALID_OPTION, -1, 0, -1 },
-        /* 27*/ { 3, 4, "12345", 0, -1, 17, -1 }, // ECC 3, version 4
+        /* 27*/ { 3, 4, "12345", 0, -1, 17, -1 }, /* ECC 3, version 4 */
         /* 28*/ { 4, 4, "12345", ZINT_ERROR_INVALID_OPTION, -1, 0, -1 },
-        /* 29*/ { 5, -1, "12345", 0, 0, 11, -1 }, // ECC > 4 ignored
-        /* 30*/ { 5, 1, "12345", 0, 0, 11, 0 }, // Ignored also if size given
+        /* 29*/ { 5, -1, "12345", 0, 0, 11, -1 }, /* ECC > 4 ignored */
+        /* 30*/ { 5, 1, "12345", 0, 0, 11, 0 }, /* Ignored also if size given */
         /* 31*/ { 1, 1, "123456", ZINT_ERROR_TOO_LONG, -1, 0, -1 },
-        /* 32*/ { 1, -1, "123456", 0, 0, 13, -1 }, // ECC 1 (L), version auto-set to 2
+        /* 32*/ { 1, -1, "123456", 0, 0, 13, -1 }, /* ECC 1 (L), version auto-set to 2 */
         /* 33*/ { 1, 2, "123456", 0, 0, 13, 0 },
         /* 34*/ { 2, 2, "ABCDEF", ZINT_ERROR_TOO_LONG, -1, 0, -1 },
-        /* 35*/ { 1, -1, "ABCDEF", 0, 0, 13, -1 }, // ECC 1 (L), version auto-set to 2
+        /* 35*/ { 1, -1, "ABCDEF", 0, 0, 13, -1 }, /* ECC 1 (L), version auto-set to 2 */
         /* 36*/ { 1, 2, "ABCDEF", 0, 0, 13, 0 },
-        /* 37*/ { 2, -1, "ABCDE", 0, 0, 13, -1 }, // ECC 2 (M), version auto-set to 2
-        /* 38*/ { 2, 2, "ABCDE", 0, 0, 13, 0 }, // ECC 2 (M), version auto-set to 2
-        /* 39*/ { 1, -1, "ABCDEABCDEABCD", 0, 0, 15, -1 }, // 14 alphanumerics, ECC 1, version auto-set to 3
+        /* 37*/ { 2, -1, "ABCDE", 0, 0, 13, -1 }, /* ECC 2 (M), version auto-set to 2 */
+        /* 38*/ { 2, 2, "ABCDE", 0, 0, 13, 0 }, /* ECC 2 (M), version auto-set to 2 */
+        /* 39*/ { 1, -1, "ABCDEABCDEABCD", 0, 0, 15, -1 }, /* 14 alphanumerics, ECC 1, version auto-set to 3 */
         /* 40*/ { 1, 3, "ABCDEABCDEABCD", 0, 0, 15, 0 },
         /* 41*/ { 2, 3, "ABCDEABCDEABCD", ZINT_ERROR_TOO_LONG, -1, 0, -1 },
-        /* 42*/ { 2, 3, "ABCDEABCDEA", 0, 0, 15, -1 }, // 11 alphanumerics, ECC 2, version 3
-        /* 43*/ { 1, -1, "ABCDEFGHIJABCDEFGHIJA", 0, 0, 17, -1 }, // 21 alphanumerics, ECC 1, version auto-set to 4
+        /* 42*/ { 2, 3, "ABCDEABCDEA", 0, 0, 15, -1 }, /* 11 alphanumerics, ECC 2, version 3 */
+        /* 43*/ { 1, -1, "ABCDEFGHIJABCDEFGHIJA", 0, 0, 17, -1 }, /* 21 alphanumerics, ECC 1, version auto-set to 4 */
         /* 44*/ { 1, 4, "ABCDEFGHIJABCDEFGHIJA", 0, 0, 17, 0 },
         /* 45*/ { 2, 4, "ABCDEFGHIJABCDEFGHIJA", ZINT_ERROR_TOO_LONG, -1, 0, -1 },
-        /* 46*/ { 2, 4, "ABCDEFGHIJABCDEFGH", 0, 0, 17, -1 }, // 18 alphanumerics, ECC 2, version 4
+        /* 46*/ { 2, 4, "ABCDEFGHIJABCDEFGH", 0, 0, 17, -1 }, /* 18 alphanumerics, ECC 2, version 4 */
         /* 47*/ { 3, 4, "ABCDEFGHIJABCDEFGH", ZINT_ERROR_TOO_LONG, -1, 0, -1 },
-        /* 48*/ { 3, 4, "ABCDEFGHIJABC", 0, 0, 17, -1 }, // 13 alphanumerics, ECC 3 (Q), version 4
-        /* 49*/ { -1, -1, "123456789012345678901234567890123456", ZINT_ERROR_TOO_LONG, -1, 0, -1 }, // 35 absolute max
-        /* 50*/ { -1, -1, "貫貫貫貫貫", 0, 0, 17, -1 }, // 5 Kanji max
+        /* 48*/ { 3, 4, "ABCDEFGHIJABC", 0, 0, 17, -1 }, /* 13 alphanumerics, ECC 3 (Q), version 4 */
+        /* 49*/ { -1, -1, "123456789012345678901234567890123456", ZINT_ERROR_TOO_LONG, -1, 0, -1 }, /* 35 absolute max */
+        /* 50*/ { -1, -1, "貫貫貫貫貫", 0, 0, 17, -1 }, /* 5 Kanji max */
         /* 51*/ { -1, -1, "貫貫貫貫貫貫", ZINT_ERROR_TOO_LONG, -1, 0, -1 },
-        /* 52*/ { -1, 1, "A", ZINT_ERROR_INVALID_DATA, -1, 0, -1 }, // Numeric only
+        /* 52*/ { -1, 1, "A", ZINT_ERROR_INVALID_DATA, -1, 0, -1 }, /* Numeric only */
         /* 53*/ { -1, 2, "A", 0, 0, 13, -1 },
         /* 54*/ { -1, 2, " ", 0, 0, 13, -1 },
         /* 55*/ { -1, 2, "$%*+", 0, 0, 13, -1 },
         /* 56*/ { -1, 2, "-./:", 0, 0, 13, -1 },
-        /* 57*/ { -1, 2, "a", ZINT_ERROR_INVALID_DATA, -1, 0, -1 }, // Uppercase only
-        /* 58*/ { -1, 2, "!", ZINT_ERROR_INVALID_DATA, -1, 0, -1 }, // Certain punctuation only
-        /* 59*/ { -1, 2, "#", ZINT_ERROR_INVALID_DATA, -1, 0, -1 }, // Certain punctuation only
-        /* 60*/ { -1, 2, ",", ZINT_ERROR_INVALID_DATA, -1, 0, -1 }, // Certain punctuation only
-        /* 61*/ { -1, 2, "@", ZINT_ERROR_INVALID_DATA, -1, 0, -1 }, // Certain punctuation only
+        /* 57*/ { -1, 2, "a", ZINT_ERROR_INVALID_DATA, -1, 0, -1 }, /* Uppercase only */
+        /* 58*/ { -1, 2, "!", ZINT_ERROR_INVALID_DATA, -1, 0, -1 }, /* Certain punctuation only */
+        /* 59*/ { -1, 2, "#", ZINT_ERROR_INVALID_DATA, -1, 0, -1 }, /* Certain punctuation only */
+        /* 60*/ { -1, 2, ",", ZINT_ERROR_INVALID_DATA, -1, 0, -1 }, /* Certain punctuation only */
+        /* 61*/ { -1, 2, "@", ZINT_ERROR_INVALID_DATA, -1, 0, -1 }, /* Certain punctuation only */
         /* 62*/ { -1, 2, "\177", ZINT_ERROR_INVALID_DATA, -1, 0, -1 },
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     struct zint_symbol previous_symbol;
 
-    testStart("test_microqr_options");
+    testStartSymbol("test_microqr_options", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -4512,7 +4946,7 @@ static void test_microqr_options(int index, int debug) {
 
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret_encode, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret_encode, symbol->errtxt);
-        if (index == -1 && data[i].compare_previous != -1) {
+        if (p_ctx->index == -1 && data[i].compare_previous != -1) {
             ret = testUtilSymbolCmp(symbol, &previous_symbol);
             assert_equal(!ret, !data[i].compare_previous, "i:%d testUtilSymbolCmp !ret %d != %d\n", i, ret, data[i].compare_previous);
         }
@@ -4531,7 +4965,8 @@ static void test_microqr_options(int index, int debug) {
     testFinish();
 }
 
-static void test_microqr_input(int index, int generate, int debug) {
+static void test_microqr_input(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int input_mode;
@@ -4544,19 +4979,19 @@ static void test_microqr_input(int index, int generate, int debug) {
         int zxingcpp_cmp;
         char *comment;
     };
-    // é U+00E9 in ISO 8859-1 plus other ISO 8859 (but not in ISO 8859-7 or ISO 8859-11), Win 1250 plus other Win, not in Shift JIS, UTF-8 C3A9
-    // β U+03B2 in ISO 8859-7 Greek (but not other ISO 8859 or Win page), in Shift JIS 0x83C0, UTF-8 CEB2
-    // ก U+0E01 in ISO 8859-11 Thai (but not other ISO 8859 or Win page), not in Shift JIS, UTF-8 E0B881
-    // Ж U+0416 in ISO 8859-5 Cyrillic (but not other ISO 8859), Win 1251, in Shift JIS 0x8447 (\204\107), UTF-8 D096
-    // ກ U+0E81 Lao not in any ISO 8859 (or Win page) or Shift JIS, UTF-8 E0BA81
-    // ¥ U+00A5 in ISO 8859-1 0xA5 (\245), in Shift JIS single-byte 0x5C (\134) (backslash); 0xA5 same codepoint as single-byte half-width katakana ･ (U+FF65) in Shift JIS (below), UTF-8 C2A5
-    // ･ U+FF65 half-width katakana, not in ISO/Win, in Shift JIS single-byte 0xA5 (\245), UTF-8 EFBDA5
-    // ¿ U+00BF in ISO 8859-1 0xBF (\277), not in Shift JIS; 0xBF same codepoint as single-byte half-width katakana ｿ (U+FF7F) in Shift JIS (below), UTF-8 C2BF
-    // ｿ U+FF7F half-width katakana, not in ISO/Win, in Shift JIS single-byte 0xBF (\277), UTF-8 EFBDBF
-    // ‾ U+203E overline, not in ISO/Win, in Shift JIS single-byte 0x7E (\176) (tilde), UTF-8 E280BE
-    // 点 U+70B9 kanji, in Shift JIS 0x935F (\223\137), UTF-8 E782B9
-    // 茗 U+8317 kanji, in Shift JIS 0xE4AA (\344\252), UTF-8 E88C97
-    // Á U+00C1, UTF-8 C381; ȁ U+0201, UTF-8 C881; Ȃ U+0202, UTF-8 C882; ¢ U+00A2, UTF-8 C2A2; á U+00E1, UTF-8 C3A1
+    /* é U+00E9 in ISO 8859-1 plus other ISO 8859 (but not in ISO 8859-7 or ISO 8859-11), Win 1250 plus other Win, not in Shift JIS, UTF-8 C3A9 */
+    /* β U+03B2 in ISO 8859-7 Greek (but not other ISO 8859 or Win page), in Shift JIS 0x83C0, UTF-8 CEB2 */
+    /* ก U+0E01 in ISO 8859-11 Thai (but not other ISO 8859 or Win page), not in Shift JIS, UTF-8 E0B881 */
+    /* Ж U+0416 in ISO 8859-5 Cyrillic (but not other ISO 8859), Win 1251, in Shift JIS 0x8447 (\204\107), UTF-8 D096 */
+    /* ກ U+0E81 Lao not in any ISO 8859 (or Win page) or Shift JIS, UTF-8 E0BA81 */
+    /* ¥ U+00A5 in ISO 8859-1 0xA5 (\245), in Shift JIS single-byte 0x5C (\134) (backslash); 0xA5 same codepoint as single-byte half-width katakana ･ (U+FF65) in Shift JIS (below), UTF-8 C2A5 */
+    /* ･ U+FF65 half-width katakana, not in ISO/Win, in Shift JIS single-byte 0xA5 (\245), UTF-8 EFBDA5 */
+    /* ¿ U+00BF in ISO 8859-1 0xBF (\277), not in Shift JIS; 0xBF same codepoint as single-byte half-width katakana ｿ (U+FF7F) in Shift JIS (below), UTF-8 C2BF */
+    /* ｿ U+FF7F half-width katakana, not in ISO/Win, in Shift JIS single-byte 0xBF (\277), UTF-8 EFBDBF */
+    /* ‾ U+203E overline, not in ISO/Win, in Shift JIS single-byte 0x7E (\176) (tilde), UTF-8 E280BE */
+    /* 点 U+70B9 kanji, in Shift JIS 0x935F (\223\137), UTF-8 E782B9 */
+    /* 茗 U+8317 kanji, in Shift JIS 0xE4AA (\344\252), UTF-8 E88C97 */
+    /* Á U+00C1, UTF-8 C381; ȁ U+0201, UTF-8 C881; Ȃ U+0202, UTF-8 C882; ¢ U+00A2, UTF-8 C2A2; á U+00E1, UTF-8 C3A1 */
     struct item data[] = {
         /*  0*/ { UNICODE_MODE, 2, 1, "é", 0, "87 A4 00 EC 11 EC 11 EC 00", 1, 1, "B1 (ISO 8859-1)" },
         /*  1*/ { DATA_MODE, 2, -1, "é", 0, "8B 0E A4 00 EC 11 EC 11 00", 1, 0, "B2 (UTF-8); ZXing-C++ test can't handle DATA_MODE for certain inputs" },
@@ -4594,7 +5029,7 @@ static void test_microqr_input(int index, int generate, int debug) {
         /* 33*/ { UNICODE_MODE, 2, -1, "¥点茗･", 0, "99 72 4D 7F 92 AA 94 00 00", 1, 0, "B6 (Shift JIS) (optimized from B1 K2 B1); ZXing-C++ doesn't map Shift JIS ASCII" },
         /* 34*/ { DATA_MODE, 2, -1, "\134\223\137\344\252\245", 0, "99 72 4D 7F 92 AA 94 00 00", 1, 0, "B6 (Shift JIS) (optimized from B1 K2 B1); ZXing-C++ test can't handle DATA_MODE for certain inputs" },
         /* 35*/ { DATA_MODE, 2, -1, "¥点茗･", 0, "4B C2 A5 E7 82 B9 E8 8C 97 EF BD A5 00 00", 1, 0, "B11 (UTF-8); ZXing-C++ doesn't map Shift JIS ASCII" },
-        /* 36*/ { DATA_MODE, 2, -1, "ÁȁȁȁȂ¢", 0, "4C C3 81 C8 81 C8 81 C8 81 C8 82 C2 A2 00", 0, 0, "B12 (UTF-8); BWIPP different encodation (B1 K5 B1); ZXing-C++ test can't handle DATA_MODE for certain inputs" },
+        /* 36*/ { DATA_MODE, 2, -1, "ÁȁȁȁȂ¢", 0, "4C C3 81 C8 81 C8 81 C8 81 C8 82 C2 A2 00", 1, 0, "B12 (UTF-8); ZXing-C++ test can't handle DATA_MODE for certain inputs" },
         /* 37*/ { DATA_MODE, 1, -1, "ÁȁȁȁȁȂ¢", 0, "4E C3 81 C8 81 C8 81 C8 81 C8 81 C8 82 C2 A2 00", 0, 0, "B14 (UTF-8); BWIPP uses Kanji (ZINT_FULL_MULTIBYTE) mode, see below); ZXing-C++ test can't handle DATA_MODE for certain inputs" },
         /* 38*/ { DATA_MODE, 1, ZINT_FULL_MULTIBYTE, "ÁȁȁȁȁȂ¢", 0, "41 C3 6C 08 80 44 02 20 11 00 88 0A 12 0D 10 00", 1, 1, "B1 K6 B1 (UTF-8) (full multibyte)" },
         /* 39*/ { UNICODE_MODE, 2, -1, "áA", 0, "8B 85 04 00 EC 11 EC 11 00", 0, 1, "B2 (ISO 8859-1); BWIPP uses Kanji (ZINT_FULL_MULTIBYTE) mode, see below)" },
@@ -4602,35 +5037,35 @@ static void test_microqr_input(int index, int generate, int debug) {
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char escaped[4096];
     char cmp_buf[32768];
     char cmp_msg[1024];
 
-    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); // Only do BWIPP test if asked, too slow otherwise
-    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); // Only do ZXing-C++ test if asked, too slow otherwise
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
 
-    testStart("test_microqr_input");
+    testStartSymbol("test_microqr_input", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
-        if ((debug & ZINT_DEBUG_TEST_PRINT) && !(debug & ZINT_DEBUG_TEST_LESS_NOISY)) printf("i:%d\n", i);
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
 
-        debug |= ZINT_DEBUG_TEST; // Needed to get codeword dump in errtxt
+        debug |= ZINT_DEBUG_TEST; /* Needed to get codeword dump in errtxt */
 
         length = testUtilSetSymbol(symbol, BARCODE_MICROQR, data[i].input_mode, -1 /*eci*/, -1 /*option_1*/, -1, data[i].option_3, -1 /*output_options*/, data[i].data, -1, debug);
 
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
-        if (generate) {
+        if (p_ctx->generate) {
             printf("        /*%3d*/ { %s, %d, %s, \"%s\", %s, \"%s\", %d, %d, \"%s\" },\n",
-                    i, testUtilInputModeName(data[i].input_mode), data[i].option_1, testUtilOption3Name(data[i].option_3),
+                    i, testUtilInputModeName(data[i].input_mode), data[i].option_1,
+                    testUtilOption3Name(BARCODE_MICROQR, data[i].option_3),
                     testUtilEscape(data[i].data, length, escaped, sizeof(escaped)),
                     testUtilErrorName(data[i].ret), symbol->errtxt, data[i].bwipp_cmp, data[i].zxingcpp_cmp, data[i].comment);
         } else {
@@ -4675,8 +5110,9 @@ static void test_microqr_input(int index, int generate, int debug) {
     testFinish();
 }
 
-// Check MICROQR padding (4-bit final codeword for M1 and M3 in particular)
-static void test_microqr_padding(int index, int generate, int debug) {
+/* Check MICROQR padding (4-bit final codeword for M1 and M3 in particular) */
+static void test_microqr_padding(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int option_1;
@@ -4724,20 +5160,20 @@ static void test_microqr_padding(int index, int generate, int debug) {
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char escaped[4096];
     char cmp_buf[32768];
     char cmp_msg[1024];
 
-    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); // Only do ZXing-C++ test if asked, too slow otherwise
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
 
-    testStart("test_microqr_padding");
+    testStartSymbol("test_microqr_padding", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
-        if ((debug & ZINT_DEBUG_TEST_PRINT) && !(debug & ZINT_DEBUG_TEST_LESS_NOISY)) printf("i:%d\n", i);
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -4747,7 +5183,7 @@ static void test_microqr_padding(int index, int generate, int debug) {
         if (data[i].option_1 != -1) {
             symbol->option_1 = data[i].option_1;
         }
-        symbol->debug = ZINT_DEBUG_TEST; // Needed to get codeword dump in errtxt
+        symbol->debug = ZINT_DEBUG_TEST; /* Needed to get codeword dump in errtxt */
         symbol->debug |= debug;
 
         length = (int) strlen(data[i].data);
@@ -4755,13 +5191,23 @@ static void test_microqr_padding(int index, int generate, int debug) {
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
-        if (generate) {
+        if (p_ctx->generate) {
             printf("        /*%3d*/ { %d, \"%s\", %s, \"%s\", \"%s\" },\n",
                     i, data[i].option_1, testUtilEscape(data[i].data, length, escaped, sizeof(escaped)),
                     testUtilErrorName(data[i].ret), symbol->errtxt, data[i].comment);
         } else {
             assert_zero(strcmp(symbol->errtxt, data[i].expected), "i:%d strcmp(%s, %s) != 0\n", i, symbol->errtxt, data[i].expected);
 
+            if (do_bwipp && testUtilCanBwipp(i, symbol, data[i].option_1, -1, -1, debug)) {
+                char modules_dump[17 * 17 + 1];
+                assert_notequal(testUtilModulesDump(symbol, modules_dump, sizeof(modules_dump)), -1, "i:%d testUtilModulesDump == -1\n", i);
+                ret = testUtilBwipp(i, symbol, data[i].option_1, -1, -1, data[i].data, length, NULL, cmp_buf, sizeof(cmp_buf), NULL);
+                assert_zero(ret, "i:%d %s testUtilBwipp ret %d != 0\n", i, testUtilBarcodeName(symbol->symbology), ret);
+
+                ret = testUtilBwippCmp(symbol, cmp_msg, cmp_buf, modules_dump);
+                assert_zero(ret, "i:%d %s testUtilBwippCmp %d != 0 %s\n  actual: %s\nexpected: %s\n",
+                               i, testUtilBarcodeName(symbol->symbology), ret, cmp_msg, cmp_buf, modules_dump);
+            }
             if (do_zxingcpp && testUtilCanZXingCPP(i, symbol, data[i].data, length, debug)) {
                 int cmp_len, ret_len;
                 char modules_dump[17 * 17 + 1];
@@ -4780,7 +5226,8 @@ static void test_microqr_padding(int index, int generate, int debug) {
     testFinish();
 }
 
-static void test_microqr_optimize(int index, int generate, int debug) {
+static void test_microqr_optimize(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int input_mode;
@@ -4811,34 +5258,35 @@ static void test_microqr_optimize(int index, int generate, int debug) {
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char escaped[4096];
     char cmp_buf[32768];
     char cmp_msg[1024];
 
-    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); // Only do BWIPP test if asked, too slow otherwise
-    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); // Only do ZXing-C++ test if asked, too slow otherwise
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
 
-    testStart("test_microqr_optimize");
+    testStartSymbol("test_microqr_optimize", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
 
-        debug |= ZINT_DEBUG_TEST; // Needed to get codeword dump in errtxt
+        debug |= ZINT_DEBUG_TEST; /* Needed to get codeword dump in errtxt */
 
         length = testUtilSetSymbol(symbol, BARCODE_MICROQR, data[i].input_mode, -1 /*eci*/, data[i].option_1, data[i].option_2, data[i].option_3, -1 /*output_options*/, data[i].data, -1, debug);
 
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
-        if (generate) {
+        if (p_ctx->generate) {
             printf("        /*%3d*/ { %s, %d, %d, %s, \"%s\", %s, \"%s\", %d, %d, \"%s\" },\n",
-                    i, testUtilInputModeName(data[i].input_mode), data[i].option_1, data[i].option_2, testUtilOption3Name(data[i].option_3),
+                    i, testUtilInputModeName(data[i].input_mode), data[i].option_1, data[i].option_2,
+                    testUtilOption3Name(BARCODE_MICROQR, data[i].option_3),
                     testUtilEscape(data[i].data, length, escaped, sizeof(escaped)),
                     testUtilErrorName(data[i].ret), symbol->errtxt, data[i].bwipp_cmp, data[i].zxingcpp_cmp, data[i].comment);
         } else {
@@ -4881,7 +5329,8 @@ static void test_microqr_optimize(int index, int generate, int debug) {
     testFinish();
 }
 
-static void test_microqr_encode(int index, int generate, int debug) {
+static void test_microqr_encode(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int input_mode;
@@ -5175,23 +5624,689 @@ static void test_microqr_encode(int index, int generate, int debug) {
                     "00011110011010001"
                     "11101010111111111"
                 },
+        /* 17*/ { UNICODE_MODE, 1, 2, -1, "1ABCDE", 0, 13, 13, 1, "M2-L numeric/alpha mix",
+                    "1111111010101"
+                    "1000001011100"
+                    "1011101000101"
+                    "1011101001101"
+                    "1011101010111"
+                    "1000001010100"
+                    "1111111000001"
+                    "0000000001011"
+                    "1101000010011"
+                    "0001000110001"
+                    "1111101011010"
+                    "0010101010111"
+                    "1111101111110"
+                },
+        /* 18*/ { UNICODE_MODE, 1, 2, -1, "ABCDE1", 0, 13, 13, 1, "M2-L numeric/alpha mix",
+                    "1111111010101"
+                    "1000001010111"
+                    "1011101011110"
+                    "1011101011010"
+                    "1011101001100"
+                    "1000001011101"
+                    "1111111011000"
+                    "0000000011000"
+                    "1101101010110"
+                    "0000100110001"
+                    "1111011100101"
+                    "0101110111101"
+                    "1110011101110"
+                },
+        /* 19*/ { UNICODE_MODE, 1, 2, -1, "12ABCD", 0, 13, 13, 1, "M2-L numeric/alpha mix",
+                    "1111111010101"
+                    "1000001001011"
+                    "1011101010111"
+                    "1011101010011"
+                    "1011101010101"
+                    "1000001001001"
+                    "1111111011100"
+                    "0000000000110"
+                    "1101010111101"
+                    "0001111001000"
+                    "1011011110011"
+                    "0010110100001"
+                    "1110110110100"
+                },
+        /* 20*/ { UNICODE_MODE, 1, 2, -1, "ABCD12", 0, 13, 13, 1, "M2-L numeric/alpha mix",
+                    "1111111010101"
+                    "1000001001001"
+                    "1011101011110"
+                    "1011101010000"
+                    "1011101010110"
+                    "1000001001001"
+                    "1111111010010"
+                    "0000000000110"
+                    "1101010111110"
+                    "0111000001111"
+                    "1111100101111"
+                    "0101111000101"
+                    "1101101001100"
+                },
+        /* 21*/ { UNICODE_MODE, 1, 2, -1, "123ABC", 0, 13, 13, 1, "M2-L numeric/alpha mix",
+                    "1111111010101"
+                    "1000001000011"
+                    "1011101010001"
+                    "1011101011001"
+                    "1011101011101"
+                    "1000001001111"
+                    "1111111011101"
+                    "0000000000011"
+                    "1101010111100"
+                    "0000111100000"
+                    "1010000100110"
+                    "0100000001110"
+                    "1011111101011"
+                },
+        /* 22*/ { UNICODE_MODE, 1, 2, -1, "1234ABC", 0, 13, 13, 1, "M2-L numeric/alpha mix",
+                    "1111111010101"
+                    "1000001010111"
+                    "1011101011001"
+                    "1011101011000"
+                    "1011101001100"
+                    "1000001010001"
+                    "1111111010111"
+                    "0000000010001"
+                    "1101101010100"
+                    "0011010001010"
+                    "1100001001001"
+                    "0100110000101"
+                    "1111010110101"
+                },
+        /* 23*/ { UNICODE_MODE, 1, 2, -1, "ABC1234", 0, 13, 13, 1, "M2-L numeric/alpha mix",
+                    "1111111010101"
+                    "1000001000010"
+                    "1011101011111"
+                    "1011101011001"
+                    "1011101010001"
+                    "1000001000101"
+                    "1111111010010"
+                    "0000000001010"
+                    "1101010111110"
+                    "0000011110111"
+                    "1111000101111"
+                    "0100100011111"
+                    "1011111100110"
+                },
+        /* 24*/ { UNICODE_MODE, 1, 2, -1, "12345AB", 0, 13, 13, 1, "M2-L numeric/alpha mix",
+                    "1111111010101"
+                    "1000001000101"
+                    "1011101011101"
+                    "1011101011111"
+                    "1011101011010"
+                    "1000001001001"
+                    "1111111011001"
+                    "0000000000111"
+                    "1101010111100"
+                    "0111110110000"
+                    "1000101000010"
+                    "0001111010101"
+                    "1001001101111"
+                },
+        /* 25*/ { UNICODE_MODE, 1, 2, -1, "123456AB", 0, 13, 13, 1, "M2-L numeric/alpha mix",
+                    "1111111010101"
+                    "1000001001000"
+                    "1011101010101"
+                    "1011101010001"
+                    "1011101010100"
+                    "1000001001101"
+                    "1111111011101"
+                    "0000000001111"
+                    "1101010110100"
+                    "0110000100000"
+                    "1010001001011"
+                    "0100011101011"
+                    "1010110111111"
+                },
+        /* 26*/ { UNICODE_MODE, 1, 2, -1, "AB123456", 0, 13, 13, 1, "M2-L numeric/alpha mix",
+                    "1111111010101"
+                    "1000001010000"
+                    "1011101010011"
+                    "1011101010111"
+                    "1011101001011"
+                    "1000001010101"
+                    "1111111010100"
+                    "0000000011000"
+                    "1101101010110"
+                    "0000111111101"
+                    "1000100111101"
+                    "0000010110101"
+                    "1101001101000"
+                },
+        /* 27*/ { UNICODE_MODE, 1, 3, -1, "ABCDEFGHIJKLM1", 0, 15, 15, 1, "M3-L numeric/alpha mix",
+                    "111111101010101"
+                    "100000101100010"
+                    "101110100100101"
+                    "101110100011011"
+                    "101110100010111"
+                    "100000100010110"
+                    "111111101110000"
+                    "000000000011101"
+                    "111110010000010"
+                    "001011101001111"
+                    "101111001010100"
+                    "000100011011011"
+                    "100011100001100"
+                    "000111010101111"
+                    "110010111100110"
+                },
+        /* 28*/ { UNICODE_MODE, 1, 3, -1, "1ABCDEFGHIJKLM", 0, 15, 15, 1, "M3-L numeric/alpha mix",
+                    "111111101010101"
+                    "100000101100011"
+                    "101110100101101"
+                    "101110100101101"
+                    "101110100010000"
+                    "100000100011101"
+                    "111111101110000"
+                    "000000000001111"
+                    "111110010001001"
+                    "011111100110100"
+                    "101101010100111"
+                    "001010011011111"
+                    "111011111001100"
+                    "001000000001111"
+                    "101110101111110"
+                },
+        /* 29*/ { UNICODE_MODE, 1, 3, -1, "1234567890123456789A", 0, 15, 15, 1, "M3-L numeric/alpha mix",
+                    "111111101010101"
+                    "100000100000110"
+                    "101110100011111"
+                    "101110100100110"
+                    "101110101101010"
+                    "100000101000111"
+                    "111111101101110"
+                    "000000001010010"
+                    "111101100110100"
+                    "011011010100111"
+                    "110000001001111"
+                    "000111010000101"
+                    "111101000011001"
+                    "000000100101101"
+                    "101101100001111"
+                },
+        /* 30*/ { UNICODE_MODE, 1, 3, -1, "A1234567890123456789", 0, 15, 15, 1, "M3-L numeric/alpha mix",
+                    "111111101010101"
+                    "100000101010001"
+                    "101110101110111"
+                    "101110101011111"
+                    "101110101111111"
+                    "100000100000110"
+                    "111111100010010"
+                    "000000001011101"
+                    "111100110110111"
+                    "010100110000010"
+                    "111001111001101"
+                    "010010001101100"
+                    "110000111010101"
+                    "000011011000111"
+                    "111111101100010"
+                },
+        /* 31*/ { UNICODE_MODE, 1, 3, -1, "ABCDEFGHIJKa", 0, 15, 15, 1, "M3-L alpha/byte mix",
+                    "111111101010101"
+                    "100000101110010"
+                    "101110100000101"
+                    "101110100101011"
+                    "101110100000111"
+                    "100000100010110"
+                    "111111101000000"
+                    "000000000111101"
+                    "111110010010010"
+                    "001001101001111"
+                    "101100011010100"
+                    "011010011111011"
+                    "110101000001110"
+                    "001011111101101"
+                    "110111010100110"
+                },
+        /* 32*/ { UNICODE_MODE, 1, 3, -1, "aABCDEFGHIJK", 0, 15, 15, 1, "M3-L alpha/byte mix",
+                    "111111101010101"
+                    "100000100000001"
+                    "101110101110011"
+                    "101110101000010"
+                    "101110100111101"
+                    "100000101001011"
+                    "111111100101010"
+                    "000000000111101"
+                    "111111000011100"
+                    "001111011001101"
+                    "110110010001100"
+                    "011111111111110"
+                    "100011111111001"
+                    "000000111010011"
+                    "111010110000011"
+                },
+        /* 33*/ { UNICODE_MODE, 1, 3, -1, "abcdefghA", 0, 15, 15, 1, "M3-L alpha/byte mix",
+                    "111111101010101"
+                    "100000100001011"
+                    "101110101111111"
+                    "101110101010011"
+                    "101110100000100"
+                    "100000101011100"
+                    "111111100110110"
+                    "000000000100001"
+                    "111111000111100"
+                    "000110011001101"
+                    "111011111110100"
+                    "011000110111010"
+                    "101101110000101"
+                    "000010001100010"
+                    "100011000101111"
+                },
+        /* 34*/ { UNICODE_MODE, 1, 3, -1, "Aabcdefgh", 0, 15, 15, 1, "M3-L alpha/byte mix",
+                    "111111101010101"
+                    "100000100000011"
+                    "101110101111111"
+                    "101110101010011"
+                    "101110100101111"
+                    "100000101000000"
+                    "111111100100110"
+                    "000000000100001"
+                    "111111000001100"
+                    "000001011110101"
+                    "100011110110101"
+                    "010001110111010"
+                    "100101101100101"
+                    "010001110101110"
+                    "110101101101111"
+                },
+        /* 35*/ { UNICODE_MODE, 1, 4, -1, "A1abcdefghijklm", 0, 17, 17, 1, "M4-L alpha/numeric/byte mix (B15)",
+                    "11111110101010101"
+                    "10000010110110110"
+                    "10111010110001111"
+                    "10111010000000100"
+                    "10111010111010000"
+                    "10000010111111011"
+                    "11111110010101011"
+                    "00000000101001111"
+                    "10011101000110111"
+                    "01101100111101111"
+                    "10001101011010010"
+                    "00010000110101001"
+                    "10101100011011101"
+                    "01001101110000111"
+                    "10111111010111100"
+                    "01101110010001101"
+                    "11001111000011100"
+                },
+        /* 36*/ { UNICODE_MODE, 1, 4, -1, "abcdefghijklmA1", 0, 17, 17, 1, "M4-L alpha/numeric/byte mix (B15)",
+                    "11111110101010101"
+                    "10000010010100111"
+                    "10111010110110111"
+                    "10111010000111010"
+                    "10111010000111110"
+                    "10000010010000101"
+                    "11111110010110111"
+                    "00000000000111010"
+                    "10010010010110110"
+                    "01111101110110110"
+                    "10001111011110111"
+                    "00011011111111010"
+                    "11110100110111010"
+                    "00000001100010111"
+                    "10100000000110100"
+                    "01010111011111011"
+                    "10111101110110010"
+                },
+        /* 37*/ { UNICODE_MODE, 1, 4, -1, "1Aabcdefghijklm", 0, 17, 17, 1, "M4-L alpha/numeric/byte mix (B15)",
+                    "11111110101010101"
+                    "10000010110101010"
+                    "10111010010101011"
+                    "10111010101010001"
+                    "10111010010011001"
+                    "10000010110001010"
+                    "11111110110101011"
+                    "00000000001010000"
+                    "10010111000010001"
+                    "01101111110111010"
+                    "11111100110011011"
+                    "01010100011011011"
+                    "10110000011011111"
+                    "00001001110011011"
+                    "11011000010011000"
+                    "00101111011011000"
+                    "10110011001010101"
+                },
+        /* 38*/ { UNICODE_MODE, 1, 4, -1, "abcdefghijklm1A", 0, 17, 17, 1, "M4-L alpha/numeric/byte mix (B15)",
+                    "11111110101010101"
+                    "10000010110111011"
+                    "10111010010101011"
+                    "10111010111011001"
+                    "10111010011011101"
+                    "10000010110011001"
+                    "11111110110101011"
+                    "00000000011011001"
+                    "10010111001010101"
+                    "00001101100101010"
+                    "11100011000101011"
+                    "00000010100011001"
+                    "10110101101011001"
+                    "01001000110001011"
+                    "11100010011101000"
+                    "01000101100011000"
+                    "11110110101010001"
+                },
+        /* 39*/ { UNICODE_MODE, 1, 4, -1, "A1Aabcdefghijkl", 0, 17, 17, 1, "M4-L alpha/numeric/byte mix (B15)",
+                    "11111110101010101"
+                    "10000010110001010"
+                    "10111010010101011"
+                    "10111010101010000"
+                    "10111010001010101"
+                    "10000010110111010"
+                    "11111110110011011"
+                    "00000000001010011"
+                    "10010111010011011"
+                    "01111011010011010"
+                    "10001111010011011"
+                    "01001000001010000"
+                    "11110011000010001"
+                    "00111010110101011"
+                    "11111011010011000"
+                    "01010100111011000"
+                    "11100110011011101"
+                },
+        /* 40*/ { UNICODE_MODE, 1, 4, -1, "abcdefghijklA1A", 0, 17, 17, 1, "M4-L alpha/numeric/byte mix (B15)",
+                    "11111110101010101"
+                    "10000010110111011"
+                    "10111010010101011"
+                    "10111010111011001"
+                    "10111010011011101"
+                    "10000010110011001"
+                    "11111110111101011"
+                    "00000000000011001"
+                    "10010111001010101"
+                    "00011011000101010"
+                    "10110000000101011"
+                    "01011011100011001"
+                    "10010001101011001"
+                    "01000010110001011"
+                    "11101000111101000"
+                    "01100100100011000"
+                    "11100100101010001"
+                },
+        /* 41*/ { UNICODE_MODE, 1, 4, -1, "A1A1abcdefghijk", 0, 17, 17, 1, "M4-L alpha/numeric/byte mix (A4 B11)",
+                    "11111110101010101"
+                    "10000010101100010"
+                    "10111010010001000"
+                    "10111010100101100"
+                    "10111010001100111"
+                    "10000010101100111"
+                    "11111110110101101"
+                    "00000000010101001"
+                    "10010111001100101"
+                    "00100010001100100"
+                    "11111001110011110"
+                    "00001000001100111"
+                    "10001101001100111"
+                    "00110101101100100"
+                    "10100100110111101"
+                    "01011100011101101"
+                    "11010100111100111"
+                },
+        /* 42*/ { UNICODE_MODE, 1, 4, -1, "abcdefghijkA1A1", 0, 17, 17, 1, "M4-L alpha/numeric/byte mix (B11 A4)",
+                    "11111110101010101"
+                    "10000010100111011"
+                    "10111010010101011"
+                    "10111010110011001"
+                    "10111010011011101"
+                    "10000010100011001"
+                    "11111110100101011"
+                    "00000000001011001"
+                    "10010111011010101"
+                    "00110011010101010"
+                    "10110000010101011"
+                    "01011000010011001"
+                    "11000101000011001"
+                    "01011001100001011"
+                    "11110100111101010"
+                    "01111111011011000"
+                    "11100111011010001"
+                },
+        /* 43*/ { UNICODE_MODE, 1, 4, -1, "A1A1Aabcdefghij", 0, 17, 17, 1, "M4-L alpha/numeric/byte mix (A5 B10)",
+                    "11111110101010101"
+                    "10000010110010100"
+                    "10111010000011000"
+                    "10111010110011000"
+                    "10111010010011111"
+                    "10000010101010111"
+                    "11111110111011001"
+                    "00000000010101001"
+                    "10010111010011001"
+                    "01011010001010000"
+                    "11010110001010110"
+                    "01100011010001011"
+                    "10101101110011011"
+                    "01010000101010010"
+                    "10000101110011001"
+                    "00111101000111001"
+                    "11010001011111011"
+                },
+        /* 44*/ { UNICODE_MODE, 1, 4, -1, "abcdefghijA1A1A", 0, 17, 17, 1, "M4-L alpha/numeric/byte mix (B10 A5)",
+                    "11111110101010101"
+                    "10000010100101011"
+                    "10111010000011011"
+                    "10111010101011001"
+                    "10111010011111101"
+                    "10000010110011001"
+                    "11111110110101011"
+                    "00000000010011001"
+                    "10010111000010101"
+                    "01011111100101010"
+                    "11001000011101011"
+                    "00010001011011001"
+                    "11010111011011001"
+                    "01011111101001001"
+                    "11101111110101010"
+                    "01100100000011000"
+                    "11101010011010001"
+                },
+        /* 45*/ { UNICODE_MODE, 1, 4, -1, "A1A1A1abcdefghi", 0, 17, 17, 1, "M4-L alpha/numeric/byte mix (A6 B9)",
+                    "11111110101010101"
+                    "10000010100111100"
+                    "10111010000111000"
+                    "10111010100110000"
+                    "10111010000100111"
+                    "10000010101010111"
+                    "11111110100111001"
+                    "00000000010111001"
+                    "10010111011111101"
+                    "01001110100010100"
+                    "11101000000110010"
+                    "00010000110110011"
+                    "11001001011101111"
+                    "00111000101100101"
+                    "11011101111110001"
+                    "01101100100110001"
+                    "10110010111110111"
+                },
+        /* 46*/ { UNICODE_MODE, 1, 4, -1, "abcdefghiA1A1A1", 0, 17, 17, 1, "M4-L alpha/numeric/byte mix (B9 A6)",
+                    "11111110101010101"
+                    "10000010110001011"
+                    "10111010010101011"
+                    "10111010110111001"
+                    "10111010000111101"
+                    "10000010100011001"
+                    "11111110111011011"
+                    "00000000011011001"
+                    "10010111011110101"
+                    "01111110011101010"
+                    "10010001110101011"
+                    "01011110000011001"
+                    "11010110101011001"
+                    "01111110101001010"
+                    "10010000111101010"
+                    "00001000100011000"
+                    "11110110111010001"
+                },
+        /* 47*/ { UNICODE_MODE, 1, 4, -1, "A1A1A1Aabcdefghi", 0, 17, 17, 1, "M4-L alpha/numeric/byte mix (A7 B9)",
+                    "11111110101010101"
+                    "10000010111011100"
+                    "10111010011101000"
+                    "10111010111000000"
+                    "10111010011000111"
+                    "10000010111000111"
+                    "11111110111100101"
+                    "00000000011001001"
+                    "10010111010001101"
+                    "01000011111010100"
+                    "10110011001010110"
+                    "01000011100000011"
+                    "10110001111001011"
+                    "00001011011001111"
+                    "10000000001011101"
+                    "01101000000000001"
+                    "11010011110001011"
+                },
+        /* 48*/ { UNICODE_MODE, 1, 4, -1, "abcdefghiA1A1A1A", 0, 17, 17, 1, "M4-L alpha/numeric/byte mix (B9 A7)",
+                    "11111110101010101"
+                    "10000010110001011"
+                    "10111010010101011"
+                    "10111010110111001"
+                    "10111010000111101"
+                    "10000010100111001"
+                    "11111110111011011"
+                    "00000000011011001"
+                    "10010111011110101"
+                    "01110111011101010"
+                    "11000111110101011"
+                    "00101011100011001"
+                    "10101110101011001"
+                    "00100100001001010"
+                    "11001101101101010"
+                    "00111010110011000"
+                    "11000101111010001"
+                },
+        /* 49*/ { UNICODE_MODE, 1, 4, -1, "A1A1A1A1abcdefgh", 0, 17, 17, 1, "M4-L alpha/numeric/byte mix (A8 B8)",
+                    "11111110101010101"
+                    "10000010110011100"
+                    "10111010001011000"
+                    "10111010110000000"
+                    "10111010010010111"
+                    "10000010110010111"
+                    "11111110110010101"
+                    "00000000010111101"
+                    "10010111010111101"
+                    "00111011110010000"
+                    "11000000100010010"
+                    "00010001010011011"
+                    "11110110110111111"
+                    "01101010001010100"
+                    "10010101111011110"
+                    "00110010100101001"
+                    "11010101111111011"
+                },
+        /* 50*/ { UNICODE_MODE, 1, 4, -1, "abcdefghA1A1A1A1", 0, 17, 17, 1, "M4-L alpha/numeric/byte mix (A8 B8)",
+                    "11111110101010101"
+                    "10000010100111011"
+                    "10111010011011011"
+                    "10111010111011001"
+                    "10111010011011101"
+                    "10000010111001001"
+                    "11111110110101011"
+                    "00000000000111001"
+                    "10010111001110101"
+                    "01101000001001010"
+                    "11110000001101011"
+                    "01100101111011001"
+                    "11001000111111001"
+                    "00110000100001000"
+                    "10001100000101010"
+                    "00011001000011000"
+                    "11101100111010001"
+                },
+        /* 51*/ { UNICODE_MODE, 1, 4, -1, "A1A1A1A1A1abcdefg", 0, 17, 17, 1, "M4-L alpha/numeric/byte mix (A10 B7)",
+                    "11111110101010101"
+                    "10000010111011100"
+                    "10111010011011000"
+                    "10111010101000000"
+                    "10111010011000111"
+                    "10000010111000111"
+                    "11111110111010101"
+                    "00000000001001101"
+                    "10010111010001101"
+                    "01011011011010000"
+                    "11000100111110010"
+                    "01001100011000011"
+                    "10101101111000011"
+                    "01010010011010101"
+                    "10001101111001110"
+                    "00101010111001001"
+                    "10000110110101011"
+                },
+        /* 52*/ { UNICODE_MODE, 1, 4, -1, "abcdefgA1A1A1A1A1", 0, 17, 17, 0, "M4-L alpha/numeric/byte mix (B7 A10); BWIPP fails with Maximum length exceeded",
+                    "11111110101010101"
+                    "10000010111010111"
+                    "10111010110101111"
+                    "10111010001011100"
+                    "10111010100110100"
+                    "10000010100001000"
+                    "11111110001011011"
+                    "00000000111000101"
+                    "10011101011110001"
+                    "00000101001011111"
+                    "10100001101100010"
+                    "00010010101001000"
+                    "11110111000111001"
+                    "01011010101000111"
+                    "10111011111001101"
+                    "00001010111001101"
+                    "11111111011111000"
+                },
+        /* 53*/ { UNICODE_MODE, 1, 4, -1, "A1A1A1A1A1Aabcdef", 0, 17, 17, 1, "M4-L alpha/numeric/byte mix (A11 B6)",
+                    "11111110101010101"
+                    "10000010100111100"
+                    "10111010001111000"
+                    "10111010101100000"
+                    "10111010000110111"
+                    "10000010100110111"
+                    "11111110110100101"
+                    "00000000000001101"
+                    "10010111000111101"
+                    "01110100100110000"
+                    "11101011110110010"
+                    "00000111001110011"
+                    "10010111000110011"
+                    "00011001100010111"
+                    "11110011100111110"
+                    "01110100100101001"
+                    "11000111011011011"
+                },
+        /* 54*/ { UNICODE_MODE, 1, 4, -1, "abcdefA1A1A1A1A1A", 0, 17, 17, 0, "M4-L alpha/numeric/byte mix (A11 B6); BWIPP fails with Maximum length exceeded",
+                    "11111110101010101"
+                    "10000010101101011"
+                    "10111010001111011"
+                    "10111010111011001"
+                    "10111010011001101"
+                    "10000010100001001"
+                    "11111110100001011"
+                    "00000000000001001"
+                    "10010111000110101"
+                    "01111101001111010"
+                    "10001010111011011"
+                    "01110000110011001"
+                    "11110111110011001"
+                    "01101011110000001"
+                    "11110110001101001"
+                    "00001011000110100"
+                    "11010110111110001"
+                },
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char escaped[4096];
     char cmp_buf[32768];
     char cmp_msg[1024];
 
-    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); // Only do BWIPP test if asked, too slow otherwise
-    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); // Only do ZXing-C++ test if asked, too slow otherwise
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
 
-    testStart("test_microqr_encode");
+    testStartSymbol("test_microqr_encode", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -5201,9 +6316,10 @@ static void test_microqr_encode(int index, int generate, int debug) {
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
-        if (generate) {
+        if (p_ctx->generate) {
             printf("        /*%3d*/ { %s, %d, %d, %s, \"%s\", %s, %d, %d, %d, \"%s\",\n",
-                    i, testUtilInputModeName(data[i].input_mode), data[i].option_1, data[i].option_2, testUtilOption3Name(data[i].option_3),
+                    i, testUtilInputModeName(data[i].input_mode), data[i].option_1, data[i].option_2,
+                    testUtilOption3Name(BARCODE_MICROQR, data[i].option_3),
                     testUtilEscape(data[i].data, length, escaped, sizeof(escaped)), testUtilErrorName(data[i].ret),
                     symbol->rows, symbol->width, data[i].bwipp_cmp, data[i].comment);
             testUtilModulesPrint(symbol, "                    ", "\n");
@@ -5249,8 +6365,9 @@ static void test_microqr_encode(int index, int generate, int debug) {
     testFinish();
 }
 
-// Not a real test, just performance indicator
-static void test_microqr_perf(int index, int debug) {
+/* Not a real test, just performance indicator */
+static void test_microqr_perf(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int symbology;
@@ -5282,7 +6399,7 @@ static void test_microqr_perf(int index, int debug) {
     for (i = 0; i < data_size; i++) {
         int j;
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         diff_encode = diff_buffer = 0;
 
@@ -5313,12 +6430,13 @@ static void test_microqr_perf(int index, int debug) {
         total_encode += diff_encode;
         total_buffer += diff_buffer;
     }
-    if (index != -1) {
+    if (p_ctx->index != -1) {
         printf("totals: encode %gms, buffer %gms\n", total_encode * 1000.0 / CLOCKS_PER_SEC, total_buffer * 1000.0 / CLOCKS_PER_SEC);
     }
 }
 
-static void test_upnqr_input(int index, int generate, int debug) {
+static void test_upnqr_input(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int input_mode;
@@ -5327,35 +6445,44 @@ static void test_upnqr_input(int index, int generate, int debug) {
         char *expected;
         char *comment;
     };
-    // Ą U+0104 in ISO 8859-2 0xA1, in other ISO 8859 and Win 1250, UTF-8 C484
-    // Ŕ U+0154 in ISO 8859-2 0xC0, in Win 1250 but not other ISO 8859 or Win page, UTF-8 C594
-    // é U+00E9 in ISO 8859-1 plus other ISO 8859 (but not in ISO 8859-7 or ISO 8859-11), Win 1250 plus other Win, not in Shift JIS, UTF-8 C3A9
-    // β U+03B2 in ISO 8859-7 Greek (but not other ISO 8859 or Win page), in Shift JIS 0x83C0, UTF-8 CEB2
+    /* Ą U+0104 in ISO 8859-2 0xA1, in other ISO 8859 and Win 1250, UTF-8 C484 */
+    /* Ŕ U+0154 in ISO 8859-2 0xC0, in Win 1250 but not other ISO 8859 or Win page, UTF-8 C594 */
+    /* é U+00E9 in ISO 8859-1 plus other ISO 8859 (but not in ISO 8859-7 or ISO 8859-11), Win 1250 plus other Win, not in Shift JIS, UTF-8 C3A9 */
+    /* β U+03B2 in ISO 8859-7 Greek (but not other ISO 8859 or Win page), in Shift JIS 0x83C0, UTF-8 CEB2 */
     struct item data[] = {
         /*  0*/ { UNICODE_MODE, "ĄŔ", 0, "(415) 70 44 00 02 A1 C0 00 EC 11 EC 11 EC 11 EC 11 EC 11 EC 11 EC 11 EC 11 EC 11 EC 11 EC", "ECI-4 B2 (ISO 8859-2)" },
         /*  1*/ { UNICODE_MODE, "é", 0, "(415) 70 44 00 01 E9 00 EC 11 EC 11 EC 11 EC 11 EC 11 EC 11 EC 11 EC 11 EC 11 EC 11 EC 11", "ECI-4 B1 (ISO 8859-2)" },
         /*  2*/ { UNICODE_MODE, "β", ZINT_ERROR_INVALID_DATA, "Error 572: Invalid character in input data for ECI 4", "β not in ISO 8859-2" },
         /*  3*/ { DATA_MODE, "\300\241", 0, "(415) 70 44 00 02 C0 A1 00 EC 11 EC 11 EC 11 EC 11 EC 11 EC 11 EC 11 EC 11 EC 11 EC 11 EC", "ŔĄ" },
         /*  4*/ { GS1_MODE, "[20]12", ZINT_ERROR_INVALID_OPTION, "Error 220: Selected symbology does not support GS1 mode", "" },
-        /*  5*/ { UNICODE_MODE, "ĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄ", 0, "(415) 70 44 01 9B A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1", "" },
-        /*  6*/ { UNICODE_MODE, "ĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄ", ZINT_ERROR_TOO_LONG, "Error 573: Input too long for selected symbol", "" },
+        /*  5*/ { UNICODE_MODE, "ĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄ", 0, "(415) 70 44 01 9B A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1 A1", "Length 411" },
+        /*  6*/ { UNICODE_MODE, "ĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄĄ", ZINT_ERROR_TOO_LONG, "Error 573: Input too long for selected symbol", "Length 412" },
+        /*  7*/ { DATA_MODE, "123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901", 0, "(415) 70 44 01 9B 31 32 33 34 35 36 37 38 39 30 31 32 33 34 35 36 37 38 39 30 31 32 33 34", "Length 411" },
+        /*  8*/ { DATA_MODE, "1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012", ZINT_ERROR_TOO_LONG, "Error 573: Input too long for selected symbol", "Length 412" },
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char escaped[4096];
+    char cmp_buf[32768];
+    char cmp_msg[1024];
 
-    testStart("test_upnqr_input");
+    #if 0 /* Need to add "force binary mode" to BWIPP for this to work */
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
+    #endif
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
+
+    testStartSymbol("test_upnqr_input", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
 
-        debug |= ZINT_DEBUG_TEST; // Needed to get codeword dump in errtxt
+        debug |= ZINT_DEBUG_TEST; /* Needed to get codeword dump in errtxt */
 
         length = testUtilSetSymbol(symbol, BARCODE_UPNQR, data[i].input_mode, -1 /*eci*/, -1 /*option_1*/, -1, -1, -1 /*output_options*/, data[i].data, -1, debug);
 
@@ -5365,12 +6492,26 @@ static void test_upnqr_input(int index, int generate, int debug) {
             assert_equal(symbol->eci, 4, "i:%d ZBarcode_Encode symbol->eci %d != 4\n", i, symbol->eci);
         }
 
-        if (generate) {
+        if (p_ctx->generate) {
             printf("        /*%3d*/ { %s, \"%s\", %s, \"%s\", \"%s\" },\n",
                     i, testUtilInputModeName(data[i].input_mode), testUtilEscape(data[i].data, length, escaped, sizeof(escaped)), testUtilErrorName(data[i].ret),
                     symbol->errtxt, data[i].comment);
         } else {
             assert_zero(strcmp(symbol->errtxt, data[i].expected), "i:%d strcmp(%s, %s) != 0\n", i, symbol->errtxt, data[i].expected);
+
+            if (ret < ZINT_ERROR) {
+                if (do_zxingcpp && testUtilCanZXingCPP(i, symbol, data[i].data, length, debug)) {
+                    int cmp_len, ret_len;
+                    char modules_dump[77 * 77 + 1];
+                    assert_notequal(testUtilModulesDump(symbol, modules_dump, sizeof(modules_dump)), -1, "i:%d testUtilModulesDump == -1\n", i);
+                    ret = testUtilZXingCPP(i, symbol, data[i].data, length, modules_dump, cmp_buf, sizeof(cmp_buf), &cmp_len);
+                    assert_zero(ret, "i:%d %s testUtilZXingCPP ret %d != 0\n", i, testUtilBarcodeName(symbol->symbology), ret);
+
+                    ret = testUtilZXingCPPCmp(symbol, cmp_msg, cmp_buf, cmp_len, data[i].data, length, NULL /*primary*/, escaped, &ret_len);
+                    assert_zero(ret, "i:%d %s testUtilZXingCPPCmp %d != 0 %s\n  actual: %.*s\nexpected: %.*s\n",
+                                   i, testUtilBarcodeName(symbol->symbology), ret, cmp_msg, cmp_len, cmp_buf, ret_len, escaped);
+                }
+            }
         }
 
         ZBarcode_Delete(symbol);
@@ -5379,7 +6520,8 @@ static void test_upnqr_input(int index, int generate, int debug) {
     testFinish();
 }
 
-static void test_upnqr_encode(int index, int generate, int debug) {
+static void test_upnqr_encode(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int input_mode;
@@ -5395,7 +6537,7 @@ static void test_upnqr_encode(int index, int generate, int debug) {
         char *expected;
     };
 
-    // https://www.upn-qr.si/uploads/files/Tehnicni standard UPN QR.pdf
+    /* https://www.upn-qr.si/uploads/files/Tehnicni standard UPN QR.pdf */
     struct item data[] = {
         /*  0*/ { UNICODE_MODE, -1, -1, -1, "UPNQR\012\012\012\012\012Janez Novak\012Dunajska 1\0121000 Ljubljana\01200000008105\012\012\012COST\012Plačilo obveznosti 10/2016\012\012SI56051008010486080\012SI0598765432100\012Novo podjetje d.o.o.\012Lepa cesta 15\0123698 Loški Potok\012183\012                                                                                                                                                                                                                     ", 0, 77, 77, "Example A",
                     "11111110111111111100010011100010110001111000010010000011011111010000001111111"
@@ -5475,7 +6617,7 @@ static void test_upnqr_encode(int index, int generate, int debug) {
                     "10111010111000101010000010001111001111011001010101101001101011001000001000101"
                     "10000010001101100100010110101010010010001110010010010010110010010010100101001"
                     "11111110100011011001111101001100101100000010111001100000111111111001000100010"
-               },
+                },
         /*  1*/ { UNICODE_MODE, -1, -1, -1, "UPNQR\012SI56020170014356205\012\012\012SI003528-990\012Združenje bank Slovenije\012Šubičeva 2\0121000 Ljubljana\01200000128067\012\012\012ADVA\012Plačilo avansa-ponudba 2016/12\012\012SI56051008010486080\012SI00123456-67890-12345\012Novo podjetje d.o.o.\012Lepa cesta 15\0123698 Loški Potok\012238\012                                                                                                                                                              ", 0, 77, 77, "Example B",
                     "11111110000111011101000010011000101001000000001000111011101100110000001111111"
                     "10000010110011111100001100011111010101001001100001010101010101110010101000001"
@@ -5554,7 +6696,7 @@ static void test_upnqr_encode(int index, int generate, int debug) {
                     "10111010111111010100110001101100110100111010111110001010001010100101101010001"
                     "10000010001110111011101001101101010101011101110100110101010001000101100000101"
                     "11111110101101000011101011000010100010000010001101101110011110100111001110011"
-               },
+                },
         /*  2*/ { UNICODE_MODE, -1, -1, -1, "UPNQR\012\012\012\012\012Janez Novak\012Dunajska 1\0121000 Ljubljana\01200000008105\012\012\012RENT\012Plačilo najemnine 10/2016\01215.11.2016\012SI56051008010486080\012RF45SBO2010\012Novo podjetje d.o.o.\012Lepa cesta 15\0123698 Loški Potok\012188\012                                                                                                                                                                                                                ", 0, 77, 77, "Example H",
                     "11111110000111000010011001010010001001000000101010111011100111100000001111111"
                     "10000010110011101110001010110101010101001111000101010101010110110010101000001"
@@ -5633,7 +6775,7 @@ static void test_upnqr_encode(int index, int generate, int debug) {
                     "10111010111011000101100001101100101100111011100110001010001010100111101111001"
                     "10000010001010100100100001101101010101001000000101010101110011011111100111001"
                     "11111110101101000110111011000010100010001100001111101110110001100111001110111"
-               },
+                },
         /*  3*/ { UNICODE_MODE, -1, -1, 2 << 8, "UPNQR\012\012\012\012\012Janez Novak\012Dunajska 1\0121000 Ljubljana\01200000008105\012\012\012RENT\012Plačilo najemnine 10/2016\01215.11.2016\012SI56051008010486080\012RF45SBO2010\012Novo podjetje d.o.o.\012Lepa cesta 15\0123698 Loški Potok\012188\012                                                                                                                                                                                                                ", 0, 77, 77, "Example H with explicit mask 001 (auto-mask 000)",
                     "11111110110010010111001100000111011100010101111111101110110010110100001111111"
                     "10000010000110111011011111100000000000011010010000000000000011100110101000001"
@@ -5712,7 +6854,7 @@ static void test_upnqr_encode(int index, int generate, int debug) {
                     "10111010101110010000110100111001111001101110110011011111011111110010111010011"
                     "10000010011111110001110100111000000000011101010000000000100110001010110010011"
                     "11111110111000010011101110010111110111011001011010111011100100110010011011101"
-               },
+                },
         /*  4*/ { UNICODE_MODE, -1, -1, -1, "Ą˘Ł¤ĽŚ§¨ŠŞŤŹŽŻ°ą˛ł´ľśˇ¸šşťź˝žżŔÁÂĂÄĹĆÇČÉĘËĚÍÎĎĐŃŇÓÔŐÖ×ŘŮÚŰÜÝŢßŕáâăäĺćçčéęëěíîďđńňóôőö÷řůúűüýţ˙", 0, 77, 77, "ISO 8859-2",
                     "11111110000111101001000110101100101001111110111011001111111000110000001111111"
                     "10000010001011100100110111111011110100001011110000100001001110011010101000001"
@@ -5791,26 +6933,105 @@ static void test_upnqr_encode(int index, int generate, int debug) {
                     "10111010101011111111010111011111110100001010011011000001111000110011100101010"
                     "10000010011100010001111111000000001011100000001000111111100001011101111000001"
                     "11111110110101111101111001011101111100101101111101100101000101100100011101000"
-               },
+                },
+        /*  5*/ { UNICODE_MODE, -1, -1, -1, "UPNQR\012\012\012\012\012Janez Novak\012Dunajska 1\0121000 Ljubljana\01200000008105\012\012\012COST\012Plačilo obveznosti 10/2016\012\012SI56051008010486080\012SI0598765432100\012Novo podjetje d.o.o.\012Lepa cesta 15\0123698 Loški Potok\012183\012                                                                                                                                                                                                                     ", 0, 77, 77, "Example A fast automatic mask 0 (not 3)",
+                    "11111110111111111100010011100010110001111000010010000011011111010000001111111"
+                    "10000010100011011111111001110100100100111110110100100100100111100010101000001"
+                    "10111010001000100000110111010001001000001000001101001001001001011000101011101"
+                    "10111010101000111111100101110000011010110100010001010110010010111000101011101"
+                    "10111010001000001001001011111100000110101100001111110101110011110111101011101"
+                    "10000010001111111001010010001001001000001000001000101001011001101010001000001"
+                    "11111110101010101010101010101010101010101010101010101010101010101010101111111"
+                    "00000000110100001001111110001101011101000100101000100100100100100100100000000"
+                    "10110111001011100111111111111011000001101011011111101101010000000101001001011"
+                    "11001001101111111100011011010011101000111100110110000001000110000010011010010"
+                    "10010011010011001101011011110101100100100110100110100100111100100101100100000"
+                    "10100000010000010100110110001000001001001001001101011011000001011001001001000"
+                    "11000110111001011001100000101001001011110000000011000110001011000111110000010"
+                    "01100000001000001010001010000101000110101100000100100111110000100100001100100"
+                    "11011010001110100011010100011001011001001001001001001011001001001000001001101"
+                    "01100101000011101111001001011100110111010010010110011000011010010010010010011"
+                    "01011011110011001110010110000111101100100110110101001010110101100001100110100"
+                    "00000101101101100110100111101110101010100001101001010000001101011001100001011"
+                    "00000011000011011001011001010011010110010010010000011000110010010011010110110"
+                    "11100101110001011000111101110100110110100100100000001101000100100100100000101"
+                    "00011010011000100011111101110011011011101011000011000110011000001011011111011"
+                    "11101000111110111101100000101011110010011010110111000001110110000000000010010"
+                    "10001011110111101111111001111100111100100100101101100110000100100001100000101"
+                    "00100000001000110101001110010000001111000001001011011000101001001001101101010"
+                    "11111111110101101000100011111000011100111000001111100111000011010100111111010"
+                    "11101000100100011011011010001101100110100100001000100101000000110000100011101"
+                    "00111010110010001010010010101001001101001001001010101001101011001111101011100"
+                    "01101000100011111100011110001010010000011010001000101010010110010010100010101"
+                    "10001111100101011010000111111110101110010110111111101001110000100001111110010"
+                    "00011000010101110110101111110001101001010001110000010001101110011010011110001"
+                    "01101010101101011001000100111010010010010010010110110010010011010011011010101"
+                    "01100101110001010010111010111100100000110101011000100100100010100110111011000"
+                    "10111010001110111000010101110011000001101010100001101100111010001100001001111"
+                    "01001001001010111000000101001010110110011010110011100011010100100001000100010"
+                    "00000110111010100100111010001100100100110101110101100100100100100100111001010"
+                    "01011001111110011000100111110001001001010100000000001000001111001011011010001"
+                    "00111011010010000010110111001110011010111000000110010111101001010110110011100"
+                    "01111100011111110001111011111100000110101111000101110101010000010010100110100"
+                    "01001010110110000011110111100101001001011011001001101001010001001001010101101"
+                    "00100000000111011011011101101110010010010110010010010010010010010000000110011"
+                    "10001110000101001100110001011100101101100001101000000000110110001000000000100"
+                    "00110001010111011000100111010011101011001000000000011000000100011001001101001"
+                    "01010010001111001110110101011100010011010011010010010010010011111010010110110"
+                    "11010101111000010110001010111000100100100100001100100100100000111100101100101"
+                    "10100010001001000010001100110101000001101110101101001011001100111101100001001"
+                    "01101001011100010101001101101110110000011110110011000111000001000010010000010"
+                    "11101111111001110000001011111010100100100101101111100010110101000100111110000"
+                    "00111000110101111110000010001100001000001101001000101001001001111001100011000"
+                    "01111010100010111010110010101011000010110000001010110110000011000110101010010"
+                    "11011000101011001011011010001100000110001010001000110111100000100100100010100"
+                    "10001111111100100100000111111010011000001111001111100001001001001001111111101"
+                    "11100001001110110011111000111010010010010010010010000010010010000011011010011"
+                    "11000111010101101011000010000110111101000110100100110000110101110000100100100"
+                    "10110001010110000001010000001010101011100001111101010010001101001001001001001"
+                    "01010011111110111110111010111100010010010010010011011100010010010010010000110"
+                    "01111101011001100100101010011110010101100100100100101100100100100101101100101"
+                    "10010010101001000111101010111011000001101011001001001111011000001101101001001"
+                    "01011101011000111010101001000010101101011010100110001111010110000011010010010"
+                    "11110111111011001000011101001001111001100100100101100000100100100100000110010"
+                    "00101101100110101001001100001011011001001001001001001001001001001000000001010"
+                    "01001110101000011100110000011010010010110000010100011100100011010010110010000"
+                    "01011001110011001100010011101001001010101100010000110000000000110001100100010"
+                    "11011110101100100101101111110111011001001001001010000111001001001101101010000"
+                    "10110000001001111010001001110000000010011010010000011000010010010011011010001"
+                    "00011011010000111010011010100101001010011110100100101000010101100010000100100"
+                    "01100101010110100001100110001101101011000001110111011000101101011001001000011"
+                    "01001111100111100110111110110101101110010010011011111010110000010011010001100"
+                    "00001001111101000000101011011110100000100100101101111101100100100111001101101"
+                    "01111010101101000011101111111001000001100011011111111101111111001101111110011"
+                    "00000000101101101110101110001110110100001010111000101010110111000000100011010"
+                    "11111110110001001100010110101010100100100100111010100100100011100101101010000"
+                    "10000010110110110101000110001011001001001001101000101001001111001001100010100"
+                    "10111010010110001000101011111010011100101001101111110110100111010111111111110"
+                    "10111010111111011111010010100000000110101100000111110101100010010110000000100"
+                    "10111010111000101010000010001111001111011001010101101001101011001000001000101"
+                    "10000010001101100100010110101010010010001110010010010010110010010010100101001"
+                    "11111110100011011001111101001100101100000010111001100000111111111001000100010"
+                },
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char escaped[4096];
     char cmp_buf[32768];
     char cmp_msg[1024];
 
     #if 0 /* Need to add "force binary mode" to BWIPP for this to work */
-    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); // Only do BWIPP test if asked, too slow otherwise
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
     #endif
-    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); // Only do ZXing-C++ test if asked, too slow otherwise
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
 
-    testStart("test_upnqr_encode");
+    testStartSymbol("test_upnqr_encode", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -5820,14 +7041,15 @@ static void test_upnqr_encode(int index, int generate, int debug) {
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
-        if (generate) {
+        if (p_ctx->generate) {
             printf("        /*%3d*/ { %s, %d, %d, %s, \"%s\", %s, %d, %d, \"%s\",\n",
-                    i, testUtilInputModeName(data[i].input_mode), data[i].option_1, data[i].option_2, testUtilOption3Name(data[i].option_3),
+                    i, testUtilInputModeName(data[i].input_mode), data[i].option_1, data[i].option_2,
+                    testUtilOption3Name(BARCODE_UPNQR, data[i].option_3),
                     testUtilEscape(data[i].data, length, escaped, sizeof(escaped)),
                     testUtilErrorName(data[i].ret),
                     symbol->rows, symbol->width, data[i].comment);
             testUtilModulesPrint(symbol, "                    ", "\n");
-            printf("               },\n");
+            printf("                },\n");
         } else {
             if (ret < ZINT_ERROR) {
                 int width, row;
@@ -5872,7 +7094,8 @@ static void test_upnqr_encode(int index, int generate, int debug) {
     testFinish();
 }
 
-static void test_rmqr_large(int index, int debug) {
+static void test_rmqr_large(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int option_1;
@@ -5883,8 +7106,8 @@ static void test_rmqr_large(int index, int debug) {
         int expected_rows;
         int expected_width;
     };
-    // ISO/IEC 23941:2022 Table 6
-    // s/\/\*[ 0-9]*\*\//\=printf("\/*%3d*\/", line(".") - line("'<"))
+    /* ISO/IEC 23941:2022 Table 6 */
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
     struct item data[] = {
         /*  0*/ { 2, 1, "1", 12, 0, 7, 43 },
         /*  1*/ { 2, 1, "1", 13, ZINT_ERROR_TOO_LONG, -1, -1 },
@@ -5892,524 +7115,530 @@ static void test_rmqr_large(int index, int debug) {
         /*  3*/ { 2, 1, "A", 8, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*  4*/ { 2, 1, "\200", 5, 0, 7, 43 },
         /*  5*/ { 2, 1, "\200", 6, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*  6*/ { 2, 1, "\201", 6, 0, 7, 43 }, // 3 Shift JIS 0x8181
-        /*  7*/ { 2, 1, "\201", 8, ZINT_ERROR_TOO_LONG, -1, -1 }, // 4 Shift JIS 0x8181
+        /*  6*/ { 2, 1, "\201", 6, 0, 7, 43 }, /* 3 Shift JIS 0x8181 */
+        /*  7*/ { 2, 1, "\201", 8, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 4 Shift JIS 0x8181 */
         /*  8*/ { 4, 1, "1", 5, 0, 7, 43 },
         /*  9*/ { 4, 1, "1", 6, ZINT_ERROR_TOO_LONG, -1, -1 },
         /* 10*/ { 4, 1, "A", 3, 0, 7, 43 },
         /* 11*/ { 4, 1, "A", 4, ZINT_ERROR_TOO_LONG, -1, -1 },
         /* 12*/ { 4, 1, "\200", 2, 0, 7, 43 },
         /* 13*/ { 4, 1, "\200", 3, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /* 14*/ { 4, 1, "\201", 2, 0, 7, 43 }, // 1 Shift JIS 0x8181
-        /* 15*/ { 4, 1, "\201", 4, ZINT_ERROR_TOO_LONG, -1, -1 }, // 2 Shift JIS 0x8181
+        /* 14*/ { 4, 1, "\201", 2, 0, 7, 43 }, /* 1 Shift JIS 0x8181 */
+        /* 15*/ { 4, 1, "\201", 4, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 2 Shift JIS 0x8181 */
         /* 16*/ { 2, 2, "1", 26, 0, 7, 59 },
         /* 17*/ { 2, 2, "1", 27, ZINT_ERROR_TOO_LONG, -1, -1 },
         /* 18*/ { 2, 2, "A", 16, 0, 7, 59 },
         /* 19*/ { 2, 2, "A", 17, ZINT_ERROR_TOO_LONG, -1, -1 },
         /* 20*/ { 2, 2, "\200", 11, 0, 7, 59 },
         /* 21*/ { 2, 2, "\200", 12, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /* 22*/ { 2, 2, "\201", 12, 0, 7, 59 }, // 6 Shift JIS 0x8181
-        /* 23*/ { 2, 2, "\201", 14, ZINT_ERROR_TOO_LONG, -1, -1 }, // 7 Shift JIS 0x8181
+        /* 22*/ { 2, 2, "\201", 12, 0, 7, 59 }, /* 6 Shift JIS 0x8181 */
+        /* 23*/ { 2, 2, "\201", 14, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 7 Shift JIS 0x8181 */
         /* 24*/ { 4, 2, "1", 14, 0, 7, 59 },
         /* 25*/ { 4, 2, "1", 15, ZINT_ERROR_TOO_LONG, -1, -1 },
         /* 26*/ { 4, 2, "A", 8, 0, 7, 59 },
         /* 27*/ { 4, 2, "A", 9, ZINT_ERROR_TOO_LONG, -1, -1 },
         /* 28*/ { 4, 2, "\200", 6, 0, 7, 59 },
         /* 29*/ { 4, 2, "\200", 7, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /* 30*/ { 4, 2, "\201", 6, 0, 7, 59 }, // 3 Shift JIS 0x8181
-        /* 31*/ { 4, 2, "\201", 8, ZINT_ERROR_TOO_LONG, -1, -1 }, // 4 Shift JIS 0x8181
+        /* 30*/ { 4, 2, "\201", 6, 0, 7, 59 }, /* 3 Shift JIS 0x8181 */
+        /* 31*/ { 4, 2, "\201", 8, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 4 Shift JIS 0x8181 */
         /* 32*/ { 2, 3, "1", 45, 0, 7, 77 },
         /* 33*/ { 2, 3, "1", 46, ZINT_ERROR_TOO_LONG, -1, -1 },
         /* 34*/ { 2, 3, "A", 27, 0, 7, 77 },
         /* 35*/ { 2, 3, "A", 28, ZINT_ERROR_TOO_LONG, -1, -1 },
         /* 36*/ { 2, 3, "\200", 19, 0, 7, 77 },
         /* 37*/ { 2, 3, "\200", 20, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /* 38*/ { 2, 3, "\201", 22, 0, 7, 77 }, // 11 Shift JIS 0x8181
-        /* 39*/ { 2, 3, "\201", 24, ZINT_ERROR_TOO_LONG, -1, -1 }, // 12 Shift JIS 0x8181
+        /* 38*/ { 2, 3, "\201", 22, 0, 7, 77 }, /* 11 Shift JIS 0x8181 */
+        /* 39*/ { 2, 3, "\201", 24, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 12 Shift JIS 0x8181 */
         /* 40*/ { 4, 3, "1", 21, 0, 7, 77 },
         /* 41*/ { 4, 3, "1", 22, ZINT_ERROR_TOO_LONG, -1, -1 },
         /* 42*/ { 4, 3, "A", 13, 0, 7, 77 },
         /* 43*/ { 4, 3, "A", 14, ZINT_ERROR_TOO_LONG, -1, -1 },
         /* 44*/ { 4, 3, "\200", 9, 0, 7, 77 },
         /* 45*/ { 4, 3, "\200", 10, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /* 46*/ { 4, 3, "\201", 10, 0, 7, 77 }, // 5 Shift JIS 0x8181
-        /* 47*/ { 4, 3, "\201", 12, ZINT_ERROR_TOO_LONG, -1, -1 }, // 6 Shift JIS 0x8181
+        /* 46*/ { 4, 3, "\201", 10, 0, 7, 77 }, /* 5 Shift JIS 0x8181 */
+        /* 47*/ { 4, 3, "\201", 12, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 6 Shift JIS 0x8181 */
         /* 48*/ { 2, 4, "1", 64, 0, 7, 99 },
         /* 49*/ { 2, 4, "1", 65, ZINT_ERROR_TOO_LONG, -1, -1 },
         /* 50*/ { 2, 4, "A", 39, 0, 7, 99 },
         /* 51*/ { 2, 4, "A", 40, ZINT_ERROR_TOO_LONG, -1, -1 },
         /* 52*/ { 2, 4, "\200", 27, 0, 7, 99 },
         /* 53*/ { 2, 4, "\200", 28, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /* 54*/ { 2, 4, "\201", 32, 0, 7, 99 }, // 16 Shift JIS 0x8181
-        /* 55*/ { 2, 4, "\201", 34, ZINT_ERROR_TOO_LONG, -1, -1 }, // 17 Shift JIS 0x8181
+        /* 54*/ { 2, 4, "\201", 32, 0, 7, 99 }, /* 16 Shift JIS 0x8181 */
+        /* 55*/ { 2, 4, "\201", 34, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 17 Shift JIS 0x8181 */
         /* 56*/ { 4, 4, "1", 30, 0, 7, 99 },
         /* 57*/ { 4, 4, "1", 31, ZINT_ERROR_TOO_LONG, -1, -1 },
         /* 58*/ { 4, 4, "A", 18, 0, 7, 99 },
         /* 59*/ { 4, 4, "A", 19, ZINT_ERROR_TOO_LONG, -1, -1 },
         /* 60*/ { 4, 4, "\200", 13, 0, 7, 99 },
         /* 61*/ { 4, 4, "\200", 14, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /* 62*/ { 4, 4, "\201", 16, 0, 7, 99 }, // 8 Shift JIS 0x8181
-        /* 63*/ { 4, 4, "\201", 18, ZINT_ERROR_TOO_LONG, -1, -1 }, // 9 Shift JIS 0x8181
+        /* 62*/ { 4, 4, "\201", 16, 0, 7, 99 }, /* 8 Shift JIS 0x8181 */
+        /* 63*/ { 4, 4, "\201", 18, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 9 Shift JIS 0x8181 */
         /* 64*/ { 2, 5, "1", 102, 0, 7, 139 },
         /* 65*/ { 2, 5, "1", 103, ZINT_ERROR_TOO_LONG, -1, -1 },
         /* 66*/ { 2, 5, "A", 62, 0, 7, 139 },
         /* 67*/ { 2, 5, "A", 63, ZINT_ERROR_TOO_LONG, -1, -1 },
         /* 68*/ { 2, 5, "\200", 42, 0, 7, 139 },
         /* 69*/ { 2, 5, "\200", 43, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /* 70*/ { 2, 5, "\201", 52, 0, 7, 139 }, // 26 Shift JIS 0x8181
-        /* 71*/ { 2, 5, "\201", 54, ZINT_ERROR_TOO_LONG, -1, -1 }, // 27 Shift JIS 0x8181
+        /* 70*/ { 2, 5, "\201", 52, 0, 7, 139 }, /* 26 Shift JIS 0x8181 */
+        /* 71*/ { 2, 5, "\201", 54, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 27 Shift JIS 0x8181 */
         /* 72*/ { 4, 5, "1", 54, 0, 7, 139 },
         /* 73*/ { 4, 5, "1", 55, ZINT_ERROR_TOO_LONG, -1, -1 },
         /* 74*/ { 4, 5, "A", 33, 0, 7, 139 },
         /* 75*/ { 4, 5, "A", 34, ZINT_ERROR_TOO_LONG, -1, -1 },
         /* 76*/ { 4, 5, "\200", 22, 0, 7, 139 },
         /* 77*/ { 4, 5, "\200", 23, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /* 78*/ { 4, 5, "\201", 28, 0, 7, 139 }, // 14 Shift JIS 0x8181
-        /* 79*/ { 4, 5, "\201", 30, ZINT_ERROR_TOO_LONG, -1, -1 }, // 15 Shift JIS 0x8181
+        /* 78*/ { 4, 5, "\201", 28, 0, 7, 139 }, /* 14 Shift JIS 0x8181 */
+        /* 79*/ { 4, 5, "\201", 30, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 15 Shift JIS 0x8181 */
         /* 80*/ { 2, 6, "1", 26, 0, 9, 43 },
         /* 81*/ { 2, 6, "1", 27, ZINT_ERROR_TOO_LONG, -1, -1 },
         /* 82*/ { 2, 6, "A", 16, 0, 9, 43 },
         /* 83*/ { 2, 6, "A", 17, ZINT_ERROR_TOO_LONG, -1, -1 },
         /* 84*/ { 2, 6, "\200", 11, 0, 9, 43 },
         /* 85*/ { 2, 6, "\200", 12, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /* 86*/ { 2, 6, "\201", 12, 0, 9, 43 }, // 6 Shift JIS 0x8181
-        /* 87*/ { 2, 6, "\201", 14, ZINT_ERROR_TOO_LONG, -1, -1 }, // 7 Shift JIS 0x8181
+        /* 86*/ { 2, 6, "\201", 12, 0, 9, 43 }, /* 6 Shift JIS 0x8181 */
+        /* 87*/ { 2, 6, "\201", 14, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 7 Shift JIS 0x8181 */
         /* 88*/ { 4, 6, "1", 14, 0, 9, 43 },
         /* 89*/ { 4, 6, "1", 15, ZINT_ERROR_TOO_LONG, -1, -1 },
         /* 90*/ { 4, 6, "A", 8, 0, 9, 43 },
         /* 91*/ { 4, 6, "A", 9, ZINT_ERROR_TOO_LONG, -1, -1 },
         /* 92*/ { 4, 6, "\200", 6, 0, 9, 43 },
         /* 93*/ { 4, 6, "\200", 7, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /* 94*/ { 4, 6, "\201", 6, 0, 9, 43 }, // 3 Shift JIS 0x8181
-        /* 95*/ { 4, 6, "\201", 8, ZINT_ERROR_TOO_LONG, -1, -1 }, // 4 Shift JIS 0x8181
+        /* 94*/ { 4, 6, "\201", 6, 0, 9, 43 }, /* 3 Shift JIS 0x8181 */
+        /* 95*/ { 4, 6, "\201", 8, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 4 Shift JIS 0x8181 */
         /* 96*/ { 2, 7, "1", 47, 0, 9, 59 },
         /* 97*/ { 2, 7, "1", 48, ZINT_ERROR_TOO_LONG, -1, -1 },
         /* 98*/ { 2, 7, "A", 29, 0, 9, 59 },
         /* 99*/ { 2, 7, "A", 30, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*100*/ { 2, 7, "\200", 20, 0, 9, 59 },
         /*101*/ { 2, 7, "\200", 21, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*102*/ { 2, 7, "\201", 24, 0, 9, 59 }, // 12 Shift JIS 0x8181
-        /*103*/ { 2, 7, "\201", 26, ZINT_ERROR_TOO_LONG, -1, -1 }, // 13 Shift JIS 0x8181
+        /*102*/ { 2, 7, "\201", 24, 0, 9, 59 }, /* 12 Shift JIS 0x8181 */
+        /*103*/ { 2, 7, "\201", 26, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 13 Shift JIS 0x8181 */
         /*104*/ { 4, 7, "1", 23, 0, 9, 59 },
         /*105*/ { 4, 7, "1", 24, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*106*/ { 4, 7, "A", 14, 0, 9, 59 },
         /*107*/ { 4, 7, "A", 15, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*108*/ { 4, 7, "\200", 10, 0, 9, 59 },
         /*109*/ { 4, 7, "\200", 11, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*110*/ { 4, 7, "\201", 12, 0, 9, 59 }, // 6 Shift JIS 0x8181
-        /*111*/ { 4, 7, "\201", 14, ZINT_ERROR_TOO_LONG, -1, -1 }, // 7 Shift JIS 0x8181
+        /*110*/ { 4, 7, "\201", 12, 0, 9, 59 }, /* 6 Shift JIS 0x8181 */
+        /*111*/ { 4, 7, "\201", 14, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 7 Shift JIS 0x8181 */
         /*112*/ { 2, 8, "1", 71, 0, 9, 77 },
         /*113*/ { 2, 8, "1", 72, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*114*/ { 2, 8, "A", 43, 0, 9, 77 },
         /*115*/ { 2, 8, "A", 44, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*116*/ { 2, 8, "\200", 30, 0, 9, 77 },
         /*117*/ { 2, 8, "\200", 31, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*118*/ { 2, 8, "\201", 36, 0, 9, 77 }, // 18 Shift JIS 0x8181
-        /*119*/ { 2, 8, "\201", 38, ZINT_ERROR_TOO_LONG, -1, -1 }, // 19 Shift JIS 0x8181
+        /*118*/ { 2, 8, "\201", 36, 0, 9, 77 }, /* 18 Shift JIS 0x8181 */
+        /*119*/ { 2, 8, "\201", 38, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 19 Shift JIS 0x8181 */
         /*120*/ { 4, 8, "1", 37, 0, 9, 77 },
         /*121*/ { 4, 8, "1", 38, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*122*/ { 4, 8, "A", 23, 0, 9, 77 },
         /*123*/ { 4, 8, "A", 24, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*124*/ { 4, 8, "\200", 16, 0, 9, 77 },
         /*125*/ { 4, 8, "\200", 17, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*126*/ { 4, 8, "\201", 18, 0, 9, 77 }, // 9 Shift JIS 0x8181
-        /*127*/ { 4, 8, "\201", 20, ZINT_ERROR_TOO_LONG, -1, -1 }, // 10 Shift JIS 0x8181
+        /*126*/ { 4, 8, "\201", 18, 0, 9, 77 }, /* 9 Shift JIS 0x8181 */
+        /*127*/ { 4, 8, "\201", 20, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 10 Shift JIS 0x8181 */
         /*128*/ { 2, 9, "1", 97, 0, 9, 99 },
         /*129*/ { 2, 9, "1", 98, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*130*/ { 2, 9, "A", 59, 0, 9, 99 },
         /*131*/ { 2, 9, "A", 60, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*132*/ { 2, 9, "\200", 40, 0, 9, 99 },
         /*133*/ { 2, 9, "\200", 41, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*134*/ { 2, 9, "\201", 50, 0, 9, 99 }, // 25 Shift JIS 0x8181
-        /*135*/ { 2, 9, "\201", 52, ZINT_ERROR_TOO_LONG, -1, -1 }, // 26 Shift JIS 0x8181
+        /*134*/ { 2, 9, "\201", 50, 0, 9, 99 }, /* 25 Shift JIS 0x8181 */
+        /*135*/ { 2, 9, "\201", 52, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 26 Shift JIS 0x8181 */
         /*136*/ { 4, 9, "1", 49, 0, 9, 99 },
         /*137*/ { 4, 9, "1", 50, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*138*/ { 4, 9, "A", 30, 0, 9, 99 },
         /*139*/ { 4, 9, "A", 31, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*140*/ { 4, 9, "\200", 20, 0, 9, 99 },
         /*141*/ { 4, 9, "\200", 21, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*142*/ { 4, 9, "\201", 24, 0, 9, 99 }, // 12 Shift JIS 0x8181
-        /*143*/ { 4, 9, "\201", 26, ZINT_ERROR_TOO_LONG, -1, -1 }, // 13 Shift JIS 0x8181
+        /*142*/ { 4, 9, "\201", 24, 0, 9, 99 }, /* 12 Shift JIS 0x8181 */
+        /*143*/ { 4, 9, "\201", 26, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 13 Shift JIS 0x8181 */
         /*144*/ { 2, 10, "1", 147, 0, 9, 139 },
         /*145*/ { 2, 10, "1", 148, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*146*/ { 2, 10, "A", 89, 0, 9, 139 },
         /*147*/ { 2, 10, "A", 90, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*148*/ { 2, 10, "\200", 61, 0, 9, 139 },
         /*149*/ { 2, 10, "\200", 62, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*150*/ { 2, 10, "\201", 76, 0, 9, 139 }, // 36 Shift JIS 0x8181
-        /*151*/ { 2, 10, "\201", 78, ZINT_ERROR_TOO_LONG, -1, -1 }, // 37 Shift JIS 0x8181
+        /*150*/ { 2, 10, "\201", 76, 0, 9, 139 }, /* 36 Shift JIS 0x8181 */
+        /*151*/ { 2, 10, "\201", 78, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 37 Shift JIS 0x8181 */
         /*152*/ { 4, 10, "1", 75, 0, 9, 139 },
         /*153*/ { 4, 10, "1", 76, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*154*/ { 4, 10, "A", 46, 0, 9, 139 },
         /*155*/ { 4, 10, "A", 47, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*156*/ { 4, 10, "\200", 31, 0, 9, 139 },
         /*157*/ { 4, 10, "\200", 32, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*158*/ { 4, 10, "\201", 38, 0, 9, 139 }, // 19 Shift JIS 0x8181
-        /*159*/ { 4, 10, "\201", 40, ZINT_ERROR_TOO_LONG, -1, -1 }, // 20 Shift JIS 0x8181
+        /*158*/ { 4, 10, "\201", 38, 0, 9, 139 }, /* 19 Shift JIS 0x8181 */
+        /*159*/ { 4, 10, "\201", 40, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 20 Shift JIS 0x8181 */
         /*160*/ { 2, 11, "1", 14, 0, 11, 27 },
         /*161*/ { 2, 11, "1", 15, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*162*/ { 2, 11, "A", 8, 0, 11, 27 },
         /*163*/ { 2, 11, "A", 9, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*164*/ { 2, 11, "\200", 6, 0, 11, 27 },
         /*165*/ { 2, 11, "\200", 7, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*166*/ { 2, 11, "\201", 6, 0, 11, 27 }, // 3 Shift JIS 0x8181
-        /*167*/ { 2, 11, "\201", 8, ZINT_ERROR_TOO_LONG, -1, -1 }, // 4 Shift JIS 0x8181
+        /*166*/ { 2, 11, "\201", 6, 0, 11, 27 }, /* 3 Shift JIS 0x8181 */
+        /*167*/ { 2, 11, "\201", 8, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 4 Shift JIS 0x8181 */
         /*168*/ { 4, 11, "1", 9, 0, 11, 27 },
         /*169*/ { 4, 11, "1", 10, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*170*/ { 4, 11, "A", 6, 0, 11, 27 },
         /*171*/ { 4, 11, "A", 7, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*172*/ { 4, 11, "\200", 4, 0, 11, 27 },
         /*173*/ { 4, 11, "\200", 5, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*174*/ { 4, 11, "\201", 4, 0, 11, 27 }, // 2 Shift JIS 0x8181
-        /*175*/ { 4, 11, "\201", 6, ZINT_ERROR_TOO_LONG, -1, -1 }, // 3 Shift JIS 0x8181
+        /*174*/ { 4, 11, "\201", 4, 0, 11, 27 }, /* 2 Shift JIS 0x8181 */
+        /*175*/ { 4, 11, "\201", 6, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 3 Shift JIS 0x8181 */
         /*176*/ { 2, 12, "1", 42, 0, 11, 43 },
         /*177*/ { 2, 12, "1", 43, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*178*/ { 2, 12, "A", 26, 0, 11, 43 },
         /*179*/ { 2, 12, "A", 27, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*180*/ { 2, 12, "\200", 18, 0, 11, 43 },
         /*181*/ { 2, 12, "\200", 19, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*182*/ { 2, 12, "\201", 22, 0, 11, 43 }, // 11 Shift JIS 0x8181
-        /*183*/ { 2, 12, "\201", 24, ZINT_ERROR_TOO_LONG, -1, -1 }, // 12 Shift JIS 0x8181
+        /*182*/ { 2, 12, "\201", 22, 0, 11, 43 }, /* 11 Shift JIS 0x8181 */
+        /*183*/ { 2, 12, "\201", 24, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 12 Shift JIS 0x8181 */
         /*184*/ { 4, 12, "1", 23, 0, 11, 43 },
         /*185*/ { 4, 12, "1", 24, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*186*/ { 4, 12, "A", 14, 0, 11, 43 },
         /*187*/ { 4, 12, "A", 15, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*188*/ { 4, 12, "\200", 10, 0, 11, 43 },
         /*189*/ { 4, 12, "\200", 11, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*190*/ { 4, 12, "\201", 12, 0, 11, 43 }, // 6 Shift JIS 0x8181
-        /*191*/ { 4, 12, "\201", 14, ZINT_ERROR_TOO_LONG, -1, -1 }, // 7 Shift JIS 0x8181
+        /*190*/ { 4, 12, "\201", 12, 0, 11, 43 }, /* 6 Shift JIS 0x8181 */
+        /*191*/ { 4, 12, "\201", 14, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 7 Shift JIS 0x8181 */
         /*192*/ { 2, 13, "1", 71, 0, 11, 59 },
         /*193*/ { 2, 13, "1", 72, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*194*/ { 2, 13, "A", 43, 0, 11, 59 },
         /*195*/ { 2, 13, "A", 44, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*196*/ { 2, 13, "\200", 30, 0, 11, 59 },
         /*197*/ { 2, 13, "\200", 31, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*198*/ { 2, 13, "\201", 36, 0, 11, 59 }, // 18 Shift JIS 0x8181
-        /*199*/ { 2, 13, "\201", 38, ZINT_ERROR_TOO_LONG, -1, -1 }, // 19 Shift JIS 0x8181
+        /*198*/ { 2, 13, "\201", 36, 0, 11, 59 }, /* 18 Shift JIS 0x8181 */
+        /*199*/ { 2, 13, "\201", 38, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 19 Shift JIS 0x8181 */
         /*200*/ { 4, 13, "1", 33, 0, 11, 59 },
         /*201*/ { 4, 13, "1", 34, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*202*/ { 4, 13, "A", 20, 0, 11, 59 },
         /*203*/ { 4, 13, "A", 21, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*204*/ { 4, 13, "\200", 14, 0, 11, 59 },
         /*205*/ { 4, 13, "\200", 15, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*206*/ { 4, 13, "\201", 16, 0, 11, 59 }, // 8 Shift JIS 0x8181
-        /*207*/ { 4, 13, "\201", 18, ZINT_ERROR_TOO_LONG, -1, -1 }, // 9 Shift JIS 0x8181
+        /*206*/ { 4, 13, "\201", 16, 0, 11, 59 }, /* 8 Shift JIS 0x8181 */
+        /*207*/ { 4, 13, "\201", 18, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 9 Shift JIS 0x8181 */
         /*208*/ { 2, 14, "1", 100, 0, 11, 77 },
         /*209*/ { 2, 14, "1", 101, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*210*/ { 2, 14, "A", 60, 0, 11, 77 },
         /*211*/ { 2, 14, "A", 61, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*212*/ { 2, 14, "\200", 41, 0, 11, 77 },
         /*213*/ { 2, 14, "\200", 42, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*214*/ { 2, 14, "\201", 50, 0, 11, 77 }, // 25 Shift JIS 0x8181
-        /*215*/ { 2, 14, "\201", 52, ZINT_ERROR_TOO_LONG, -1, -1 }, // 26 Shift JIS 0x8181
+        /*214*/ { 2, 14, "\201", 50, 0, 11, 77 }, /* 25 Shift JIS 0x8181 */
+        /*215*/ { 2, 14, "\201", 52, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 26 Shift JIS 0x8181 */
         /*216*/ { 4, 14, "1", 52, 0, 11, 77 },
         /*217*/ { 4, 14, "1", 53, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*218*/ { 4, 14, "A", 31, 0, 11, 77 },
         /*219*/ { 4, 14, "A", 32, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*220*/ { 4, 14, "\200", 21, 0, 11, 77 },
         /*221*/ { 4, 14, "\200", 22, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*222*/ { 4, 14, "\201", 26, 0, 11, 77 }, // 13 Shift JIS 0x8181
-        /*223*/ { 4, 14, "\201", 28, ZINT_ERROR_TOO_LONG, -1, -1 }, // 14 Shift JIS 0x8181
+        /*222*/ { 4, 14, "\201", 26, 0, 11, 77 }, /* 13 Shift JIS 0x8181 */
+        /*223*/ { 4, 14, "\201", 28, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 14 Shift JIS 0x8181 */
         /*224*/ { 2, 15, "1", 133, 0, 11, 99 },
         /*225*/ { 2, 15, "1", 134, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*226*/ { 2, 15, "A", 81, 0, 11, 99 },
         /*227*/ { 2, 15, "A", 82, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*228*/ { 2, 15, "\200", 55, 0, 11, 99 },
         /*229*/ { 2, 15, "\200", 56, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*230*/ { 2, 15, "\201", 68, 0, 11, 99 }, // 34 Shift JIS 0x8181
-        /*231*/ { 2, 15, "\201", 70, ZINT_ERROR_TOO_LONG, -1, -1 }, // 35 Shift JIS 0x8181
+        /*230*/ { 2, 15, "\201", 68, 0, 11, 99 }, /* 34 Shift JIS 0x8181 */
+        /*231*/ { 2, 15, "\201", 70, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 35 Shift JIS 0x8181 */
         /*232*/ { 4, 15, "1", 66, 0, 11, 99 },
         /*233*/ { 4, 15, "1", 67, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*234*/ { 4, 15, "A", 40, 0, 11, 99 },
         /*235*/ { 4, 15, "A", 41, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*236*/ { 4, 15, "\200", 27, 0, 11, 99 },
         /*237*/ { 4, 15, "\200", 28, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*238*/ { 4, 15, "\201", 34, 0, 11, 99 }, // 17 Shift JIS 0x8181
-        /*239*/ { 4, 15, "\201", 36, ZINT_ERROR_TOO_LONG, -1, -1 }, // 18 Shift JIS 0x8181
+        /*238*/ { 4, 15, "\201", 34, 0, 11, 99 }, /* 17 Shift JIS 0x8181 */
+        /*239*/ { 4, 15, "\201", 36, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 18 Shift JIS 0x8181 */
         /*240*/ { 2, 16, "1", 198, 0, 11, 139 },
         /*241*/ { 2, 16, "1", 199, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*242*/ { 2, 16, "A", 120, 0, 11, 139 },
         /*243*/ { 2, 16, "A", 121, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*244*/ { 2, 16, "\200", 82, 0, 11, 139 },
         /*245*/ { 2, 16, "\200", 83, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*246*/ { 2, 16, "\201", 102, 0, 11, 139 }, // 51 Shift JIS 0x8181
-        /*247*/ { 2, 16, "\201", 104, ZINT_ERROR_TOO_LONG, -1, -1 }, // 52 Shift JIS 0x8181
+        /*246*/ { 2, 16, "\201", 102, 0, 11, 139 }, /* 51 Shift JIS 0x8181 */
+        /*247*/ { 2, 16, "\201", 104, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 52 Shift JIS 0x8181 */
         /*248*/ { 4, 16, "1", 97, 0, 11, 139 },
         /*249*/ { 4, 16, "1", 98, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*250*/ { 4, 16, "A", 59, 0, 11, 139 },
         /*251*/ { 4, 16, "A", 60, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*252*/ { 4, 16, "\200", 40, 0, 11, 139 },
         /*253*/ { 4, 16, "\200", 41, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*254*/ { 4, 16, "\201", 50, 0, 11, 139 }, // 25 Shift JIS 0x8181
-        /*255*/ { 4, 16, "\201", 52, ZINT_ERROR_TOO_LONG, -1, -1 }, // 26 Shift JIS 0x8181
+        /*254*/ { 4, 16, "\201", 50, 0, 11, 139 }, /* 25 Shift JIS 0x8181 */
+        /*255*/ { 4, 16, "\201", 52, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 26 Shift JIS 0x8181 */
         /*256*/ { 2, 17, "1", 26, 0, 13, 27 },
         /*257*/ { 2, 17, "1", 27, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*258*/ { 2, 17, "A", 16, 0, 13, 27 },
         /*259*/ { 2, 17, "A", 17, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*260*/ { 2, 17, "\200", 11, 0, 13, 27 },
         /*261*/ { 2, 17, "\200", 12, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*262*/ { 2, 17, "\201", 12, 0, 13, 27 }, // 6 Shift JIS 0x8181
-        /*263*/ { 2, 17, "\201", 14, ZINT_ERROR_TOO_LONG, -1, -1 }, // 7 Shift JIS 0x8181
+        /*262*/ { 2, 17, "\201", 12, 0, 13, 27 }, /* 6 Shift JIS 0x8181 */
+        /*263*/ { 2, 17, "\201", 14, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 7 Shift JIS 0x8181 */
         /*264*/ { 4, 17, "1", 14, 0, 13, 27 },
         /*265*/ { 4, 17, "1", 15, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*266*/ { 4, 17, "A", 8, 0, 13, 27 },
         /*267*/ { 4, 17, "A", 9, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*268*/ { 4, 17, "\200", 6, 0, 13, 27 },
         /*269*/ { 4, 17, "\200", 7, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*270*/ { 4, 17, "\201", 6, 0, 13, 27 }, // 3 Shift JIS 0x8181
-        /*271*/ { 4, 17, "\201", 8, ZINT_ERROR_TOO_LONG, -1, -1 }, // 4 Shift JIS 0x8181
+        /*270*/ { 4, 17, "\201", 6, 0, 13, 27 }, /* 3 Shift JIS 0x8181 */
+        /*271*/ { 4, 17, "\201", 8, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 4 Shift JIS 0x8181 */
         /*272*/ { 2, 18, "1", 62, 0, 13, 43 },
         /*273*/ { 2, 18, "1", 63, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*274*/ { 2, 18, "A", 37, 0, 13, 43 },
         /*275*/ { 2, 18, "A", 38, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*276*/ { 2, 18, "\200", 26, 0, 13, 43 },
         /*277*/ { 2, 18, "\200", 27, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*278*/ { 2, 18, "\201", 32, 0, 13, 43 }, // 16 Shift JIS 0x8181
-        /*279*/ { 2, 18, "\201", 34, ZINT_ERROR_TOO_LONG, -1, -1 }, // 17 Shift JIS 0x8181
+        /*278*/ { 2, 18, "\201", 32, 0, 13, 43 }, /* 16 Shift JIS 0x8181 */
+        /*279*/ { 2, 18, "\201", 34, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 17 Shift JIS 0x8181 */
         /*280*/ { 4, 18, "1", 28, 0, 13, 43 },
         /*281*/ { 4, 18, "1", 29, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*282*/ { 4, 18, "A", 17, 0, 13, 43 },
         /*283*/ { 4, 18, "A", 18, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*284*/ { 4, 18, "\200", 12, 0, 13, 43 },
         /*285*/ { 4, 18, "\200", 13, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*286*/ { 4, 18, "\201", 14, 0, 13, 43 }, // 7 Shift JIS 0x8181
-        /*287*/ { 4, 18, "\201", 16, ZINT_ERROR_TOO_LONG, -1, -1 }, // 8 Shift JIS 0x8181
+        /*286*/ { 4, 18, "\201", 14, 0, 13, 43 }, /* 7 Shift JIS 0x8181 */
+        /*287*/ { 4, 18, "\201", 16, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 8 Shift JIS 0x8181 */
         /*288*/ { 2, 19, "1", 88, 0, 13, 59 },
         /*289*/ { 2, 19, "1", 89, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*290*/ { 2, 19, "A", 53, 0, 13, 59 },
         /*291*/ { 2, 19, "A", 54, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*292*/ { 2, 19, "\200", 36, 0, 13, 59 },
         /*293*/ { 2, 19, "\200", 37, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*294*/ { 2, 19, "\201", 44, 0, 13, 59 }, // 22 Shift JIS 0x8181
-        /*295*/ { 2, 19, "\201", 46, ZINT_ERROR_TOO_LONG, -1, -1 }, // 23 Shift JIS 0x8181
+        /*294*/ { 2, 19, "\201", 44, 0, 13, 59 }, /* 22 Shift JIS 0x8181 */
+        /*295*/ { 2, 19, "\201", 46, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 23 Shift JIS 0x8181 */
         /*296*/ { 4, 19, "1", 45, 0, 13, 59 },
         /*297*/ { 4, 19, "1", 46, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*298*/ { 4, 19, "A", 27, 0, 13, 59 },
         /*299*/ { 4, 19, "A", 28, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*300*/ { 4, 19, "\200", 18, 0, 13, 59 },
         /*301*/ { 4, 19, "\200", 19, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*302*/ { 4, 19, "\201", 22, 0, 13, 59 }, // 11 Shift JIS 0x8181
-        /*303*/ { 4, 19, "\201", 24, ZINT_ERROR_TOO_LONG, -1, -1 }, // 12 Shift JIS 0x8181
+        /*302*/ { 4, 19, "\201", 22, 0, 13, 59 }, /* 11 Shift JIS 0x8181 */
+        /*303*/ { 4, 19, "\201", 24, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 12 Shift JIS 0x8181 */
         /*304*/ { 2, 20, "1", 124, 0, 13, 77 },
         /*305*/ { 2, 20, "1", 125, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*306*/ { 2, 20, "A", 75, 0, 13, 77 },
         /*307*/ { 2, 20, "A", 76, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*308*/ { 2, 20, "\200", 51, 0, 13, 77 },
         /*309*/ { 2, 20, "\200", 52, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*310*/ { 2, 20, "\201", 62, 0, 13, 77 }, // 31 Shift JIS 0x8181
-        /*311*/ { 2, 20, "\201", 64, ZINT_ERROR_TOO_LONG, -1, -1 }, // 32 Shift JIS 0x8181
+        /*310*/ { 2, 20, "\201", 62, 0, 13, 77 }, /* 31 Shift JIS 0x8181 */
+        /*311*/ { 2, 20, "\201", 64, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 32 Shift JIS 0x8181 */
         /*312*/ { 4, 20, "1", 66, 0, 13, 77 },
         /*313*/ { 4, 20, "1", 67, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*314*/ { 4, 20, "A", 40, 0, 13, 77 },
         /*315*/ { 4, 20, "A", 41, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*316*/ { 4, 20, "\200", 27, 0, 13, 77 },
         /*317*/ { 4, 20, "\200", 28, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*318*/ { 4, 20, "\201", 34, 0, 13, 77 }, // 17 Shift JIS 0x8181
-        /*319*/ { 4, 20, "\201", 36, ZINT_ERROR_TOO_LONG, -1, -1 }, // 18 Shift JIS 0x8181
+        /*318*/ { 4, 20, "\201", 34, 0, 13, 77 }, /* 17 Shift JIS 0x8181 */
+        /*319*/ { 4, 20, "\201", 36, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 18 Shift JIS 0x8181 */
         /*320*/ { 2, 21, "1", 171, 0, 13, 99 },
         /*321*/ { 2, 21, "1", 172, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*322*/ { 2, 21, "A", 104, 0, 13, 99 },
         /*323*/ { 2, 21, "A", 105, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*324*/ { 2, 21, "\200", 71, 0, 13, 99 },
         /*325*/ { 2, 21, "\200", 72, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*326*/ { 2, 21, "\201", 88, 0, 13, 99 }, // 44 Shift JIS 0x8181
-        /*327*/ { 2, 21, "\201", 90, ZINT_ERROR_TOO_LONG, -1, -1 }, // 45 Shift JIS 0x8181
+        /*326*/ { 2, 21, "\201", 88, 0, 13, 99 }, /* 44 Shift JIS 0x8181 */
+        /*327*/ { 2, 21, "\201", 90, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 45 Shift JIS 0x8181 */
         /*328*/ { 4, 21, "1", 80, 0, 13, 99 },
         /*329*/ { 4, 21, "1", 81, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*330*/ { 4, 21, "A", 49, 0, 13, 99 },
         /*331*/ { 4, 21, "A", 50, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*332*/ { 4, 21, "\200", 33, 0, 13, 99 },
         /*333*/ { 4, 21, "\200", 34, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*334*/ { 4, 21, "\201", 40, 0, 13, 99 }, // 20 Shift JIS 0x8181
-        /*335*/ { 4, 21, "\201", 42, ZINT_ERROR_TOO_LONG, -1, -1 }, // 21 Shift JIS 0x8181
+        /*334*/ { 4, 21, "\201", 40, 0, 13, 99 }, /* 20 Shift JIS 0x8181 */
+        /*335*/ { 4, 21, "\201", 42, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 21 Shift JIS 0x8181 */
         /*336*/ { 2, 22, "1", 251, 0, 13, 139 },
         /*337*/ { 2, 22, "1", 252, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*338*/ { 2, 22, "A", 152, 0, 13, 139 },
         /*339*/ { 2, 22, "A", 153, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*340*/ { 2, 22, "\200", 104, 0, 13, 139 },
         /*341*/ { 2, 22, "\200", 105, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*342*/ { 2, 22, "\201", 128, 0, 13, 139 }, // 64 Shift JIS 0x8181
-        /*343*/ { 2, 22, "\201", 130, ZINT_ERROR_TOO_LONG, -1, -1 }, // 65 Shift JIS 0x8181
+        /*342*/ { 2, 22, "\201", 128, 0, 13, 139 }, /* 64 Shift JIS 0x8181 */
+        /*343*/ { 2, 22, "\201", 130, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 65 Shift JIS 0x8181 */
         /*344*/ { 4, 22, "1", 126, 0, 13, 139 },
         /*345*/ { 4, 22, "1", 127, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*346*/ { 4, 22, "A", 76, 0, 13, 139 },
         /*347*/ { 4, 22, "A", 77, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*348*/ { 4, 22, "\200", 52, 0, 13, 139 },
         /*349*/ { 4, 22, "\200", 53, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*350*/ { 4, 22, "\201", 64, 0, 13, 139 }, // 32 Shift JIS 0x8181
-        /*351*/ { 4, 22, "\201", 66, ZINT_ERROR_TOO_LONG, -1, -1 }, // 33 Shift JIS 0x8181
+        /*350*/ { 4, 22, "\201", 64, 0, 13, 139 }, /* 32 Shift JIS 0x8181 */
+        /*351*/ { 4, 22, "\201", 66, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 33 Shift JIS 0x8181 */
         /*352*/ { 2, 23, "1", 76, 0, 15, 43 },
         /*353*/ { 2, 23, "1", 77, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*354*/ { 2, 23, "A", 46, 0, 15, 43 },
         /*355*/ { 2, 23, "A", 47, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*356*/ { 2, 23, "\200", 31, 0, 15, 43 },
         /*357*/ { 2, 23, "\200", 32, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*358*/ { 2, 23, "\201", 38, 0, 15, 43 }, // 19 Shift JIS 0x8181
-        /*359*/ { 2, 23, "\201", 40, ZINT_ERROR_TOO_LONG, -1, -1 }, // 20 Shift JIS 0x8181
+        /*358*/ { 2, 23, "\201", 38, 0, 15, 43 }, /* 19 Shift JIS 0x8181 */
+        /*359*/ { 2, 23, "\201", 40, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 20 Shift JIS 0x8181 */
         /*360*/ { 4, 23, "1", 33, 0, 15, 43 },
         /*361*/ { 4, 23, "1", 34, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*362*/ { 4, 23, "A", 20, 0, 15, 43 },
         /*363*/ { 4, 23, "A", 21, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*364*/ { 4, 23, "\200", 13, 0, 15, 43 },
         /*365*/ { 4, 23, "\200", 14, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*366*/ { 4, 23, "\201", 16, 0, 15, 43 }, // 8 Shift JIS 0x8181
-        /*367*/ { 4, 23, "\201", 18, ZINT_ERROR_TOO_LONG, -1, -1 }, // 9 Shift JIS 0x8181
+        /*366*/ { 4, 23, "\201", 16, 0, 15, 43 }, /* 8 Shift JIS 0x8181 */
+        /*367*/ { 4, 23, "\201", 18, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 9 Shift JIS 0x8181 */
         /*368*/ { 2, 24, "1", 112, 0, 15, 59 },
         /*369*/ { 2, 24, "1", 113, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*370*/ { 2, 24, "A", 68, 0, 15, 59 },
         /*371*/ { 2, 24, "A", 69, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*372*/ { 2, 24, "\200", 46, 0, 15, 59 },
         /*373*/ { 2, 24, "\200", 47, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*374*/ { 2, 24, "\201", 56, 0, 15, 59 }, // 28 Shift JIS 0x8181
-        /*375*/ { 2, 24, "\201", 58, ZINT_ERROR_TOO_LONG, -1, -1 }, // 29 Shift JIS 0x8181
+        /*374*/ { 2, 24, "\201", 56, 0, 15, 59 }, /* 28 Shift JIS 0x8181 */
+        /*375*/ { 2, 24, "\201", 58, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 29 Shift JIS 0x8181 */
         /*376*/ { 4, 24, "1", 59, 0, 15, 59 },
         /*377*/ { 4, 24, "1", 60, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*378*/ { 4, 24, "A", 36, 0, 15, 59 },
         /*379*/ { 4, 24, "A", 37, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*380*/ { 4, 24, "\200", 24, 0, 15, 59 },
         /*381*/ { 4, 24, "\200", 25, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*382*/ { 4, 24, "\201", 30, 0, 15, 59 }, // 30 Shift JIS 0x8181
-        /*383*/ { 4, 24, "\201", 32, ZINT_ERROR_TOO_LONG, -1, -1 }, // 31 Shift JIS 0x8181
+        /*382*/ { 4, 24, "\201", 30, 0, 15, 59 }, /* 30 Shift JIS 0x8181 */
+        /*383*/ { 4, 24, "\201", 32, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 31 Shift JIS 0x8181 */
         /*384*/ { 2, 25, "1", 157, 0, 15, 77 },
         /*385*/ { 2, 25, "1", 158, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*386*/ { 2, 25, "A", 95, 0, 15, 77 },
         /*387*/ { 2, 25, "A", 96, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*388*/ { 2, 25, "\200", 65, 0, 15, 77 },
         /*389*/ { 2, 25, "\200", 66, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*390*/ { 2, 25, "\201", 80, 0, 15, 77 }, // 40 Shift JIS 0x8181
-        /*391*/ { 2, 25, "\201", 82, ZINT_ERROR_TOO_LONG, -1, -1 }, // 41 Shift JIS 0x8181
+        /*390*/ { 2, 25, "\201", 80, 0, 15, 77 }, /* 40 Shift JIS 0x8181 */
+        /*391*/ { 2, 25, "\201", 82, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 41 Shift JIS 0x8181 */
         /*392*/ { 4, 25, "1", 71, 0, 15, 77 },
         /*393*/ { 4, 25, "1", 72, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*394*/ { 4, 25, "A", 43, 0, 15, 77 },
         /*395*/ { 4, 25, "A", 44, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*396*/ { 4, 25, "\200", 29, 0, 15, 77 },
         /*397*/ { 4, 25, "\200", 30, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*398*/ { 4, 25, "\201", 36, 0, 15, 77 }, // 18 Shift JIS 0x8181
-        /*399*/ { 4, 25, "\201", 38, ZINT_ERROR_TOO_LONG, -1, -1 }, // 19 Shift JIS 0x8181
+        /*398*/ { 4, 25, "\201", 36, 0, 15, 77 }, /* 18 Shift JIS 0x8181 */
+        /*399*/ { 4, 25, "\201", 38, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 19 Shift JIS 0x8181 */
         /*400*/ { 2, 26, "1", 207, 0, 15, 99 },
         /*401*/ { 2, 26, "1", 208, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*402*/ { 2, 26, "A", 126, 0, 15, 99 },
         /*403*/ { 2, 26, "A", 127, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*404*/ { 2, 26, "\200", 86, 0, 15, 99 },
         /*405*/ { 2, 26, "\200", 87, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*406*/ { 2, 26, "\201", 106, 0, 15, 99 }, // 53 Shift JIS 0x8181
-        /*407*/ { 2, 26, "\201", 108, ZINT_ERROR_TOO_LONG, -1, -1 }, // 54 Shift JIS 0x8181
+        /*406*/ { 2, 26, "\201", 106, 0, 15, 99 }, /* 53 Shift JIS 0x8181 */
+        /*407*/ { 2, 26, "\201", 108, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 54 Shift JIS 0x8181 */
         /*408*/ { 4, 26, "1", 111, 0, 15, 99 },
         /*409*/ { 4, 26, "1", 112, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*410*/ { 4, 26, "A", 68, 0, 15, 99 },
         /*411*/ { 4, 26, "A", 69, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*412*/ { 4, 26, "\200", 46, 0, 15, 99 },
         /*413*/ { 4, 26, "\200", 47, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*414*/ { 4, 26, "\201", 56, 0, 15, 99 }, // 28 Shift JIS 0x8181
-        /*415*/ { 4, 26, "\201", 58, ZINT_ERROR_TOO_LONG, -1, -1 }, // 29 Shift JIS 0x8181
+        /*414*/ { 4, 26, "\201", 56, 0, 15, 99 }, /* 28 Shift JIS 0x8181 */
+        /*415*/ { 4, 26, "\201", 58, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 29 Shift JIS 0x8181 */
         /*416*/ { 2, 27, "1", 301, 0, 15, 139 },
         /*417*/ { 2, 27, "1", 302, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*418*/ { 2, 27, "A", 182, 0, 15, 139 },
         /*419*/ { 2, 27, "A", 183, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*420*/ { 2, 27, "\200", 125, 0, 15, 139 },
         /*421*/ { 2, 27, "\200", 126, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*422*/ { 2, 27, "\201", 154, 0, 15, 139 }, // 77 Shift JIS 0x8181
-        /*423*/ { 2, 27, "\201", 156, ZINT_ERROR_TOO_LONG, -1, -1 }, // 78 Shift JIS 0x8181
+        /*422*/ { 2, 27, "\201", 154, 0, 15, 139 }, /* 77 Shift JIS 0x8181 */
+        /*423*/ { 2, 27, "\201", 156, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 78 Shift JIS 0x8181 */
         /*424*/ { 4, 27, "1", 162, 0, 15, 139 },
         /*425*/ { 4, 27, "1", 163, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*426*/ { 4, 27, "A", 98, 0, 15, 139 },
         /*427*/ { 4, 27, "A", 99, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*428*/ { 4, 27, "\200", 67, 0, 15, 139 },
         /*429*/ { 4, 27, "\200", 68, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*430*/ { 4, 27, "\201", 82, 0, 15, 139 }, // 41 Shift JIS 0x8181
-        /*431*/ { 4, 27, "\201", 84, ZINT_ERROR_TOO_LONG, -1, -1 }, // 42 Shift JIS 0x8181
+        /*430*/ { 4, 27, "\201", 82, 0, 15, 139 }, /* 41 Shift JIS 0x8181 */
+        /*431*/ { 4, 27, "\201", 84, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 42 Shift JIS 0x8181 */
         /*432*/ { 2, 28, "1", 90, 0, 17, 43 },
         /*433*/ { 2, 28, "1", 91, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*434*/ { 2, 28, "A", 55, 0, 17, 43 },
         /*435*/ { 2, 28, "A", 56, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*436*/ { 2, 28, "\200", 37, 0, 17, 43 },
         /*437*/ { 2, 28, "\200", 38, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*438*/ { 2, 28, "\201", 46, 0, 17, 43 }, // 23 Shift JIS 0x8181
-        /*439*/ { 2, 28, "\201", 48, ZINT_ERROR_TOO_LONG, -1, -1 }, // 24 Shift JIS 0x8181
+        /*438*/ { 2, 28, "\201", 46, 0, 17, 43 }, /* 23 Shift JIS 0x8181 */
+        /*439*/ { 2, 28, "\201", 48, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 24 Shift JIS 0x8181 */
         /*440*/ { 4, 28, "1", 47, 0, 17, 43 },
         /*441*/ { 4, 28, "1", 48, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*442*/ { 4, 28, "A", 28, 0, 17, 43 },
         /*443*/ { 4, 28, "A", 29, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*444*/ { 4, 28, "\200", 19, 0, 17, 43 },
         /*445*/ { 4, 28, "\200", 20, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*446*/ { 4, 28, "\201", 24, 0, 17, 43 }, // 12 Shift JIS 0x8181
-        /*447*/ { 4, 28, "\201", 26, ZINT_ERROR_TOO_LONG, -1, -1 }, // 13 Shift JIS 0x8181
+        /*446*/ { 4, 28, "\201", 24, 0, 17, 43 }, /* 12 Shift JIS 0x8181 */
+        /*447*/ { 4, 28, "\201", 26, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 13 Shift JIS 0x8181 */
         /*448*/ { 2, 29, "1", 131, 0, 17, 59 },
         /*449*/ { 2, 29, "1", 132, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*450*/ { 2, 29, "A", 79, 0, 17, 59 },
         /*451*/ { 2, 29, "A", 80, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*452*/ { 2, 29, "\200", 54, 0, 17, 59 },
         /*453*/ { 2, 29, "\200", 55, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*454*/ { 2, 29, "\201", 66, 0, 17, 59 }, // 33 Shift JIS 0x8181
-        /*455*/ { 2, 29, "\201", 68, ZINT_ERROR_TOO_LONG, -1, -1 }, // 34 Shift JIS 0x8181
+        /*454*/ { 2, 29, "\201", 66, 0, 17, 59 }, /* 33 Shift JIS 0x8181 */
+        /*455*/ { 2, 29, "\201", 68, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 34 Shift JIS 0x8181 */
         /*456*/ { 4, 29, "1", 63, 0, 17, 59 },
         /*457*/ { 4, 29, "1", 64, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*458*/ { 4, 29, "A", 38, 0, 17, 59 },
         /*459*/ { 4, 29, "A", 39, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*460*/ { 4, 29, "\200", 26, 0, 17, 59 },
         /*461*/ { 4, 29, "\200", 27, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*462*/ { 4, 29, "\201", 32, 0, 17, 59 }, // 16 Shift JIS 0x8181
-        /*463*/ { 4, 29, "\201", 34, ZINT_ERROR_TOO_LONG, -1, -1 }, // 17 Shift JIS 0x8181
+        /*462*/ { 4, 29, "\201", 32, 0, 17, 59 }, /* 16 Shift JIS 0x8181 */
+        /*463*/ { 4, 29, "\201", 34, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 17 Shift JIS 0x8181 */
         /*464*/ { 2, 30, "1", 183, 0, 17, 77 },
         /*465*/ { 2, 30, "1", 184, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*466*/ { 2, 30, "A", 111, 0, 17, 77 },
         /*467*/ { 2, 30, "A", 112, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*468*/ { 2, 30, "\200", 76, 0, 17, 77 },
         /*469*/ { 2, 30, "\200", 77, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*470*/ { 2, 30, "\201", 94, 0, 17, 77 }, // 47 Shift JIS 0x8181
-        /*471*/ { 2, 30, "\201", 96, ZINT_ERROR_TOO_LONG, -1, -1 }, // 48 Shift JIS 0x8181
+        /*470*/ { 2, 30, "\201", 94, 0, 17, 77 }, /* 47 Shift JIS 0x8181 */
+        /*471*/ { 2, 30, "\201", 96, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 48 Shift JIS 0x8181 */
         /*472*/ { 4, 30, "1", 87, 0, 17, 77 },
         /*473*/ { 4, 30, "1", 88, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*474*/ { 4, 30, "A", 53, 0, 17, 77 },
         /*475*/ { 4, 30, "A", 54, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*476*/ { 4, 30, "\200", 36, 0, 17, 77 },
         /*477*/ { 4, 30, "\200", 37, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*478*/ { 4, 30, "\201", 44, 0, 17, 77 }, // 22 Shift JIS 0x8181
-        /*479*/ { 4, 30, "\201", 46, ZINT_ERROR_TOO_LONG, -1, -1 }, // 23 Shift JIS 0x8181
+        /*478*/ { 4, 30, "\201", 44, 0, 17, 77 }, /* 22 Shift JIS 0x8181 */
+        /*479*/ { 4, 30, "\201", 46, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 23 Shift JIS 0x8181 */
         /*480*/ { 2, 31, "1", 236, 0, 17, 99 },
         /*481*/ { 2, 31, "1", 237, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*482*/ { 2, 31, "A", 143, 0, 17, 99 },
         /*483*/ { 2, 31, "A", 144, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*484*/ { 2, 31, "\200", 98, 0, 17, 99 },
         /*485*/ { 2, 31, "\200", 99, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*486*/ { 2, 31, "\201", 120, 0, 17, 99 }, // 60 Shift JIS 0x8181
-        /*487*/ { 2, 31, "\201", 122, ZINT_ERROR_TOO_LONG, -1, -1 }, // 61 Shift JIS 0x8181
+        /*486*/ { 2, 31, "\201", 120, 0, 17, 99 }, /* 60 Shift JIS 0x8181 */
+        /*487*/ { 2, 31, "\201", 122, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 61 Shift JIS 0x8181 */
         /*488*/ { 4, 31, "1", 131, 0, 17, 99 },
         /*489*/ { 4, 31, "1", 132, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*490*/ { 4, 31, "A", 79, 0, 17, 99 },
         /*491*/ { 4, 31, "A", 80, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*492*/ { 4, 31, "\200", 54, 0, 17, 99 },
         /*493*/ { 4, 31, "\200", 55, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*494*/ { 4, 31, "\201", 66, 0, 17, 99 }, // 33 Shift JIS 0x8181
-        /*495*/ { 4, 31, "\201", 68, ZINT_ERROR_TOO_LONG, -1, -1 }, // 34 Shift JIS 0x8181
+        /*494*/ { 4, 31, "\201", 66, 0, 17, 99 }, /* 33 Shift JIS 0x8181 */
+        /*495*/ { 4, 31, "\201", 68, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 34 Shift JIS 0x8181 */
         /*496*/ { 2, 32, "1", 361, 0, 17, 139 },
         /*497*/ { 2, 32, "1", 362, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*498*/ { 2, 32, "A", 219, 0, 17, 139 },
         /*499*/ { 2, 32, "A", 220, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*500*/ { 2, 32, "\200", 150, 0, 17, 139 },
         /*501*/ { 2, 32, "\200", 151, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*502*/ { 2, 32, "\201", 184, 0, 17, 139 }, // 92 Shift JIS 0x8181
-        /*503*/ { 2, 32, "\201", 186, ZINT_ERROR_TOO_LONG, -1, -1 }, // 93 Shift JIS 0x8181
+        /*502*/ { 2, 32, "\201", 184, 0, 17, 139 }, /* 92 Shift JIS 0x8181 */
+        /*503*/ { 2, 32, "\201", 186, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 93 Shift JIS 0x8181 */
         /*504*/ { 4, 32, "1", 178, 0, 17, 139 },
         /*505*/ { 4, 32, "1", 179, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*506*/ { 4, 32, "A", 108, 0, 17, 139 },
         /*507*/ { 4, 32, "A", 109, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*508*/ { 4, 32, "\200", 74, 0, 17, 139 },
         /*509*/ { 4, 32, "\200", 75, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*510*/ { 4, 32, "\201", 92, 0, 17, 139 }, // 46 Shift JIS 0x8181
-        /*511*/ { 4, 32, "\201", 94, ZINT_ERROR_TOO_LONG, -1, -1 }, // 47 Shift JIS 0x8181
+        /*510*/ { 4, 32, "\201", 92, 0, 17, 139 }, /* 46 Shift JIS 0x8181 */
+        /*511*/ { 4, 32, "\201", 94, ZINT_ERROR_TOO_LONG, -1, -1 }, /* 47 Shift JIS 0x8181 */
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char data_buf[ZINT_MAX_DATA_LEN];
 
-    testStart("test_rmqr_large");
+    char escaped[4096];
+    char cmp_buf[32768];
+    char cmp_msg[1024];
+
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
+
+    testStartSymbol("test_rmqr_large", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -6434,6 +7663,18 @@ static void test_rmqr_large(int index, int debug) {
         if (ret < ZINT_ERROR) {
             assert_equal(symbol->rows, data[i].expected_rows, "i:%d symbol->rows %d != %d\n", i, symbol->rows, data[i].expected_rows);
             assert_equal(symbol->width, data[i].expected_width, "i:%d symbol->width %d != %d\n", i, symbol->width, data[i].expected_width);
+
+            if (do_zxingcpp && testUtilCanZXingCPP(i, symbol, data_buf, length, debug)) {
+                int cmp_len, ret_len;
+                char modules_dump[17 * 139 + 1];
+                assert_notequal(testUtilModulesDump(symbol, modules_dump, sizeof(modules_dump)), -1, "i:%d testUtilModulesDump == -1\n", i);
+                ret = testUtilZXingCPP(i, symbol, data_buf, length, modules_dump, cmp_buf, sizeof(cmp_buf), &cmp_len);
+                assert_zero(ret, "i:%d %s testUtilZXingCPP ret %d != 0\n", i, testUtilBarcodeName(symbol->symbology), ret);
+
+                ret = testUtilZXingCPPCmp(symbol, cmp_msg, cmp_buf, cmp_len, data_buf, length, NULL /*primary*/, escaped, &ret_len);
+                assert_zero(ret, "i:%d %s testUtilZXingCPPCmp %d != 0 %s\n  actual: %.*s\nexpected: %.*s\n",
+                               i, testUtilBarcodeName(symbol->symbology), ret, cmp_msg, cmp_len, cmp_buf, ret_len, escaped);
+            }
         }
 
         ZBarcode_Delete(symbol);
@@ -6442,9 +7683,12 @@ static void test_rmqr_large(int index, int debug) {
     testFinish();
 }
 
-static void test_rmqr_options(int index, int debug) {
+static void test_rmqr_options(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
+        int input_mode;
+        int eci;
         int option_1;
         int option_2;
         char *data;
@@ -6452,93 +7696,102 @@ static void test_rmqr_options(int index, int debug) {
         int ret_vector;
         int expected_rows;
         int expected_width;
+        int zxingcpp_cmp;
+        char *comment;
     };
-    // s/\/\*[ 0-9]*\*\//\=printf("\/*%3d*\/", line(".") - line("'<"))
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
     struct item data[] = {
-        /*  0*/ { -1, -1, "12345", 0, 0, 11, 27 }, // ECC auto-set to H, version auto-set to 11 (R11x27)
-        /*  1*/ { 4, 11, "12345", 0, 0, 11, 27 },
-        /*  2*/ { 1, -1, "12345", ZINT_ERROR_INVALID_OPTION, -1, 0, 0 }, // ECC L not available
-        /*  3*/ { 3, -1, "12345", ZINT_ERROR_INVALID_OPTION, -1, 0, 0 }, // ECC Q not available
-        /*  4*/ { 4, 11, "123456789", 0, 0, 11, 27 }, // Max capacity ECC H, version 11, 9 numbers
-        /*  5*/ { 4, 11, "1234567890", ZINT_ERROR_TOO_LONG, -1, 0, 0 },
-        /*  6*/ { 2, 11, "12345678901234", 0, 0, 11, 27 }, // Max capacity ECC M, version 11, 14 numbers
-        /*  7*/ { 2, 11, "123456789012345", ZINT_ERROR_TOO_LONG, -1, 0, 0 },
-        /*  8*/ { 4, 11, "ABCDEF", 0, 0, 11, 27 }, // Max capacity ECC H, version 11, 6 letters
-        /*  9*/ { 4, 11, "ABCDEFG", ZINT_ERROR_TOO_LONG, -1, 0, 0 },
-        /* 10*/ { 2, 11, "ABCDEFGH", 0, 0, 11, 27 }, // Max capacity ECC M, version 11, 8 letters
-        /* 11*/ { 2, 11, "ABCDEFGHI", ZINT_ERROR_TOO_LONG, -1, 0, 0 },
-        /* 12*/ { 4, 11, "\177\177\177\177", 0, 0, 11, 27 }, // Max capacity ECC H, version 11, 4 bytes
-        /* 13*/ { 4, 11, "\177\177\177\177\177", ZINT_ERROR_TOO_LONG, -1, 0, 0 },
-        /* 14*/ { 2, 11, "\177\177\177\177\177\177", 0, 0, 11, 27 }, // Max capacity ECC M, version 11, 6 bytes
-        /* 15*/ { 2, 11, "\177\177\177\177\177\177\177", ZINT_ERROR_TOO_LONG, -1, 0, 0 },
-        /* 16*/ { 4, 11, "点茗", ZINT_WARN_NONCOMPLIANT, 0, 11, 27 }, // Max capacity ECC H, version 11, 2 kanji
-        /* 17*/ { 4, 11, "点茗点", ZINT_ERROR_TOO_LONG, -1, 0, 0 },
-        /* 18*/ { 2, 11, "点茗点", ZINT_WARN_NONCOMPLIANT, 0, 11, 27 }, // Max capacity ECC M, version 11, 3 kanji
-        /* 19*/ { 2, 11, "点茗点茗", ZINT_ERROR_TOO_LONG, -1, 0, 0 },
-        /* 20*/ { -1, 1, "12345", 0, 0, 7, 43 }, // ECC auto-set to M, version 1 (R7x43)
-        /* 21*/ { 2, 1, "12345", 0, 0, 7, 43 },
-        /* 22*/ { 4, 1, "12345", 0, 0, 7, 43 }, // Max capacity ECC H, version 1, 5 numbers
-        /* 23*/ { 4, 1, "123456", ZINT_ERROR_TOO_LONG, -1, 0, 0 },
-        /* 24*/ { 2, 1, "123456789012", 0, 0, 7, 43 }, // Max capacity ECC M, version 1, 12 numbers
-        /* 25*/ { 2, 1, "1234567890123", ZINT_ERROR_TOO_LONG, -1, 0, 0 },
-        /* 26*/ { 4, 1, "ABC", 0, 0, 7, 43 }, // Max capacity ECC H, version 1, 3 letters
-        /* 27*/ { 4, 1, "ABCD", ZINT_ERROR_TOO_LONG, -1, 0, 0 },
-        /* 28*/ { 2, 1, "ABCDEFG", 0, 0, 7, 43 }, // Max capacity ECC M, version 1, 7 letters
-        /* 29*/ { 2, 1, "ABCDEFGH", ZINT_ERROR_TOO_LONG, -1, 0, 0 },
-        /* 30*/ { 4, 1, "\177\177", 0, 0, 7, 43 }, // Max capacity ECC H, version 1, 2 bytes
-        /* 31*/ { 4, 1, "\177\177\177", ZINT_ERROR_TOO_LONG, -1, 0, 0 },
-        /* 32*/ { 2, 1, "\177\177\177\177\177", 0, 0, 7, 43 }, // Max capacity ECC M, version 1, 5 bytes
-        /* 33*/ { 2, 1, "\177\177\177\177\177\177", ZINT_ERROR_TOO_LONG, -1, 0, 0 },
-        /* 34*/ { 4, 1, "点", ZINT_WARN_NONCOMPLIANT, 0, 7, 43 }, // Max capacity ECC H, version 1, 1 kanji
-        /* 35*/ { 4, 1, "点茗", ZINT_ERROR_TOO_LONG, -1, 0, 0 },
-        /* 36*/ { 2, 1, "点茗点", ZINT_WARN_NONCOMPLIANT, 0, 7, 43 }, // Max capacity ECC M, version 1, 3 kanji
-        /* 37*/ { 2, 1, "点茗点茗", ZINT_ERROR_TOO_LONG, -1, 0, 0 },
-        /* 38*/ { 4, 7, "12345678901234567890123", 0, 0, 9, 59 }, // Max capacity ECC H, version 7 (R9x59), 23 numbers
-        /* 39*/ { 4, 7, "123456789012345678901234", ZINT_ERROR_TOO_LONG, -1, 0, 0 },
-        /* 40*/ { 4, 7, "点茗点茗点茗", ZINT_WARN_NONCOMPLIANT, 0, 9, 59 }, // Max capacity ECC H, version 7, 6 kanji
-        /* 41*/ { 4, 7, "点茗点茗点茗点", ZINT_ERROR_TOO_LONG, -1, 0, 0 },
-        /* 42*/ { 4, 13, "点茗点茗点茗点茗", ZINT_WARN_NONCOMPLIANT, 0, 11, 59 }, // Max capacity ECC H, version 13 (R11x59), 8 kanji
-        /* 43*/ { 4, 13, "点茗点茗点茗点茗点", ZINT_ERROR_TOO_LONG, -1, 0, 0 },
-        /* 44*/ { 4, 20, "点茗点茗点茗点茗点茗点茗点茗点茗点", ZINT_WARN_NONCOMPLIANT, 0, 13, 77 }, // Max capacity ECC H, version 20 (R13x77), 17 kanji
-        /* 45*/ { 4, 20, "点茗点茗点茗点茗点茗点茗点茗点茗点茗", ZINT_ERROR_TOO_LONG, -1, 0, 0 },
-        /* 46*/ { 4, 26, "点茗点茗点茗点茗点茗点茗点茗点茗点点茗点茗点茗点点茗点茗", ZINT_WARN_NONCOMPLIANT, 0, 15, 99 }, // Max capacity ECC H, version 26 (R15x99), 28 kanji
-        /* 47*/ { 4, 26, "点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点", ZINT_ERROR_TOO_LONG, -1, 0, 0 },
-        /* 48*/ { 4, 32, "点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗", ZINT_WARN_NONCOMPLIANT, 0, 17, 139 }, // Max capacity ECC H, version 32 (R17x139), 46 kanji
-        /* 49*/ { 4, 32, "点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点", ZINT_ERROR_TOO_LONG, -1, 0, 0 },
-        /* 50*/ { -1, 32, "点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗", ZINT_WARN_NONCOMPLIANT, 0, 17, 139 }, // Max capacity ECC M, version 32, 92 kanji
-        /* 51*/ { 4, 32, "点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点", ZINT_ERROR_TOO_LONG, -1, 0, 0 },
-        /* 52*/ { -1, 33, "点茗点", ZINT_WARN_NONCOMPLIANT, 0, 7, 43 }, // ECC auto-set to M, version 33 (R7xAuto-width) auto-sets R7x43
-        /* 53*/ { 4, 33, "点茗点", ZINT_WARN_NONCOMPLIANT, 0, 7, 59 }, // ECC set to H, version 33 (R7xAuto-width) auto-sets R7x59
-        /* 54*/ { -1, 34, "点茗点", ZINT_WARN_NONCOMPLIANT, 0, 9, 43 }, // ECC auto-set to H, version 34 (R9xAuto-width) auto-sets R9x43
-        /* 55*/ { -1, 35, "点茗点", ZINT_WARN_NONCOMPLIANT, 0, 11, 27 }, // ECC auto-set to M, version 35 (R11xAuto-width) auto-sets R11x27
-        /* 56*/ { 4, 35, "点茗点茗点茗点", ZINT_WARN_NONCOMPLIANT, 0, 11, 59 }, // ECC set to H, version 35 (R11xAuto-width) auto-sets R11x59
-        /* 57*/ { -1, 35, "点茗点茗点茗点", ZINT_WARN_NONCOMPLIANT, 0, 11, 43 }, // ECC auto-set to M, version 35 (R11xAuto-width) auto-sets R11x43
-        /* 58*/ { -1, 36, "点茗点茗点茗点茗", ZINT_WARN_NONCOMPLIANT, 0, 13, 43 }, // ECC auto-set to M, version 36 (R13xAuto-width) auto-sets R13x43
-        /* 59*/ { 4, 36, "点茗点茗点茗点茗", ZINT_WARN_NONCOMPLIANT, 0, 13, 59 }, // ECC set to H, version 36 (R13xAuto-width) auto-sets R13x59
-        /* 60*/ { -1, 37, "点茗点茗点茗点茗点", ZINT_WARN_NONCOMPLIANT, 0, 15, 43 }, // ECC auto-set to M, version 37 (R15xAuto-width) auto-sets R15x43
-        /* 61*/ { 4, 37, "点茗点茗点茗点茗点", ZINT_WARN_NONCOMPLIANT, 0, 15, 59 }, // ECC set to H, version 37 (R15xAuto-width) auto-sets R15x59
-        /* 62*/ { -1, 38, "点茗点茗点茗点茗点茗点茗点茗点茗点茗", ZINT_WARN_NONCOMPLIANT, 0, 17, 43 }, // ECC auto-set to M, version 38 (R17xAuto-width) auto-sets R17x43
-        /* 63*/ { 4, 38, "点茗点茗点茗点茗点茗点茗点茗点茗点茗", ZINT_WARN_NONCOMPLIANT, 0, 17, 77 }, // ECC set to H, version 38 (R17xAuto-width) auto-sets R17x77
-        /* 64*/ { -1, 39, "点茗点", ZINT_ERROR_INVALID_OPTION, -1, 0, 0 },
-        /* 65*/ { 4, -1, "点茗点", ZINT_WARN_NONCOMPLIANT, 0, 13, 27 }, // ECC set to H, auto-sets R13x27
-        /* 66*/ { 4, -1, "点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗", ZINT_WARN_NONCOMPLIANT, 0, 15, 99 }, // ECC set to H, auto-sets R15x99 (max capacity)
-        /* 67*/ { 4, -1, "点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点", ZINT_WARN_NONCOMPLIANT, 0, 17, 99 }, // ECC set to H, auto-sets R17x99
-        /* 68*/ { 4, -1, "点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗", ZINT_WARN_NONCOMPLIANT, 0, 17, 139 }, // ECC set to H, auto-sets R17x139 (max capacity)
+        /*  0*/ { UNICODE_MODE, -1, -1, -1, "12345", 0, 0, 11, 27, 1, "" }, /* ECC auto-set to H, version auto-set to 11 (R11x27) */
+        /*  1*/ { UNICODE_MODE, -1, 4, 11, "12345", 0, 0, 11, 27, 1, "" },
+        /*  2*/ { UNICODE_MODE, -1, 1, -1, "12345", ZINT_ERROR_INVALID_OPTION, -1, 0, 0, 1, "" }, /* ECC L not available */
+        /*  3*/ { UNICODE_MODE, -1, 3, -1, "12345", ZINT_ERROR_INVALID_OPTION, -1, 0, 0, 1, "" }, /* ECC Q not available */
+        /*  4*/ { UNICODE_MODE, -1, 4, 11, "123456789", 0, 0, 11, 27, 1, "" }, /* Max capacity ECC H, version 11, 9 numbers */
+        /*  5*/ { UNICODE_MODE, -1, 4, 11, "1234567890", ZINT_ERROR_TOO_LONG, -1, 0, 0, 1, "" },
+        /*  6*/ { UNICODE_MODE, -1, 2, 11, "12345678901234", 0, 0, 11, 27, 1, "" }, /* Max capacity ECC M, version 11, 14 numbers */
+        /*  7*/ { UNICODE_MODE, -1, 2, 11, "123456789012345", ZINT_ERROR_TOO_LONG, -1, 0, 0, 1, "" },
+        /*  8*/ { UNICODE_MODE, -1, 4, 11, "ABCDEF", 0, 0, 11, 27, 1, "" }, /* Max capacity ECC H, version 11, 6 letters */
+        /*  9*/ { UNICODE_MODE, -1, 4, 11, "ABCDEFG", ZINT_ERROR_TOO_LONG, -1, 0, 0, 1, "" },
+        /* 10*/ { UNICODE_MODE, -1, 2, 11, "ABCDEFGH", 0, 0, 11, 27, 1, "" }, /* Max capacity ECC M, version 11, 8 letters */
+        /* 11*/ { UNICODE_MODE, -1, 2, 11, "ABCDEFGHI", ZINT_ERROR_TOO_LONG, -1, 0, 0, 1, "" },
+        /* 12*/ { UNICODE_MODE, -1, 4, 11, "\177\177\177\177", 0, 0, 11, 27, 1, "" }, /* Max capacity ECC H, version 11, 4 bytes */
+        /* 13*/ { UNICODE_MODE, -1, 4, 11, "\177\177\177\177\177", ZINT_ERROR_TOO_LONG, -1, 0, 0, 1, "" },
+        /* 14*/ { UNICODE_MODE, -1, 2, 11, "\177\177\177\177\177\177", 0, 0, 11, 27, 1, "" }, /* Max capacity ECC M, version 11, 6 bytes */
+        /* 15*/ { UNICODE_MODE, -1, 2, 11, "\177\177\177\177\177\177\177", ZINT_ERROR_TOO_LONG, -1, 0, 0, 1, "" },
+        /* 16*/ { UNICODE_MODE, -1, 4, 11, "点茗", ZINT_WARN_NONCOMPLIANT, 0, 11, 27, 1, "" }, /* Max capacity ECC H, version 11, 2 kanji */
+        /* 17*/ { UNICODE_MODE, -1, 4, 11, "点茗点", ZINT_ERROR_TOO_LONG, -1, 0, 0, 1, "" },
+        /* 18*/ { UNICODE_MODE, -1, 2, 11, "点茗点", ZINT_WARN_NONCOMPLIANT, 0, 11, 27, 1, "" }, /* Max capacity ECC M, version 11, 3 kanji */
+        /* 19*/ { UNICODE_MODE, -1, 2, 11, "点茗点茗", ZINT_ERROR_TOO_LONG, -1, 0, 0, 1, "" },
+        /* 20*/ { UNICODE_MODE, -1, -1, 1, "12345", 0, 0, 7, 43, 1, "" }, /* ECC auto-set to M, version 1 (R7x43) */
+        /* 21*/ { UNICODE_MODE, -1, 2, 1, "12345", 0, 0, 7, 43, 1, "" },
+        /* 22*/ { UNICODE_MODE, -1, 4, 1, "12345", 0, 0, 7, 43, 1, "" }, /* Max capacity ECC H, version 1, 5 numbers */
+        /* 23*/ { UNICODE_MODE, -1, 4, 1, "123456", ZINT_ERROR_TOO_LONG, -1, 0, 0, 1, "" },
+        /* 24*/ { UNICODE_MODE, -1, 2, 1, "123456789012", 0, 0, 7, 43, 1, "" }, /* Max capacity ECC M, version 1, 12 numbers */
+        /* 25*/ { UNICODE_MODE, -1, 2, 1, "1234567890123", ZINT_ERROR_TOO_LONG, -1, 0, 0, 1, "" },
+        /* 26*/ { UNICODE_MODE, -1, 4, 1, "ABC", 0, 0, 7, 43, 1, "" }, /* Max capacity ECC H, version 1, 3 letters */
+        /* 27*/ { UNICODE_MODE, -1, 4, 1, "ABCD", ZINT_ERROR_TOO_LONG, -1, 0, 0, 1, "" },
+        /* 28*/ { UNICODE_MODE, -1, 2, 1, "ABCDEFG", 0, 0, 7, 43, 1, "" }, /* Max capacity ECC M, version 1, 7 letters */
+        /* 29*/ { UNICODE_MODE, -1, 2, 1, "ABCDEFGH", ZINT_ERROR_TOO_LONG, -1, 0, 0, 1, "" },
+        /* 30*/ { UNICODE_MODE, -1, 4, 1, "\177\177", 0, 0, 7, 43, 1, "" }, /* Max capacity ECC H, version 1, 2 bytes */
+        /* 31*/ { UNICODE_MODE, -1, 4, 1, "\177\177\177", ZINT_ERROR_TOO_LONG, -1, 0, 0, 1, "" },
+        /* 32*/ { UNICODE_MODE, -1, 2, 1, "\177\177\177\177\177", 0, 0, 7, 43, 1, "" }, /* Max capacity ECC M, version 1, 5 bytes */
+        /* 33*/ { UNICODE_MODE, -1, 2, 1, "\177\177\177\177\177\177", ZINT_ERROR_TOO_LONG, -1, 0, 0, 1, "" },
+        /* 34*/ { UNICODE_MODE, -1, 4, 1, "点", ZINT_WARN_NONCOMPLIANT, 0, 7, 43, 1, "" }, /* Max capacity ECC H, version 1, 1 kanji */
+        /* 35*/ { UNICODE_MODE, -1, 4, 1, "点茗", ZINT_ERROR_TOO_LONG, -1, 0, 0, 1, "" },
+        /* 36*/ { UNICODE_MODE, -1, 2, 1, "点茗点", ZINT_WARN_NONCOMPLIANT, 0, 7, 43, 1, "" }, /* Max capacity ECC M, version 1, 3 kanji */
+        /* 37*/ { UNICODE_MODE, -1, 2, 1, "点茗点茗", ZINT_ERROR_TOO_LONG, -1, 0, 0, 1, "" },
+        /* 38*/ { UNICODE_MODE, -1, 4, 7, "12345678901234567890123", 0, 0, 9, 59, 1, "" }, /* Max capacity ECC H, version 7 (R9x59), 23 numbers */
+        /* 39*/ { UNICODE_MODE, -1, 4, 7, "123456789012345678901234", ZINT_ERROR_TOO_LONG, -1, 0, 0, 1, "" },
+        /* 40*/ { UNICODE_MODE, -1, 4, 7, "点茗点茗点茗", ZINT_WARN_NONCOMPLIANT, 0, 9, 59, 1, "" }, /* Max capacity ECC H, version 7, 6 kanji */
+        /* 41*/ { UNICODE_MODE, -1, 4, 7, "点茗点茗点茗点", ZINT_ERROR_TOO_LONG, -1, 0, 0, 1, "" },
+        /* 42*/ { UNICODE_MODE, -1, 4, 13, "点茗点茗点茗点茗", ZINT_WARN_NONCOMPLIANT, 0, 11, 59, 1, "" }, /* Max capacity ECC H, version 13 (R11x59), 8 kanji */
+        /* 43*/ { UNICODE_MODE, -1, 4, 13, "点茗点茗点茗点茗点", ZINT_ERROR_TOO_LONG, -1, 0, 0, 1, "" },
+        /* 44*/ { UNICODE_MODE, -1, 4, 20, "点茗点茗点茗点茗点茗点茗点茗点茗点", ZINT_WARN_NONCOMPLIANT, 0, 13, 77, 1, "" }, /* Max capacity ECC H, version 20 (R13x77), 17 kanji */
+        /* 45*/ { UNICODE_MODE, -1, 4, 20, "点茗点茗点茗点茗点茗点茗点茗点茗点茗", ZINT_ERROR_TOO_LONG, -1, 0, 0, 1, "" },
+        /* 46*/ { UNICODE_MODE, -1, 4, 26, "点茗点茗点茗点茗点茗点茗点茗点茗点点茗点茗点茗点点茗点茗", ZINT_WARN_NONCOMPLIANT, 0, 15, 99, 1, "" }, /* Max capacity ECC H, version 26 (R15x99), 28 kanji */
+        /* 47*/ { UNICODE_MODE, -1, 4, 26, "点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点", ZINT_ERROR_TOO_LONG, -1, 0, 0, 1, "" },
+        /* 48*/ { UNICODE_MODE, -1, 4, 32, "点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗", ZINT_WARN_NONCOMPLIANT, 0, 17, 139, 1, "" }, /* Max capacity ECC H, version 32 (R17x139), 46 kanji */
+        /* 49*/ { UNICODE_MODE, -1, 4, 32, "点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点", ZINT_ERROR_TOO_LONG, -1, 0, 0, 1, "" },
+        /* 50*/ { UNICODE_MODE, -1, -1, 32, "点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗", ZINT_WARN_NONCOMPLIANT, 0, 17, 139, 1, "" }, /* Max capacity ECC M, version 32, 92 kanji */
+        /* 51*/ { UNICODE_MODE, -1, 4, 32, "点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点", ZINT_ERROR_TOO_LONG, -1, 0, 0, 1, "" },
+        /* 52*/ { UNICODE_MODE, -1, -1, 33, "点茗点", ZINT_WARN_NONCOMPLIANT, 0, 7, 43, 1, "" }, /* ECC auto-set to M, version 33 (R7xAuto-width) auto-sets R7x43 */
+        /* 53*/ { UNICODE_MODE, -1, 4, 33, "点茗点", ZINT_WARN_NONCOMPLIANT, 0, 7, 59, 1, "" }, /* ECC set to H, version 33 (R7xAuto-width) auto-sets R7x59 */
+        /* 54*/ { UNICODE_MODE, -1, -1, 34, "点茗点", ZINT_WARN_NONCOMPLIANT, 0, 9, 43, 1, "" }, /* ECC auto-set to H, version 34 (R9xAuto-width) auto-sets R9x43 */
+        /* 55*/ { UNICODE_MODE, -1, -1, 35, "点茗点", ZINT_WARN_NONCOMPLIANT, 0, 11, 27, 1, "" }, /* ECC auto-set to M, version 35 (R11xAuto-width) auto-sets R11x27 */
+        /* 56*/ { UNICODE_MODE, -1, 4, 35, "点茗点茗点茗点", ZINT_WARN_NONCOMPLIANT, 0, 11, 59, 1, "" }, /* ECC set to H, version 35 (R11xAuto-width) auto-sets R11x59 */
+        /* 57*/ { UNICODE_MODE, -1, -1, 35, "点茗点茗点茗点", ZINT_WARN_NONCOMPLIANT, 0, 11, 43, 1, "" }, /* ECC auto-set to M, version 35 (R11xAuto-width) auto-sets R11x43 */
+        /* 58*/ { UNICODE_MODE, -1, -1, 36, "点茗点茗点茗点茗", ZINT_WARN_NONCOMPLIANT, 0, 13, 43, 1, "" }, /* ECC auto-set to M, version 36 (R13xAuto-width) auto-sets R13x43 */
+        /* 59*/ { UNICODE_MODE, -1, 4, 36, "点茗点茗点茗点茗", ZINT_WARN_NONCOMPLIANT, 0, 13, 59, 1, "" }, /* ECC set to H, version 36 (R13xAuto-width) auto-sets R13x59 */
+        /* 60*/ { UNICODE_MODE, -1, -1, 37, "点茗点茗点茗点茗点", ZINT_WARN_NONCOMPLIANT, 0, 15, 43, 1, "" }, /* ECC auto-set to M, version 37 (R15xAuto-width) auto-sets R15x43 */
+        /* 61*/ { UNICODE_MODE, -1, 4, 37, "点茗点茗点茗点茗点", ZINT_WARN_NONCOMPLIANT, 0, 15, 59, 1, "" }, /* ECC set to H, version 37 (R15xAuto-width) auto-sets R15x59 */
+        /* 62*/ { UNICODE_MODE, -1, -1, 38, "点茗点茗点茗点茗点茗点茗点茗点茗点茗", ZINT_WARN_NONCOMPLIANT, 0, 17, 43, 1, "" }, /* ECC auto-set to M, version 38 (R17xAuto-width) auto-sets R17x43 */
+        /* 63*/ { UNICODE_MODE, -1, 4, 38, "点茗点茗点茗点茗点茗点茗点茗点茗点茗", ZINT_WARN_NONCOMPLIANT, 0, 17, 77, 1, "" }, /* ECC set to H, version 38 (R17xAuto-width) auto-sets R17x77 */
+        /* 64*/ { UNICODE_MODE, -1, -1, 39, "点茗点", ZINT_ERROR_INVALID_OPTION, -1, 0, 0, 1, "" },
+        /* 65*/ { UNICODE_MODE, -1, 4, -1, "点茗点", ZINT_WARN_NONCOMPLIANT, 0, 13, 27, 1, "" }, /* ECC set to H, auto-sets R13x27 */
+        /* 66*/ { UNICODE_MODE, -1, 4, -1, "点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗", ZINT_WARN_NONCOMPLIANT, 0, 15, 99, 1, "" }, /* ECC set to H, auto-sets R15x99 (max capacity) */
+        /* 67*/ { UNICODE_MODE, -1, 4, -1, "点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点", ZINT_WARN_NONCOMPLIANT, 0, 17, 99, 1, "" }, /* ECC set to H, auto-sets R17x99 */
+        /* 68*/ { UNICODE_MODE, -1, 4, -1, "点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗点茗", ZINT_WARN_NONCOMPLIANT, 0, 17, 139, 1, "" }, /* ECC set to H, auto-sets R17x139 (max capacity) */
+        /* 69*/ { GS1_MODE, 3, -1, -1, "[20]12", ZINT_WARN_NONCOMPLIANT, 0, 11, 27, 1, "" },
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
-    testStart("test_rmqr_options");
+    char escaped[4096];
+    char cmp_buf[32768];
+    char cmp_msg[1024];
+
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
+
+    testStartSymbol("test_rmqr_options", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
 
-        length = testUtilSetSymbol(symbol, BARCODE_RMQR, UNICODE_MODE, -1 /*eci*/, data[i].option_1, data[i].option_2, -1, -1 /*output_options*/, data[i].data, -1, debug);
+        length = testUtilSetSymbol(symbol, BARCODE_RMQR, data[i].input_mode, data[i].eci, data[i].option_1, data[i].option_2, -1, -1 /*output_options*/, data[i].data, -1, debug);
 
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret_encode, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret_encode, symbol->errtxt);
@@ -6549,6 +7802,22 @@ static void test_rmqr_options(int index, int debug) {
 
             ret = ZBarcode_Buffer_Vector(symbol, 0);
             assert_equal(ret, data[i].ret_vector, "i:%d ZBarcode_Buffer_Vector ret %d != %d\n", i, ret, data[i].ret_vector);
+
+            if (do_zxingcpp && testUtilCanZXingCPP(i, symbol, data[i].data, length, debug)) {
+                if (!data[i].zxingcpp_cmp) {
+                    if (debug & ZINT_DEBUG_TEST_PRINT) printf("i:%d %s not ZXing-C++ compatible (%s)\n", i, testUtilBarcodeName(symbol->symbology), data[i].comment);
+                } else {
+                    int cmp_len, ret_len;
+                    char modules_dump[17 * 139 + 1];
+                    assert_notequal(testUtilModulesDump(symbol, modules_dump, sizeof(modules_dump)), -1, "i:%d testUtilModulesDump == -1\n", i);
+                    ret = testUtilZXingCPP(i, symbol, data[i].data, length, modules_dump, cmp_buf, sizeof(cmp_buf), &cmp_len);
+                    assert_zero(ret, "i:%d %s testUtilZXingCPP ret %d != 0\n", i, testUtilBarcodeName(symbol->symbology), ret);
+
+                    ret = testUtilZXingCPPCmp(symbol, cmp_msg, cmp_buf, cmp_len, data[i].data, length, NULL /*primary*/, escaped, &ret_len);
+                    assert_zero(ret, "i:%d %s testUtilZXingCPPCmp %d != 0 %s\n  actual: %.*s\nexpected: %.*s\n",
+                                   i, testUtilBarcodeName(symbol->symbology), ret, cmp_msg, cmp_len, cmp_buf, ret_len, escaped);
+                }
+            }
         }
 
         ZBarcode_Delete(symbol);
@@ -6557,7 +7826,8 @@ static void test_rmqr_options(int index, int debug) {
     testFinish();
 }
 
-static void test_rmqr_input(int index, int generate, int debug) {
+static void test_rmqr_input(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int input_mode;
@@ -6570,161 +7840,163 @@ static void test_rmqr_input(int index, int generate, int debug) {
         int expected_eci;
         char *expected;
         int bwipp_cmp;
+        int zxingcpp_cmp;
         char *comment;
     };
-    // See test_qr_input() for details about test characters
+    /* See test_qr_input() for details about test characters */
     struct item data[] = {
-        /*  0*/ { UNICODE_MODE, 0, 4, 11, -1, "é", 0, 0, "67 A4 00 EC 11", 1, "B1 (ISO 8859-1)" },
-        /*  1*/ { UNICODE_MODE, 3, 4, 11, -1, "é", 0, 3, "E0 6C F4 80 EC", 1, "ECI-3 B1 (ISO 8859-1)" },
-        /*  2*/ { UNICODE_MODE, 20, -1, -1, -1, "é", ZINT_ERROR_INVALID_DATA, -1, "Error 800: Invalid character in input data", 1, "é not in Shift JIS" },
-        /*  3*/ { UNICODE_MODE, 26, 4, 11, -1, "é", 0, 26, "E3 4D 61 D4 80", 1, "ECI-26 B2 (UTF-8)" },
-        /*  4*/ { DATA_MODE, 0, 4, 11, -1, "é", 0, 0, "6B 0E A4 00 EC", 1, "B2 (UTF-8)" },
-        /*  5*/ { DATA_MODE, 0, 4, 11, -1, "\351", 0, 0, "67 A4 00 EC 11", 1, "B1 (ISO 8859-1)" },
-        /*  6*/ { UNICODE_MODE, 0, 4, 11, -1, "β", ZINT_WARN_NONCOMPLIANT, 0, "Warning 88 80 00 EC 11", 1, "K1 (Shift JIS)" },
-        /*  7*/ { UNICODE_MODE, 9, 4, 11, -1, "β", 0, 9, "E1 2C F1 00 EC", 1, "ECI-9 B1 (ISO 8859-7)" },
-        /*  8*/ { UNICODE_MODE, 20, 4, 11, -1, "β", 0, 20, "E2 91 10 00 EC", 1, "ECI-20 K1 (Shift JIS)" },
-        /*  9*/ { UNICODE_MODE, 26, 4, 11, -1, "β", 0, 26, "E3 4D 67 59 00", 1, "ECI-26 B2 (UTF-8)" },
-        /* 10*/ { DATA_MODE, 0, 4, 11, -1, "β", 0, 0, "6B 3A C8 00 EC", 1, "B2 (UTF-8)" },
-        /* 11*/ { UNICODE_MODE, 0, 4, 11, -1, "ก", ZINT_WARN_USES_ECI, 13, "Warning E1 AC D0 80 EC", 1, "ECI-13 B1 (ISO 8859-11)" },
-        /* 12*/ { UNICODE_MODE, 13, 4, 11, -1, "ก", 0, 13, "E1 AC D0 80 EC", 1, "ECI-13 B1 (ISO 8859-11)" },
-        /* 13*/ { UNICODE_MODE, 20, -1, -1, -1, "ก", ZINT_ERROR_INVALID_DATA, -1, "Error 800: Invalid character in input data", 1, "ก not in Shift JIS" },
-        /* 14*/ { UNICODE_MODE, 26, 2, 11, -1, "ก", 0, 26, "E3 4D F0 5C 40 80 EC", 1, "ECI-26 B3 (UTF-8)" },
-        /* 15*/ { DATA_MODE, 0, 4, 11, -1, "ก", 0, 0, "6F 82 E2 04 00", 1, "B3 (UTF-8)" },
-        /* 16*/ { UNICODE_MODE, 0, 4, 11, -1, "Ж", ZINT_WARN_NONCOMPLIANT, 0, "Warning 88 91 C0 EC 11", 1, "K1 (Shift JIS)" },
-        /* 17*/ { UNICODE_MODE, 7, 4, 11, -1, "Ж", 0, 7, "E0 EC DB 00 EC", 1, "ECI-7 B1 (ISO 8859-5)" },
-        /* 18*/ { UNICODE_MODE, 20, 4, 11, -1, "Ж", 0, 20, "E2 91 12 38 EC", 1, "ECI-20 K1 (Shift JIS)" },
-        /* 19*/ { UNICODE_MODE, 26, 4, 11, -1, "Ж", 0, 26, "E3 4D 68 4B 00", 1, "ECI-26 B2 (UTF-8)" },
-        /* 20*/ { DATA_MODE, 0, 4, 11, -1, "Ж", 0, 0, "6B 42 58 00 EC", 1, "B2 (UTF-8)" },
-        /* 21*/ { UNICODE_MODE, 0, 2, 11, -1, "ກ", ZINT_WARN_USES_ECI, 26, "Warning E3 4D F0 5D 40 80 EC", 1, "ECI-26 B3 (UTF-8)" },
-        /* 22*/ { UNICODE_MODE, 20, -1, -1, -1, "ກ", ZINT_ERROR_INVALID_DATA, -1, "Error 800: Invalid character in input data", 1, "ກ not in Shift JIS" },
-        /* 23*/ { UNICODE_MODE, 26, 2, 11, -1, "ກ", 0, 26, "E3 4D F0 5D 40 80 EC", 1, "ECI-26 B3 (UTF-8)" },
-        /* 24*/ { DATA_MODE, 0, 4, 11, -1, "ກ", 0, 0, "6F 82 EA 04 00", 1, "B3 (UTF-8)" },
-        /* 25*/ { UNICODE_MODE, 0, 4, 11, -1, "\\", 0, 0, "65 70 00 EC 11", 1, "B1 (ASCII)" },
-        /* 26*/ { UNICODE_MODE, 20, 4, 11, -1, "\\", 0, 20, "E2 91 00 F8 EC", 1, "ECI-20 K1 (Shift JIS)" },
-        /* 27*/ { UNICODE_MODE, 20, 4, 11, -1, "[", 0, 20, "E2 8C AD 80 EC", 1, "B1 (ASCII)" },
-        /* 28*/ { UNICODE_MODE, 20, 4, 11, -1, "\177", 0, 20, "E2 8C BF 80 EC", 1, "ECI-20 B1 (ASCII)" },
-        /* 29*/ { UNICODE_MODE, 0, 4, 11, -1, "¥", 0, 0, "66 94 00 EC 11", 1, "B1 (ISO 8859-1) (same bytes as ･ Shift JIS below, so ambiguous)" },
-        /* 30*/ { UNICODE_MODE, 3, 4, 11, -1, "¥", 0, 3, "E0 6C D2 80 EC", 1, "ECI-3 B1 (ISO 8859-1)" },
-        /* 31*/ { UNICODE_MODE, 20, 4, 11, -1, "¥", 0, 20, "E2 8C AE 00 EC", 1, "ECI-20 B1 (Shift JIS) (to single-byte backslash codepoint 5C, so byte mode)" },
-        /* 32*/ { UNICODE_MODE, 26, 4, 11, -1, "¥", 0, 26, "E3 4D 61 52 80", 1, "ECI-26 B2 (UTF-8)" },
-        /* 33*/ { DATA_MODE, 0, 4, 11, -1, "¥", 0, 0, "6B 0A 94 00 EC", 1, "B2 (UTF-8)" },
-        /* 34*/ { UNICODE_MODE, 0, 4, 11, -1, "･", ZINT_WARN_NONCOMPLIANT, 0, "Warning 66 94 00 EC 11", 1, "B1 (Shift JIS) single-byte codepoint A5 (same bytes as ¥ ISO 8859-1 above, so ambiguous)" },
-        /* 35*/ { UNICODE_MODE, 3, -1, -1, -1, "･", ZINT_ERROR_INVALID_DATA, -1, "Error 575: Invalid character in input data for ECI 3", 1, "" },
-        /* 36*/ { UNICODE_MODE, 20, 4, 11, -1, "･", 0, 20, "E2 8C D2 80 EC", 1, "ECI-20 B1 (Shift JIS) single-byte codepoint A5" },
-        /* 37*/ { UNICODE_MODE, 26, 2, 11, -1, "･", 0, 26, "E3 4D F7 DE D2 80 EC", 1, "ECI-26 B3 (UTF-8)" },
-        /* 38*/ { DATA_MODE, 0, 4, 11, -1, "･", 0, 0, "6F BE F6 94 00", 1, "B3 (UTF-8)" },
-        /* 39*/ { UNICODE_MODE, 0, 4, 11, -1, "¿", 0, 0, "66 FC 00 EC 11", 1, "B1 (ISO 8859-1) (same bytes as ｿ Shift JIS below, so ambiguous)" },
-        /* 40*/ { UNICODE_MODE, 3, 4, 11, -1, "¿", 0, 3, "E0 6C DF 80 EC", 1, "ECI-3 B1 (ISO 8859-1)" },
-        /* 41*/ { UNICODE_MODE, 20, 4, 11, -1, "¿", ZINT_ERROR_INVALID_DATA, -1, "Error 800: Invalid character in input data", 1, "¿ not in Shift JIS" },
-        /* 42*/ { UNICODE_MODE, 26, 4, 11, -1, "¿", 0, 26, "E3 4D 61 5F 80", 1, "ECI-26 B2 (UTF-8)" },
-        /* 43*/ { DATA_MODE, 0, 4, 11, -1, "¿", 0, 0, "6B 0A FC 00 EC", 1, "B2 (UTF-8)" },
-        /* 44*/ { UNICODE_MODE, 0, 4, 11, -1, "ｿ", ZINT_WARN_NONCOMPLIANT, 0, "Warning 66 FC 00 EC 11", 1, "B1 (Shift JIS) single-byte codepoint BF (same bytes as ¿ ISO 8859-1 above, so ambiguous)" },
-        /* 45*/ { UNICODE_MODE, 3, 4, 11, -1, "ｿ", ZINT_ERROR_INVALID_DATA, -1, "Error 575: Invalid character in input data for ECI 3", 1, "" },
-        /* 46*/ { UNICODE_MODE, 20, 4, 11, -1, "ｿ", 0, 20, "E2 8C DF 80 EC", 1, "ECI-20 B1 (Shift JIS) single-byte codepoint BF" },
-        /* 47*/ { UNICODE_MODE, 26, 2, 11, -1, "ｿ", 0, 26, "E3 4D F7 DE DF 80 EC", 1, "ECI-26 B3 (UTF-8)" },
-        /* 48*/ { DATA_MODE, 0, 4, 11, -1, "ｿ", 0, 0, "6F BE F6 FC 00", 1, "B3 (UTF-8)" },
-        /* 49*/ { UNICODE_MODE, 0, 4, 11, -1, "~", 0, 0, "65 F8 00 EC 11", 1, "B1 (ASCII) (same bytes as ‾ Shift JIS below, so ambiguous)" },
-        /* 50*/ { UNICODE_MODE, 3, 4, 11, -1, "~", 0, 3, "E0 6C BF 00 EC", 1, "ECI-3 B1 (ASCII)" },
-        /* 51*/ { UNICODE_MODE, 20, 4, 11, -1, "~", ZINT_ERROR_INVALID_DATA, -1, "Error 800: Invalid character in input data", 1, "tilde not in Shift JIS (codepoint used for overline)" },
-        /* 52*/ { UNICODE_MODE, 0, 4, 11, -1, "‾", ZINT_WARN_NONCOMPLIANT, 0, "Warning 65 F8 00 EC 11", 1, "B1 (Shift JIS) single-byte codepoint 7E (same bytes as ~ ASCII above, so ambiguous)" },
-        /* 53*/ { UNICODE_MODE, 3, 4, 11, -1, "‾", ZINT_ERROR_INVALID_DATA, -1, "Error 575: Invalid character in input data for ECI 3", 1, "" },
-        /* 54*/ { UNICODE_MODE, 20, 4, 11, -1, "‾", 0, 20, "E2 8C BF 00 EC", 1, "ECI-20 B1 (Shift JIS) (to single-byte tilde codepoint 7E, so byte mode)" },
-        /* 55*/ { UNICODE_MODE, 26, 2, 11, -1, "‾", 0, 26, "E3 4D F1 40 5F 00 EC", 1, "ECI-26 B3 (UTF-8)" },
-        /* 56*/ { DATA_MODE, 0, 4, 11, -1, "‾", 0, 0, "6F 8A 02 F8 00", 1, "B3 (UTF-8)" },
-        /* 57*/ { UNICODE_MODE, 0, 4, 11, -1, "点", ZINT_WARN_NONCOMPLIANT, 0, "Warning 8B 67 C0 EC 11", 1, "K1 (Shift JIS)" },
-        /* 58*/ { UNICODE_MODE, 3, 4, 11, -1, "点", ZINT_ERROR_INVALID_DATA, -1, "Error 575: Invalid character in input data for ECI 3", 1, "" },
-        /* 59*/ { UNICODE_MODE, 20, 4, 11, -1, "点", 0, 20, "E2 91 6C F8 EC", 1, "ECI-20 K1 (Shift JIS)" },
-        /* 60*/ { UNICODE_MODE, 26, 2, 11, -1, "点", 0, 26, "E3 4D F3 C1 5C 80 EC", 1, "ECI-26 B3 (UTF-8)" },
-        /* 61*/ { DATA_MODE, 0, 4, 11, -1, "点", 0, 0, "6F 9E 0A E4 00", 1, "B3 (UTF-8)" },
-        /* 62*/ { DATA_MODE, 0, 4, 11, -1, "\223\137", 0, 0, "6A 4D 7C 00 EC", 0, "B2 (Shift JIS) (not full multibyte); BWIPP uses Kanji (ZINT_FULL_MULTIBYTE) mode, see below)" },
-        /* 63*/ { DATA_MODE, 0, 4, 11, ZINT_FULL_MULTIBYTE, "\223\137", 0, 0, "8B 67 C0 EC 11", 1, "K1 (Shift JIS)" },
-        /* 64*/ { UNICODE_MODE, 0, 4, 11, -1, "¥･点", ZINT_WARN_NONCOMPLIANT, 0, "Warning 71 72 96 4D 7C", 1, "B4 (Shift JIS) (optimized to byte mode only)" },
-        /* 65*/ { UNICODE_MODE, 3, -1, -1, -1, "¥･点", ZINT_ERROR_INVALID_DATA, -1, "Error 575: Invalid character in input data for ECI 3", 1, "" },
-        /* 66*/ { UNICODE_MODE, 20, 2, 11, -1, "¥･点", 0, 20, "E2 8E 2E 52 C9 AF 80", 1, "ECI-20 B4 (Shift JIS)" },
-        /* 67*/ { UNICODE_MODE, 26, 2, 17, -1, "¥･点", 0, 26, "E3 4E 30 A9 7B EF 69 79 E0 AE 40 EC", 1, "ECI-26 B8 (UTF-8)" },
-        /* 68*/ { DATA_MODE, 0, 4, 11, -1, "\134\245\223\137", 0, 0, "71 72 96 4D 7C", 1, "B8 (Shift JIS)" },
-        /* 69*/ { DATA_MODE, 0, 2, 17, -1, "¥･点", 0, 0, "71 85 4B DF 7B 4B CF 05 72 00 EC 11", 1, "B8 (UTF-8)" },
-        /* 70*/ { UNICODE_MODE, 0, 4, 11, -1, "点茗", ZINT_WARN_NONCOMPLIANT, 0, "Warning 93 67 F5 54 00", 1, "K2 (Shift JIS)" },
-        /* 71*/ { UNICODE_MODE, 0, 2, 12, -1, "点茗テ点茗テｿ", ZINT_WARN_NONCOMPLIANT, 0, "Warning 8C D9 FD 55 06 95 B3 FA AA 0D 2B 0D F8 EC 11 EC 11 EC 11", 1, "K6 B1 (Shift JIS)" },
-        /* 72*/ { DATA_MODE, 0, 2, 12, -1, "\223\137\344\252\203\145\223\137\344\252\203\145\277", 0, 0, "6D 93 5F E4 AA 83 65 93 5F E4 AA 83 65 BF 00 EC 11 EC 11", 0, "B13 (Shift JIS); BWIPP uses Kanji (ZINT_FULL_MULTIBYTE) mode, see below)" },
-        /* 73*/ { DATA_MODE, 0, 2, 12, ZINT_FULL_MULTIBYTE, "\223\137\344\252\203\145\223\137\344\252\203\145\277", 0, 0, "8C D9 FD 55 06 95 B3 FA AA 0D 2B 0D F8 EC 11 EC 11 EC 11", 1, "K6 B1 (Shift JIS) (full multibyte)" },
-        /* 74*/ { UNICODE_MODE, 0, 4, 11, -1, "áA", 0, 0, "6B 85 04 00 EC", 0, "B2 (ISO 8859-1); BWIPP uses Kanji (ZINT_FULL_MULTIBYTE) mode, see below)" },
-        /* 75*/ { UNICODE_MODE, 0, 4, 11, ZINT_FULL_MULTIBYTE, "áA", 0, 0, "8E 00 40 EC 11", 1, "K1 (ISO 8859-1) (full multibyte)" },
-        /* 76*/ { UNICODE_MODE, 0, 2, 23, -1, "A0B1C2D3E4F5G6H7I8J9KLMNOPQRSTUVWXYZ $%*+-./:", 0, 0, "(33) 56 9C 23 E0 87 92 62 7A 55 0B 59 82 33 26 C0 E6 5F AC 51 95 B4 26 B2 DC 1C 3B 9E 76", 1, "A45" },
-        /* 77*/ { UNICODE_MODE, 0, 4, 11, -1, "˘", ZINT_WARN_USES_ECI, 4, "Warning E0 8C D1 00 EC", 1, "ECI-4 B1 (ISO 8859-2)" },
-        /* 78*/ { UNICODE_MODE, 4, 4, 11, -1, "˘", 0, 4, "E0 8C D1 00 EC", 1, "ECI-4 B1 (ISO 8859-2)" },
-        /* 79*/ { UNICODE_MODE, 0, 4, 11, -1, "Ħ", ZINT_WARN_USES_ECI, 5, "Warning E0 AC D0 80 EC", 1, "ECI-5 B1 (ISO 8859-3)" },
-        /* 80*/ { UNICODE_MODE, 5, 4, 11, -1, "Ħ", 0, 5, "E0 AC D0 80 EC", 1, "ECI-5 B1 (ISO 8859-3)" },
-        /* 81*/ { UNICODE_MODE, 0, 4, 11, -1, "ĸ", ZINT_WARN_USES_ECI, 6, "Warning E0 CC D1 00 EC", 1, "ECI-6 B1 (ISO 8859-4)" },
-        /* 82*/ { UNICODE_MODE, 6, 4, 11, -1, "ĸ", 0, 6, "E0 CC D1 00 EC", 1, "ECI-6 B1 (ISO 8859-4)" },
-        /* 83*/ { UNICODE_MODE, 0, 4, 11, -1, "Ș", ZINT_WARN_USES_ECI, 18, "Warning E2 4C D5 00 EC", 1, "ECI-18 B1 (ISO 8859-16)" },
-        /* 84*/ { UNICODE_MODE, 18, 4, 11, -1, "Ș", 0, 18, "E2 4C D5 00 EC", 1, "ECI-18 B1 (ISO 8859-16)" },
-        /* 85*/ { UNICODE_MODE, 0, 4, 11, -1, "テ", ZINT_WARN_NONCOMPLIANT, 0, "Warning 88 69 40 EC 11", 1, "K1 (SHIFT JIS)" },
-        /* 86*/ { UNICODE_MODE, 20, 4, 11, -1, "テ", 0, 20, "E2 91 0D 28 EC", 1, "ECI-20 K1 (SHIFT JIS)" },
-        /* 87*/ { UNICODE_MODE, 20, 2, 11, -1, "テテ", 0, 20, "E2 92 0D 28 69 40 EC", 1, "ECI-20 K2 (SHIFT JIS)" },
-        /* 88*/ { UNICODE_MODE, 20, 2, 11, -1, "\\\\", 0, 20, "E2 92 00 F8 07 C0 EC", 1, "ECI-20 K2 (SHIFT JIS)" },
-        /* 89*/ { UNICODE_MODE, 0, 4, 11, -1, "…", ZINT_WARN_NONCOMPLIANT, 0, "Warning 88 08 C0 EC 11", 1, "K1 (SHIFT JIS)" },
-        /* 90*/ { UNICODE_MODE, 21, 4, 11, -1, "…", 0, 21, "E2 AC C2 80 EC", 1, "ECI-21 B1 (Win 1250)" },
-        /* 91*/ { UNICODE_MODE, 0, 4, 11, -1, "Ґ", ZINT_WARN_USES_ECI, 22, "Warning E2 CC D2 80 EC", 1, "ECI-22 B1 (Win 1251)" },
-        /* 92*/ { UNICODE_MODE, 22, 4, 11, -1, "Ґ", 0, 22, "E2 CC D2 80 EC", 1, "ECI-22 B1 (Win 1251)" },
-        /* 93*/ { UNICODE_MODE, 0, 4, 11, -1, "˜", ZINT_WARN_USES_ECI, 23, "Warning E2 EC CC 00 EC", 1, "ECI-23 B1 (Win 1252)" },
-        /* 94*/ { UNICODE_MODE, 23, 4, 11, -1, "˜", 0, 23, "E2 EC CC 00 EC", 1, "ECI-23 B1 (Win 1252)" },
-        /* 95*/ { UNICODE_MODE, 24, 4, 11, -1, "پ", 0, 24, "E3 0C C0 80 EC", 1, "ECI-24 B1 (Win 1256)" },
-        /* 96*/ { UNICODE_MODE, 0, 2, 11, -1, "က", ZINT_WARN_USES_ECI, 26, "Warning E3 4D F0 C0 40 00 EC", 1, "ECI-26 B3 (UTF-8)" },
-        /* 97*/ { UNICODE_MODE, 25, 4, 11, -1, "က", 0, 25, "E3 2D 08 00 00", 1, "ECI-25 B2 (UCS-2BE)" },
-        /* 98*/ { UNICODE_MODE, 25, 2, 11, -1, "ကက", 0, 25, "E3 2E 08 00 08 00 00", 1, "ECI-25 B4 (UCS-2BE)" },
-        /* 99*/ { UNICODE_MODE, 25, 2, 11, -1, "12", 0, 25, "E3 2E 00 18 80 19 00", 1, "ECI-25 B4 (UCS-2BE ASCII)" },
-        /*100*/ { UNICODE_MODE, 27, 4, 11, -1, "@", 0, 27, "E3 6C A0 00 EC", 1, "ECI-27 B1 (ASCII)" },
-        /*101*/ { UNICODE_MODE, 0, 2, 11, -1, "龘", ZINT_WARN_USES_ECI, 26, "Warning E3 4D F4 DF 4C 00 EC", 1, "ECI-26 B3 (UTF-8)" },
-        /*102*/ { UNICODE_MODE, 28, 4, 11, -1, "龘", 0, 28, "E3 8D 7C EA 80", 1, "ECI-28 B2 (Big5)" },
-        /*103*/ { UNICODE_MODE, 28, 2, 11, -1, "龘龘", 0, 28, "E3 8E 7C EA FC EA 80", 1, "ECI-28 B4 (Big5)" },
-        /*104*/ { UNICODE_MODE, 0, 2, 11, -1, "齄", ZINT_WARN_USES_ECI, 26, "Warning E3 4D F4 DE C2 00 EC", 1, "ECI-26 B3 (UTF-8)" },
-        /*105*/ { UNICODE_MODE, 29, 4, 11, -1, "齄", 0, 29, "E3 AD 7B FF 00", 1, "ECI-29 B2 (GB 2312)" },
-        /*106*/ { UNICODE_MODE, 29, 2, 11, -1, "齄齄", 0, 29, "E3 AE 7B FF 7B FF 00", 1, "ECI-29 B4 (GB 2312)" },
-        /*107*/ { UNICODE_MODE, 0, 2, 11, -1, "가", ZINT_WARN_USES_ECI, 26, "Warning E3 4D F5 58 40 00 EC", 1, "ECI-26 B3 (UTF-8)" },
-        /*108*/ { UNICODE_MODE, 30, 4, 11, -1, "가", 0, 30, "E3 CD 58 50 80", 1, "ECI-30 B2 (EUC-KR)" },
-        /*109*/ { UNICODE_MODE, 30, 2, 11, -1, "가가", 0, 30, "E3 CE 58 50 D8 50 80", 1, "ECI-30 B4 (EUC-KR)" },
-        /*110*/ { UNICODE_MODE, 170, 4, 11, -1, "?", 0, 170, "F0 15 4C 9F 80", 1, "ECI-170 B1 (ASCII invariant)" },
-        /*111*/ { DATA_MODE, 899, 4, 11, -1, "\200", 0, 899, "F0 70 6C C0 00", 1, "ECI-899 B1 (8-bit binary)" },
-        /*112*/ { UNICODE_MODE, 900, 2, 11, -1, "é", 0, 900, "F0 70 8D 61 D4 80 EC", 1, "ECI-900 B2 (no conversion)" },
-        /*113*/ { UNICODE_MODE, 16384, 2, 11, -1, "é", 0, 16384, "F8 08 00 0D 61 D4 80", 1, "ECI-16384 B2 (no conversion)" },
-        /*114*/ { UNICODE_MODE, 3, 2, 14, -1, "Google Pixel 4a 128 GB Black;price:$439.97", 0, 3, "(43) E0 6C F4 76 F6 F6 76 C6 52 05 06 97 86 56 C2 03 46 14 4E 55 0C 59 91 09 96 CA 6C 61", 0, "ECI-3 B15 A9 B10 A8; BWIPP different encodation (B42) & doesn't fit)" },
-        /*115*/ { UNICODE_MODE, 29, 2, 20, -1, "Google 谷歌 Pixel 4a 128 GB黑色;零售价:￥3149.79", 0, 29, "(53) E3 AE 94 76 F6 F6 76 C6 52 0B 9C 8B 8E 82 05 06 97 86 56 C2 03 46 12 03 13 23 82 04", 0, "ECI-29 B41 A7; BWIPP different encodation (B48) & doesn't fit)" },
-        /*116*/ { UNICODE_MODE, 17, 2, 24, -1, "Google Pixel 4a 128 GB Schwarz;Preis:444,90 €", 0, 17, "(48) E2 2C F4 76 F6 F6 76 C6 52 05 06 97 86 56 C2 03 46 14 27 2A 86 2C C8 84 DC 6A B1 B4", 0, "ECI-17 B15 A9 B21; BWIPP different encodation (B46)" },
+        /*  0*/ { UNICODE_MODE, 0, 4, 11, -1, "é", 0, 0, "67 A4 00 EC 11", 1, 1, "B1 (ISO 8859-1)" },
+        /*  1*/ { UNICODE_MODE, 3, 4, 11, -1, "é", 0, 3, "E0 6C F4 80 EC", 1, 1, "ECI-3 B1 (ISO 8859-1)" },
+        /*  2*/ { UNICODE_MODE, 20, -1, -1, -1, "é", ZINT_ERROR_INVALID_DATA, -1, "Error 800: Invalid character in input data", 1, 1, "é not in Shift JIS" },
+        /*  3*/ { UNICODE_MODE, 26, 4, 11, -1, "é", 0, 26, "E3 4D 61 D4 80", 1, 1, "ECI-26 B2 (UTF-8)" },
+        /*  4*/ { DATA_MODE, 0, 4, 11, -1, "é", 0, 0, "6B 0E A4 00 EC", 1, 0, "B2 (UTF-8); ZXing-C++ test can't handle DATA_MODE for certain inputs" },
+        /*  5*/ { DATA_MODE, 0, 4, 11, -1, "\351", 0, 0, "67 A4 00 EC 11", 1, 1, "B1 (ISO 8859-1)" },
+        /*  6*/ { UNICODE_MODE, 0, 4, 11, -1, "β", ZINT_WARN_NONCOMPLIANT, 0, "Warning 88 80 00 EC 11", 1, 1, "K1 (Shift JIS)" },
+        /*  7*/ { UNICODE_MODE, 9, 4, 11, -1, "β", 0, 9, "E1 2C F1 00 EC", 1, 1, "ECI-9 B1 (ISO 8859-7)" },
+        /*  8*/ { UNICODE_MODE, 20, 4, 11, -1, "β", 0, 20, "E2 91 10 00 EC", 1, 1, "ECI-20 K1 (Shift JIS)" },
+        /*  9*/ { UNICODE_MODE, 26, 4, 11, -1, "β", 0, 26, "E3 4D 67 59 00", 1, 1, "ECI-26 B2 (UTF-8)" },
+        /* 10*/ { DATA_MODE, 0, 4, 11, -1, "β", 0, 0, "6B 3A C8 00 EC", 1, 0, "B2 (UTF-8); ZXing-C++ test can't handle DATA_MODE for certain inputs" },
+        /* 11*/ { UNICODE_MODE, 0, 4, 11, -1, "ก", ZINT_WARN_USES_ECI, 13, "Warning E1 AC D0 80 EC", 1, 1, "ECI-13 B1 (ISO 8859-11)" },
+        /* 12*/ { UNICODE_MODE, 13, 4, 11, -1, "ก", 0, 13, "E1 AC D0 80 EC", 1, 1, "ECI-13 B1 (ISO 8859-11)" },
+        /* 13*/ { UNICODE_MODE, 20, -1, -1, -1, "ก", ZINT_ERROR_INVALID_DATA, -1, "Error 800: Invalid character in input data", 1, 1, "ก not in Shift JIS" },
+        /* 14*/ { UNICODE_MODE, 26, 2, 11, -1, "ก", 0, 26, "E3 4D F0 5C 40 80 EC", 1, 1, "ECI-26 B3 (UTF-8)" },
+        /* 15*/ { DATA_MODE, 0, 4, 11, -1, "ก", 0, 0, "6F 82 E2 04 00", 1, 0, "B3 (UTF-8); ZXing-C++ test can't handle DATA_MODE for certain inputs" },
+        /* 16*/ { UNICODE_MODE, 0, 4, 11, -1, "Ж", ZINT_WARN_NONCOMPLIANT, 0, "Warning 88 91 C0 EC 11", 1, 1, "K1 (Shift JIS)" },
+        /* 17*/ { UNICODE_MODE, 7, 4, 11, -1, "Ж", 0, 7, "E0 EC DB 00 EC", 1, 1, "ECI-7 B1 (ISO 8859-5)" },
+        /* 18*/ { UNICODE_MODE, 20, 4, 11, -1, "Ж", 0, 20, "E2 91 12 38 EC", 1, 1, "ECI-20 K1 (Shift JIS)" },
+        /* 19*/ { UNICODE_MODE, 26, 4, 11, -1, "Ж", 0, 26, "E3 4D 68 4B 00", 1, 1, "ECI-26 B2 (UTF-8)" },
+        /* 20*/ { DATA_MODE, 0, 4, 11, -1, "Ж", 0, 0, "6B 42 58 00 EC", 1, 0, "B2 (UTF-8); ZXing-C++ test can't handle DATA_MODE for certain inputs" },
+        /* 21*/ { UNICODE_MODE, 0, 2, 11, -1, "ກ", ZINT_WARN_USES_ECI, 26, "Warning E3 4D F0 5D 40 80 EC", 1, 1, "ECI-26 B3 (UTF-8)" },
+        /* 22*/ { UNICODE_MODE, 20, -1, -1, -1, "ກ", ZINT_ERROR_INVALID_DATA, -1, "Error 800: Invalid character in input data", 1, 1, "ກ not in Shift JIS" },
+        /* 23*/ { UNICODE_MODE, 26, 2, 11, -1, "ກ", 0, 26, "E3 4D F0 5D 40 80 EC", 1, 1, "ECI-26 B3 (UTF-8)" },
+        /* 24*/ { DATA_MODE, 0, 4, 11, -1, "ກ", 0, 0, "6F 82 EA 04 00", 1, 0, "B3 (UTF-8); ZXing-C++ test can't handle DATA_MODE for certain inputs" },
+        /* 25*/ { UNICODE_MODE, 0, 4, 11, -1, "\\", 0, 0, "65 70 00 EC 11", 1, 1, "B1 (ASCII)" },
+        /* 26*/ { UNICODE_MODE, 20, 4, 11, -1, "\\", 0, 20, "E2 91 00 F8 EC", 1, 1, "ECI-20 K1 (Shift JIS)" },
+        /* 27*/ { UNICODE_MODE, 20, 4, 11, -1, "[", 0, 20, "E2 8C AD 80 EC", 1, 1, "B1 (ASCII)" },
+        /* 28*/ { UNICODE_MODE, 20, 4, 11, -1, "\177", 0, 20, "E2 8C BF 80 EC", 1, 1, "ECI-20 B1 (ASCII)" },
+        /* 29*/ { UNICODE_MODE, 0, 4, 11, -1, "¥", 0, 0, "66 94 00 EC 11", 1, 0, "B1 (ISO 8859-1) (same bytes as ･ Shift JIS below, so ambiguous); ZXing-C++ test can't handle it" },
+        /* 30*/ { UNICODE_MODE, 3, 4, 11, -1, "¥", 0, 3, "E0 6C D2 80 EC", 1, 1, "ECI-3 B1 (ISO 8859-1)" },
+        /* 31*/ { UNICODE_MODE, 20, 4, 11, -1, "¥", 0, 20, "E2 8C AE 00 EC", 1, 0, "ECI-20 B1 (Shift JIS) (to single-byte backslash codepoint 5C, so byte mode); ZXing-C++ test can't handle it" },
+        /* 32*/ { UNICODE_MODE, 26, 4, 11, -1, "¥", 0, 26, "E3 4D 61 52 80", 1, 1, "ECI-26 B2 (UTF-8)" },
+        /* 33*/ { DATA_MODE, 0, 4, 11, -1, "¥", 0, 0, "6B 0A 94 00 EC", 1, 0, "B2 (UTF-8); ZXing-C++ test can't handle DATA_MODE for certain inputs" },
+        /* 34*/ { UNICODE_MODE, 0, 4, 11, -1, "･", ZINT_WARN_NONCOMPLIANT, 0, "Warning 66 94 00 EC 11", 1, 1, "B1 (Shift JIS) single-byte codepoint A5 (same bytes as ¥ ISO 8859-1 above, so ambiguous)" },
+        /* 35*/ { UNICODE_MODE, 3, -1, -1, -1, "･", ZINT_ERROR_INVALID_DATA, -1, "Error 575: Invalid character in input data for ECI 3", 1, 1, "" },
+        /* 36*/ { UNICODE_MODE, 20, 4, 11, -1, "･", 0, 20, "E2 8C D2 80 EC", 1, 1, "ECI-20 B1 (Shift JIS) single-byte codepoint A5" },
+        /* 37*/ { UNICODE_MODE, 26, 2, 11, -1, "･", 0, 26, "E3 4D F7 DE D2 80 EC", 1, 1, "ECI-26 B3 (UTF-8)" },
+        /* 38*/ { DATA_MODE, 0, 4, 11, -1, "･", 0, 0, "6F BE F6 94 00", 1, 0, "B3 (UTF-8); ZXing-C++ test can't handle DATA_MODE for certain inputs" },
+        /* 39*/ { UNICODE_MODE, 0, 4, 11, -1, "¿", 0, 0, "66 FC 00 EC 11", 1, 0, "B1 (ISO 8859-1) (same bytes as ｿ Shift JIS below, so ambiguous); ZXing-C++ test can't handle it" },
+        /* 40*/ { UNICODE_MODE, 3, 4, 11, -1, "¿", 0, 3, "E0 6C DF 80 EC", 1, 1, "ECI-3 B1 (ISO 8859-1)" },
+        /* 41*/ { UNICODE_MODE, 20, 4, 11, -1, "¿", ZINT_ERROR_INVALID_DATA, -1, "Error 800: Invalid character in input data", 1, 1, "¿ not in Shift JIS" },
+        /* 42*/ { UNICODE_MODE, 26, 4, 11, -1, "¿", 0, 26, "E3 4D 61 5F 80", 1, 1, "ECI-26 B2 (UTF-8)" },
+        /* 43*/ { DATA_MODE, 0, 4, 11, -1, "¿", 0, 0, "6B 0A FC 00 EC", 1, 0, "B2 (UTF-8); ZXing-C++ test can't handle DATA_MODE for certain inputs" },
+        /* 44*/ { UNICODE_MODE, 0, 4, 11, -1, "ｿ", ZINT_WARN_NONCOMPLIANT, 0, "Warning 66 FC 00 EC 11", 1, 1, "B1 (Shift JIS) single-byte codepoint BF (same bytes as ¿ ISO 8859-1 above, so ambiguous)" },
+        /* 45*/ { UNICODE_MODE, 3, 4, 11, -1, "ｿ", ZINT_ERROR_INVALID_DATA, -1, "Error 575: Invalid character in input data for ECI 3", 1, 1, "" },
+        /* 46*/ { UNICODE_MODE, 20, 4, 11, -1, "ｿ", 0, 20, "E2 8C DF 80 EC", 1, 1, "ECI-20 B1 (Shift JIS) single-byte codepoint BF" },
+        /* 47*/ { UNICODE_MODE, 26, 2, 11, -1, "ｿ", 0, 26, "E3 4D F7 DE DF 80 EC", 1, 1, "ECI-26 B3 (UTF-8)" },
+        /* 48*/ { DATA_MODE, 0, 4, 11, -1, "ｿ", 0, 0, "6F BE F6 FC 00", 1, 0, "B3 (UTF-8); ZXing-C++ test can't handle DATA_MODE for certain inputs" },
+        /* 49*/ { UNICODE_MODE, 0, 4, 11, -1, "~", 0, 0, "65 F8 00 EC 11", 1, 1, "B1 (ASCII) (same bytes as ‾ Shift JIS below, so ambiguous)" },
+        /* 50*/ { UNICODE_MODE, 3, 4, 11, -1, "~", 0, 3, "E0 6C BF 00 EC", 1, 1, "ECI-3 B1 (ASCII)" },
+        /* 51*/ { UNICODE_MODE, 20, 4, 11, -1, "~", ZINT_ERROR_INVALID_DATA, -1, "Error 800: Invalid character in input data", 1, 1, "tilde not in Shift JIS (codepoint used for overline)" },
+        /* 52*/ { UNICODE_MODE, 0, 4, 11, -1, "‾", ZINT_WARN_NONCOMPLIANT, 0, "Warning 65 F8 00 EC 11", 1, 0, "B1 (Shift JIS) single-byte codepoint 7E (same bytes as ~ ASCII above, so ambiguous); ZXing-C++ test can't handle it" },
+        /* 53*/ { UNICODE_MODE, 3, 4, 11, -1, "‾", ZINT_ERROR_INVALID_DATA, -1, "Error 575: Invalid character in input data for ECI 3", 1, 1, "" },
+        /* 54*/ { UNICODE_MODE, 20, 4, 11, -1, "‾", 0, 20, "E2 8C BF 00 EC", 1, 0, "ECI-20 B1 (Shift JIS) (to single-byte tilde codepoint 7E, so byte mode); ZXing-C++ test can't handle it" },
+        /* 55*/ { UNICODE_MODE, 26, 2, 11, -1, "‾", 0, 26, "E3 4D F1 40 5F 00 EC", 1, 1, "ECI-26 B3 (UTF-8)" },
+        /* 56*/ { DATA_MODE, 0, 4, 11, -1, "‾", 0, 0, "6F 8A 02 F8 00", 1, 0, "B3 (UTF-8); ZXing-C++ test can't handle DATA_MODE for certain inputs" },
+        /* 57*/ { UNICODE_MODE, 0, 4, 11, -1, "点", ZINT_WARN_NONCOMPLIANT, 0, "Warning 8B 67 C0 EC 11", 1, 1, "K1 (Shift JIS)" },
+        /* 58*/ { UNICODE_MODE, 3, 4, 11, -1, "点", ZINT_ERROR_INVALID_DATA, -1, "Error 575: Invalid character in input data for ECI 3", 1, 1, "" },
+        /* 59*/ { UNICODE_MODE, 20, 4, 11, -1, "点", 0, 20, "E2 91 6C F8 EC", 1, 1, "ECI-20 K1 (Shift JIS)" },
+        /* 60*/ { UNICODE_MODE, 26, 2, 11, -1, "点", 0, 26, "E3 4D F3 C1 5C 80 EC", 1, 1, "ECI-26 B3 (UTF-8)" },
+        /* 61*/ { DATA_MODE, 0, 4, 11, -1, "点", 0, 0, "6F 9E 0A E4 00", 1, 0, "B3 (UTF-8; ZXing-C++ test can't handle DATA_MODE for certain inputs)" },
+        /* 62*/ { DATA_MODE, 0, 4, 11, -1, "\223\137", 0, 0, "6A 4D 7C 00 EC", 0, 0, "B2 (Shift JIS) (not full multibyte); BWIPP uses Kanji (ZINT_FULL_MULTIBYTE) mode, see below); ZXing-C++ test can't handle DATA_MODE for certain inputs" },
+        /* 63*/ { DATA_MODE, 0, 4, 11, ZINT_FULL_MULTIBYTE, "\223\137", 0, 0, "8B 67 C0 EC 11", 1, 1, "K1 (Shift JIS)" },
+        /* 64*/ { UNICODE_MODE, 0, 4, 11, -1, "¥･点", ZINT_WARN_NONCOMPLIANT, 0, "Warning 71 72 96 4D 7C", 1, 0, "B4 (Shift JIS) (optimized to byte mode only); ZXing-C++ test can't handle it" },
+        /* 65*/ { UNICODE_MODE, 3, -1, -1, -1, "¥･点", ZINT_ERROR_INVALID_DATA, -1, "Error 575: Invalid character in input data for ECI 3", 1, 1, "" },
+        /* 66*/ { UNICODE_MODE, 20, 2, 11, -1, "¥･点", 0, 20, "E2 8E 2E 52 C9 AF 80", 1, 0, "ECI-20 B4 (Shift JIS); ZXing-C++ test can't handle it" },
+        /* 67*/ { UNICODE_MODE, 26, 2, 17, -1, "¥･点", 0, 26, "E3 4E 30 A9 7B EF 69 79 E0 AE 40 EC", 1, 1, "ECI-26 B8 (UTF-8)" },
+        /* 68*/ { DATA_MODE, 0, 4, 11, -1, "\134\245\223\137", 0, 0, "71 72 96 4D 7C", 1, 0, "B8 (Shift JIS; ZXing-C++ test can't handle DATA_MODE for certain inputs)" },
+        /* 69*/ { DATA_MODE, 0, 2, 17, -1, "¥･点", 0, 0, "71 85 4B DF 7B 4B CF 05 72 00 EC 11", 1, 0, "B8 (UTF-8); ZXing-C++ test can't handle DATA_MODE for certain inputs" },
+        /* 70*/ { UNICODE_MODE, 0, 4, 11, -1, "点茗", ZINT_WARN_NONCOMPLIANT, 0, "Warning 93 67 F5 54 00", 1, 1, "K2 (Shift JIS)" },
+        /* 71*/ { UNICODE_MODE, 0, 2, 12, -1, "点茗テ点茗テｿ", ZINT_WARN_NONCOMPLIANT, 0, "Warning 8C D9 FD 55 06 95 B3 FA AA 0D 2B 0D F8 EC 11 EC 11 EC 11", 1, 1, "K6 B1 (Shift JIS)" },
+        /* 72*/ { DATA_MODE, 0, 2, 12, -1, "\223\137\344\252\203\145\223\137\344\252\203\145\277", 0, 0, "6D 93 5F E4 AA 83 65 93 5F E4 AA 83 65 BF 00 EC 11 EC 11", 0, 0, "B13 (Shift JIS); BWIPP uses Kanji (ZINT_FULL_MULTIBYTE) mode, see below); ZXing-C++ test can't handle it" },
+        /* 73*/ { DATA_MODE, 0, 2, 12, ZINT_FULL_MULTIBYTE, "\223\137\344\252\203\145\223\137\344\252\203\145\277", 0, 0, "8C D9 FD 55 06 95 B3 FA AA 0D 2B 0D F8 EC 11 EC 11 EC 11", 1, 1, "K6 B1 (Shift JIS) (full multibyte)" },
+        /* 74*/ { UNICODE_MODE, 0, 4, 11, -1, "áA", 0, 0, "6B 85 04 00 EC", 0, 1, "B2 (ISO 8859-1); BWIPP uses Kanji (ZINT_FULL_MULTIBYTE) mode, see below)" },
+        /* 75*/ { UNICODE_MODE, 0, 4, 11, ZINT_FULL_MULTIBYTE, "áA", 0, 0, "8E 00 40 EC 11", 1, 1, "K1 (ISO 8859-1) (full multibyte)" },
+        /* 76*/ { UNICODE_MODE, 0, 2, 23, -1, "A0B1C2D3E4F5G6H7I8J9KLMNOPQRSTUVWXYZ $%*+-./:", 0, 0, "(33) 56 9C 23 E0 87 92 62 7A 55 0B 59 82 33 26 C0 E6 5F AC 51 95 B4 26 B2 DC 1C 3B 9E 76", 1, 1, "A45" },
+        /* 77*/ { UNICODE_MODE, 0, 4, 11, -1, "˘", ZINT_WARN_USES_ECI, 4, "Warning E0 8C D1 00 EC", 1, 1, "ECI-4 B1 (ISO 8859-2)" },
+        /* 78*/ { UNICODE_MODE, 4, 4, 11, -1, "˘", 0, 4, "E0 8C D1 00 EC", 1, 1, "ECI-4 B1 (ISO 8859-2)" },
+        /* 79*/ { UNICODE_MODE, 0, 4, 11, -1, "Ħ", ZINT_WARN_USES_ECI, 5, "Warning E0 AC D0 80 EC", 1, 1, "ECI-5 B1 (ISO 8859-3)" },
+        /* 80*/ { UNICODE_MODE, 5, 4, 11, -1, "Ħ", 0, 5, "E0 AC D0 80 EC", 1, 1, "ECI-5 B1 (ISO 8859-3)" },
+        /* 81*/ { UNICODE_MODE, 0, 4, 11, -1, "ĸ", ZINT_WARN_USES_ECI, 6, "Warning E0 CC D1 00 EC", 1, 1, "ECI-6 B1 (ISO 8859-4)" },
+        /* 82*/ { UNICODE_MODE, 6, 4, 11, -1, "ĸ", 0, 6, "E0 CC D1 00 EC", 1, 1, "ECI-6 B1 (ISO 8859-4)" },
+        /* 83*/ { UNICODE_MODE, 0, 4, 11, -1, "Ș", ZINT_WARN_USES_ECI, 18, "Warning E2 4C D5 00 EC", 1, 1, "ECI-18 B1 (ISO 8859-16)" },
+        /* 84*/ { UNICODE_MODE, 18, 4, 11, -1, "Ș", 0, 18, "E2 4C D5 00 EC", 1, 1, "ECI-18 B1 (ISO 8859-16)" },
+        /* 85*/ { UNICODE_MODE, 0, 4, 11, -1, "テ", ZINT_WARN_NONCOMPLIANT, 0, "Warning 88 69 40 EC 11", 1, 1, "K1 (SHIFT JIS)" },
+        /* 86*/ { UNICODE_MODE, 20, 4, 11, -1, "テ", 0, 20, "E2 91 0D 28 EC", 1, 1, "ECI-20 K1 (SHIFT JIS)" },
+        /* 87*/ { UNICODE_MODE, 20, 2, 11, -1, "テテ", 0, 20, "E2 92 0D 28 69 40 EC", 1, 1, "ECI-20 K2 (SHIFT JIS)" },
+        /* 88*/ { UNICODE_MODE, 20, 2, 11, -1, "\\\\", 0, 20, "E2 92 00 F8 07 C0 EC", 1, 1, "ECI-20 K2 (SHIFT JIS)" },
+        /* 89*/ { UNICODE_MODE, 0, 4, 11, -1, "…", ZINT_WARN_NONCOMPLIANT, 0, "Warning 88 08 C0 EC 11", 1, 1, "K1 (SHIFT JIS)" },
+        /* 90*/ { UNICODE_MODE, 21, 4, 11, -1, "…", 0, 21, "E2 AC C2 80 EC", 1, 1, "ECI-21 B1 (Win 1250)" },
+        /* 91*/ { UNICODE_MODE, 0, 4, 11, -1, "Ґ", ZINT_WARN_USES_ECI, 22, "Warning E2 CC D2 80 EC", 1, 1, "ECI-22 B1 (Win 1251)" },
+        /* 92*/ { UNICODE_MODE, 22, 4, 11, -1, "Ґ", 0, 22, "E2 CC D2 80 EC", 1, 1, "ECI-22 B1 (Win 1251)" },
+        /* 93*/ { UNICODE_MODE, 0, 4, 11, -1, "˜", ZINT_WARN_USES_ECI, 23, "Warning E2 EC CC 00 EC", 1, 1, "ECI-23 B1 (Win 1252)" },
+        /* 94*/ { UNICODE_MODE, 23, 4, 11, -1, "˜", 0, 23, "E2 EC CC 00 EC", 1, 1, "ECI-23 B1 (Win 1252)" },
+        /* 95*/ { UNICODE_MODE, 24, 4, 11, -1, "پ", 0, 24, "E3 0C C0 80 EC", 1, 1, "ECI-24 B1 (Win 1256)" },
+        /* 96*/ { UNICODE_MODE, 0, 2, 11, -1, "က", ZINT_WARN_USES_ECI, 26, "Warning E3 4D F0 C0 40 00 EC", 1, 1, "ECI-26 B3 (UTF-8)" },
+        /* 97*/ { UNICODE_MODE, 25, 4, 11, -1, "က", 0, 25, "E3 2D 08 00 00", 1, 1, "ECI-25 B2 (UCS-2BE)" },
+        /* 98*/ { UNICODE_MODE, 25, 2, 11, -1, "ကက", 0, 25, "E3 2E 08 00 08 00 00", 1, 1, "ECI-25 B4 (UCS-2BE)" },
+        /* 99*/ { UNICODE_MODE, 25, 2, 11, -1, "12", 0, 25, "E3 2E 00 18 80 19 00", 1, 1, "ECI-25 B4 (UCS-2BE ASCII)" },
+        /*100*/ { UNICODE_MODE, 27, 4, 11, -1, "@", 0, 27, "E3 6C A0 00 EC", 1, 1, "ECI-27 B1 (ASCII)" },
+        /*101*/ { UNICODE_MODE, 0, 2, 11, -1, "龘", ZINT_WARN_USES_ECI, 26, "Warning E3 4D F4 DF 4C 00 EC", 1, 1, "ECI-26 B3 (UTF-8)" },
+        /*102*/ { UNICODE_MODE, 28, 4, 11, -1, "龘", 0, 28, "E3 8D 7C EA 80", 1, 1, "ECI-28 B2 (Big5)" },
+        /*103*/ { UNICODE_MODE, 28, 2, 11, -1, "龘龘", 0, 28, "E3 8E 7C EA FC EA 80", 1, 1, "ECI-28 B4 (Big5)" },
+        /*104*/ { UNICODE_MODE, 0, 2, 11, -1, "齄", ZINT_WARN_USES_ECI, 26, "Warning E3 4D F4 DE C2 00 EC", 1, 1, "ECI-26 B3 (UTF-8)" },
+        /*105*/ { UNICODE_MODE, 29, 4, 11, -1, "齄", 0, 29, "E3 AD 7B FF 00", 1, 1, "ECI-29 B2 (GB 2312)" },
+        /*106*/ { UNICODE_MODE, 29, 2, 11, -1, "齄齄", 0, 29, "E3 AE 7B FF 7B FF 00", 1, 1, "ECI-29 B4 (GB 2312)" },
+        /*107*/ { UNICODE_MODE, 0, 2, 11, -1, "가", ZINT_WARN_USES_ECI, 26, "Warning E3 4D F5 58 40 00 EC", 1, 1, "ECI-26 B3 (UTF-8)" },
+        /*108*/ { UNICODE_MODE, 30, 4, 11, -1, "가", 0, 30, "E3 CD 58 50 80", 1, 1, "ECI-30 B2 (EUC-KR)" },
+        /*109*/ { UNICODE_MODE, 30, 2, 11, -1, "가가", 0, 30, "E3 CE 58 50 D8 50 80", 1, 1, "ECI-30 B4 (EUC-KR)" },
+        /*110*/ { UNICODE_MODE, 170, 4, 11, -1, "?", 0, 170, "F0 15 4C 9F 80", 1, 1, "ECI-170 B1 (ASCII invariant)" },
+        /*111*/ { DATA_MODE, 899, 4, 11, -1, "\200", 0, 899, "F0 70 6C C0 00", 1, 1, "ECI-899 B1 (8-bit binary)" },
+        /*112*/ { UNICODE_MODE, 900, 2, 11, -1, "é", 0, 900, "F0 70 8D 61 D4 80 EC", 1, 1, "ECI-900 B2 (no conversion)" },
+        /*113*/ { UNICODE_MODE, 16384, 2, 11, -1, "é", 0, 16384, "F8 08 00 0D 61 D4 80", 1, 1, "ECI-16384 B2 (no conversion)" },
+        /*114*/ { UNICODE_MODE, 3, 2, 14, -1, "Google Pixel 4a 128 GB Black;price:$439.97", 0, 3, "(43) E0 6C F4 76 F6 F6 76 C6 52 05 06 97 86 56 C2 03 46 14 4E 55 0C 59 91 09 96 CA 6C 61", 0, 1, "ECI-3 B15 A9 B10 A8; BWIPP different encodation (B42) & doesn't fit)" },
+        /*115*/ { UNICODE_MODE, 29, 2, 20, -1, "Google 谷歌 Pixel 4a 128 GB黑色;零售价:￥3149.79", 0, 29, "(53) E3 AE 94 76 F6 F6 76 C6 52 0B 9C 8B 8E 82 05 06 97 86 56 C2 03 46 12 03 13 23 82 04", 1, 1, "ECI-29 B41 A7" },
+        /*116*/ { UNICODE_MODE, 17, 2, 24, -1, "Google Pixel 4a 128 GB Schwarz;Preis:444,90 €", 0, 17, "(48) E2 2C F4 76 F6 F6 76 C6 52 05 06 97 86 56 C2 03 46 14 27 2A 86 2C C8 84 DC 6A B1 B4", 0, 1, "ECI-17 B15 A9 B21; BWIPP different encodation (B46)" },
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char escaped[4096];
     char cmp_buf[32768];
     char cmp_msg[1024];
 
-    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); // Only do BWIPP test if asked, too slow otherwise
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
 
-    testStart("test_rmqr_input");
+    testStartSymbol("test_rmqr_input", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
 
-        debug |= ZINT_DEBUG_TEST; // Needed to get codeword dump in errtxt
+        debug |= ZINT_DEBUG_TEST; /* Needed to get codeword dump in errtxt */
 
         length = testUtilSetSymbol(symbol, BARCODE_RMQR, data[i].input_mode, data[i].eci, data[i].option_1, data[i].option_2, data[i].option_3, -1 /*output_options*/, data[i].data, -1, debug);
 
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
-        if (generate) {
-            printf("        /*%3d*/ { %s, %d, %d, %d, %s, \"%s\", %s, %d, \"%s\", %d, \"%s\" },\n",
+        if (p_ctx->generate) {
+            printf("        /*%3d*/ { %s, %d, %d, %d, %s, \"%s\", %s, %d, \"%s\", %d, %d, \"%s\" },\n",
                     i, testUtilInputModeName(data[i].input_mode), data[i].eci,
-                    data[i].option_1, data[i].option_2, testUtilOption3Name(data[i].option_3),
+                    data[i].option_1, data[i].option_2, testUtilOption3Name(BARCODE_RMQR, data[i].option_3),
                     testUtilEscape(data[i].data, length, escaped, sizeof(escaped)),
                     testUtilErrorName(data[i].ret), ret < ZINT_ERROR ? symbol->eci : -1,
-                    symbol->errtxt, data[i].bwipp_cmp, data[i].comment);
+                    symbol->errtxt, data[i].bwipp_cmp, data[i].zxingcpp_cmp, data[i].comment);
         } else {
             if (ret < ZINT_ERROR) {
                 assert_equal(symbol->eci, data[i].expected_eci, "i:%d eci %d != %d\n", i, symbol->eci, data[i].expected_eci);
@@ -6746,6 +8018,21 @@ static void test_rmqr_input(int index, int generate, int debug) {
                                        i, testUtilBarcodeName(symbol->symbology), ret, cmp_msg, cmp_buf, modules_dump);
                     }
                 }
+                if (do_zxingcpp && testUtilCanZXingCPP(i, symbol, data[i].data, length, debug)) {
+                    if (!data[i].zxingcpp_cmp) {
+                        if (debug & ZINT_DEBUG_TEST_PRINT) printf("i:%d %s not ZXing-C++ compatible (%s)\n", i, testUtilBarcodeName(symbol->symbology), data[i].comment);
+                    } else {
+                        int cmp_len, ret_len;
+                        char modules_dump[17 * 139 + 1];
+                        assert_notequal(testUtilModulesDump(symbol, modules_dump, sizeof(modules_dump)), -1, "i:%d testUtilModulesDump == -1\n", i);
+                        ret = testUtilZXingCPP(i, symbol, data[i].data, length, modules_dump, cmp_buf, sizeof(cmp_buf), &cmp_len);
+                        assert_zero(ret, "i:%d %s testUtilZXingCPP ret %d != 0\n", i, testUtilBarcodeName(symbol->symbology), ret);
+
+                        ret = testUtilZXingCPPCmp(symbol, cmp_msg, cmp_buf, cmp_len, data[i].data, length, NULL /*primary*/, escaped, &ret_len);
+                        assert_zero(ret, "i:%d %s testUtilZXingCPPCmp %d != 0 %s\n  actual: %.*s\nexpected: %.*s\n",
+                                       i, testUtilBarcodeName(symbol->symbology), ret, cmp_msg, cmp_len, cmp_buf, ret_len, escaped);
+                    }
+                }
             }
         }
 
@@ -6755,7 +8042,8 @@ static void test_rmqr_input(int index, int generate, int debug) {
     testFinish();
 }
 
-static void test_rmqr_gs1(int index, int generate, int debug) {
+static void test_rmqr_gs1(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int input_mode;
@@ -6770,42 +8058,60 @@ static void test_rmqr_gs1(int index, int generate, int debug) {
         /*  2*/ { GS1_MODE, "[01]04912345123459[15]970331[30]128[10]ABC123", 0, "A5 D0 29 EB 3A A0 05 67 93 F2 94 B4 B4 E2 4E AF 01 47 EC 17 86", "N29 A9" },
         /*  3*/ { GS1_MODE | GS1PARENS_MODE, "(01)04912345123459(15)970331(30)128(10)ABC123", 0, "A5 D0 29 EB 3A A0 05 67 93 F2 94 B4 B4 E2 4E AF 01 47 EC 17 86", "N29 A9" },
         /*  4*/ { GS1_MODE, "[91]12%[20]12", 0, "A4 9C 79 32 25 1D 24 32 48 00 EC 11", "N4 B2 N4" },
-        /*  5*/ { GS1_MODE, "[91]123%[20]12", 0, "A4 BC 79 74 3D A9 31 21 92 40 EC 11", "N5 A2 N4" },
+        /*  5*/ { GS1_MODE, "[91]123%[20]12", 0, "A4 BC 79 76 44 A3 A4 86 49 00 EC 11", "N5 B2 N4" },
         /*  6*/ { GS1_MODE, "[91]1234%[20]12", 0, "A4 DC 79 D4 C8 94 74 90 C9 20 EC 11", "N6 B2 N4" },
-        /*  7*/ { GS1_MODE, "[91]12345%[20]12", 0, "A4 FC 79 D4 A8 7B 52 62 43 24 80 EC", "N7 A2(3) N4" },
+        /*  7*/ { GS1_MODE, "[91]12345%[20]12", 0, "A4 FC 79 D4 AC 89 47 49 0C 92 00 EC", "N7 B2 N4" },
         /*  8*/ { GS1_MODE, "[91]1A%[20]12", 0, "A8 E6 58 1B ED 49 89 0C 92 00 EC 11", "A6(7) N4" },
         /*  9*/ { GS1_MODE, "[91]%%[20]12", 0, "A4 56 D9 92 92 8E 92 19 24 00 EC 11", "N2 B3 N4" },
         /* 10*/ { GS1_MODE, "[91]%%%[20]12", 0, "A4 56 DA 12 92 92 8E 92 19 24 00 EC", "N2 B4 N4" },
-        /* 11*/ { GS1_MODE, "[91]A%%%%12345678A%A", 0, "A8 A6 58 F4 4C C6 4A 4A 4A 48 1E DC 89 C8 87 A3 5C 00 EC", "A4(5) B3 N8 A3(4)" },
-        /* 12*/ { GS1_MODE, "[91]%23%%6789%%%34567%%%%234%%%%%", 0, "(33) AA 63 2D B5 02 EE D4 DA 84 54 B8 ED 4D A9 B5 04 58 E7 2C 3B 53 6A 6D 4D 60 22 F6 A3", "A27(38) B4" },
+        /* 11*/ { GS1_MODE, "[91]A%%%%12345678A%A", 0, "AC E7 26 28 24 A4 A4 A4 A4 81 ED C8 9C 88 7A 35 C0 EC 11", "B7 N8 A3(4)" },
+        /* 12*/ { GS1_MODE, "[91]%23%%6789%%%34567%%%%234%%%%%", 0, "(33) A9 43 2D B5 02 EE D4 DA 84 54 B8 ED 4D A9 B5 08 55 66 1B 30 94 94 94 94 C8 CC D0 94", "A14(20) N5 B12" },
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char escaped[4096];
+    char cmp_buf[32768];
+    char cmp_msg[1024];
 
-    testStart("test_rmqr_gs1");
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
+
+    testStartSymbol("test_rmqr_gs1", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
 
-        debug |= ZINT_DEBUG_TEST; // Needed to get codeword dump in errtxt
+        debug |= ZINT_DEBUG_TEST; /* Needed to get codeword dump in errtxt */
 
         length = testUtilSetSymbol(symbol, BARCODE_RMQR, data[i].input_mode, -1 /*eci*/, -1 /*option_1*/, -1, -1, -1 /*output_options*/, data[i].data, -1, debug);
 
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
-        if (generate) {
+        if (p_ctx->generate) {
             printf("        /*%3d*/ { %s, \"%s\", %s, \"%s\", \"%s\" },\n",
                     i, testUtilInputModeName(data[i].input_mode), testUtilEscape(data[i].data, length, escaped, sizeof(escaped)), testUtilErrorName(data[i].ret), symbol->errtxt, data[i].comment);
         } else {
             assert_zero(strcmp(symbol->errtxt, data[i].expected), "i:%d strcmp(%s, %s) != 0\n", i, symbol->errtxt, data[i].expected);
+
+            if (ret < ZINT_ERROR) {
+                if (do_zxingcpp && testUtilCanZXingCPP(i, symbol, data[i].data, length, debug)) {
+                    int cmp_len, ret_len;
+                    char modules_dump[17 * 139 + 1];
+                    assert_notequal(testUtilModulesDump(symbol, modules_dump, sizeof(modules_dump)), -1, "i:%d testUtilModulesDump == -1\n", i);
+                    ret = testUtilZXingCPP(i, symbol, data[i].data, length, modules_dump, cmp_buf, sizeof(cmp_buf), &cmp_len);
+                    assert_zero(ret, "i:%d %s testUtilZXingCPP ret %d != 0\n", i, testUtilBarcodeName(symbol->symbology), ret);
+
+                    ret = testUtilZXingCPPCmp(symbol, cmp_msg, cmp_buf, cmp_len, data[i].data, length, NULL /*primary*/, escaped, &ret_len);
+                    assert_zero(ret, "i:%d %s testUtilZXingCPPCmp %d != 0 %s\n  actual: %.*s\nexpected: %.*s\n",
+                                   i, testUtilBarcodeName(symbol->symbology), ret, cmp_msg, cmp_len, cmp_buf, ret_len, escaped);
+                }
+            }
         }
 
         ZBarcode_Delete(symbol);
@@ -6814,7 +8120,8 @@ static void test_rmqr_gs1(int index, int generate, int debug) {
     testFinish();
 }
 
-static void test_rmqr_optimize(int index, int generate, int debug) {
+static void test_rmqr_optimize(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int input_mode;
@@ -6837,12 +8144,12 @@ static void test_rmqr_optimize(int index, int generate, int debug) {
         /*  7*/ { UNICODE_MODE, 4, 11, "0123A", 0, "28 06 1A 12 80", 1, "N4 A1 (nayuki.io - alpha/numeric)" },
         /*  8*/ { UNICODE_MODE, 4, 11, "0a", 0, "68 C1 84 00 EC", 1, "B2 (nayuki.io - numeric/byte)" },
         /*  9*/ { UNICODE_MODE, 4, 11, "01a", 0, "24 05 96 10 EC", 1, "N2 B1 (nayuki.io - numeric/byte)" },
-        /* 10*/ { UNICODE_MODE, 4, 11, "ABCa", 0, "71 05 09 0D 84", 1, "B4 (nayuki.io - alphanumeric/byte)" },
+        /* 10*/ { UNICODE_MODE, 4, 11, "ABCa", 0, "71 05 09 0D 84", 1, "A4 (nayuki.io - alphanumeric/byte)" },
         /* 11*/ { UNICODE_MODE, 2, 11, "ABCDa", 0, "48 73 51 4B 2C 20 EC", 1, "A4 B1 (same bits as B5)" },
         /* 12*/ { UNICODE_MODE, 2, 24, "THE SQUARE ROOT OF 2 IS 1.41421356237309504880168872420969807856967187537694807317667973799", 0, "(48) 46 A9 52 9A A0 D5 42 66 E6 F8 A1 4F 62 3E 56 CC D4 40 2B 98 2C F1 AB 19 2E A2 F8 61", 1, " A26 N65 (nayuki.io - alpha/numeric)" },
         /* 13*/ { UNICODE_MODE, 2, 21, "Golden ratio φ = 1.6180339887498948482045868343656381177203091798057628621354486227052604628189024497072072041893911374......", ZINT_WARN_NONCOMPLIANT, "Warning (73) 65 11 DB DB 19 19 5B 88 1C 98 5D 1A 5B C8 20 F4 C8 0F 48 0C 4B 8B 24 D4 10 FB 97 6E", 1, "B20 N100 A6 (nayuki.io - alpha/numeric/byte)" },
         /* 14*/ { UNICODE_MODE, 2, 18, "こんにちwa、世界！ αβγδ", ZINT_WARN_NONCOMPLIANT, "Warning 84 09 88 5C 42 92 13 F6 B7 76 18 14 19 0A 28 A4 58 14 92 08 40 FF 88 00 40 22 02", 1, "K4 B7 K4 (nayuki.io - kanji/european)" },
-        /* 15*/ { UNICODE_MODE, 2, 32, "6547861663com.acme35584af52fa3-88d0-093b-6c14-b37ddafb59c528908608sg.com.dash.www05303790265903SG.COM.NETS46967004B2AE13344004SG.SGQR209710339382.6359SG8236HELLO FOO2517Singapore3272B815", 0, "(152) 20 AA 3B 12 29 8D 97 B1 B7 B6 97 30 B1 B6 B2 99 9A 9A 9C 1A 30 B3 1A 99 33 30 99 96", 0, "N10 B47 N9 B15 N14 A38 N12 A25 B8 A8 (nayuki.io - SGQR alpha/numeric/byte); BWIPP different encodation (N10 B47 N9 B15 N14 A38 N12 A25 B13 A3) & doesn't fit" },
+        /* 15*/ { UNICODE_MODE, 2, 32, "6547861663com.acme35584af52fa3-88d0-093b-6c14-b37ddafb59c528908608sg.com.dash.www05303790265903SG.COM.NETS46967004B2AE13344004SG.SGQR209710339382.6359SG8236HELLO FOO2517Singapore3272B815", 0, "(152) 20 AA 3B 12 29 8D 97 B1 B7 B6 97 30 B1 B6 B2 99 9A 9A 9C 1A 30 B3 1A 99 33 30 99 96", 1, "N10 B47 N9 B15 N14 A38 N12 A25 B8 A8 (nayuki.io - SGQR alpha/numeric/byte)" },
         /* 16*/ { UNICODE_MODE, 2, 27, "2004年大西洋颶風季是有以来造成人失惨重的大季之一，于2004年6月1日正式始，同年11月30日束，上的日期界定了一年中大多数气旋在大西洋形成的段lll ku", ZINT_WARN_NONCOMPLIANT, "Warning (127) 20 43 21 21 87 27 32 95 77 90 AD F0 33 D5 CF 0E BA 58 46 17 22 19 0C 62 5D 62 DB 14", 0, "N4 K24 N4 B6 K7 B6 K26 B6 (nayuki.io - kanji/byte/numeric, non-Shift JIS removed; BWIPP different encodation (N4 K24 N4 B26 K26 B6)" },
         /* 17*/ { UNICODE_MODE, 2, 17, "AB1234567A", 0, "4A 39 A0 BC 45 8E 72 8A 00 EC 11 EC", 1, "A10" },
         /* 18*/ { UNICODE_MODE, 2, 17, "AB12345678A", 0, "42 39 A5 03 DB 91 39 04 A0 EC 11 EC", 1, "A2 N8 A1" },
@@ -6852,31 +8159,32 @@ static void test_rmqr_optimize(int index, int generate, int debug) {
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char escaped[4096];
     char cmp_buf[32768];
     char cmp_msg[1024];
 
-    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); // Only do BWIPP test if asked, too slow otherwise
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
 
-    testStart("test_rmqr_optimize");
+    testStartSymbol("test_rmqr_optimize", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
 
-        debug |= ZINT_DEBUG_TEST; // Needed to get codeword dump in errtxt
+        debug |= ZINT_DEBUG_TEST; /* Needed to get codeword dump in errtxt */
 
         length = testUtilSetSymbol(symbol, BARCODE_RMQR, data[i].input_mode, -1 /*eci*/, data[i].option_1, data[i].option_2, ZINT_FULL_MULTIBYTE, -1 /*output_options*/, data[i].data, -1, debug);
 
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
-        if (generate) {
+        if (p_ctx->generate) {
             printf("        /*%3d*/ { %s, %d, %d, \"%s\", %s, \"%s\", %d, \"%s\" },\n",
                     i, testUtilInputModeName(data[i].input_mode), data[i].option_1, data[i].option_2,
                     testUtilEscape(data[i].data, length, escaped, sizeof(escaped)),
@@ -6898,6 +8206,17 @@ static void test_rmqr_optimize(int index, int generate, int debug) {
                                    i, testUtilBarcodeName(symbol->symbology), ret, cmp_msg, cmp_buf, modules_dump);
                 }
             }
+            if (do_zxingcpp && testUtilCanZXingCPP(i, symbol, data[i].data, length, debug)) {
+                int cmp_len, ret_len;
+                char modules_dump[17 * 139 + 1];
+                assert_notequal(testUtilModulesDump(symbol, modules_dump, sizeof(modules_dump)), -1, "i:%d testUtilModulesDump == -1\n", i);
+                ret = testUtilZXingCPP(i, symbol, data[i].data, length, modules_dump, cmp_buf, sizeof(cmp_buf), &cmp_len);
+                assert_zero(ret, "i:%d %s testUtilZXingCPP ret %d != 0\n", i, testUtilBarcodeName(symbol->symbology), ret);
+
+                ret = testUtilZXingCPPCmp(symbol, cmp_msg, cmp_buf, cmp_len, data[i].data, length, NULL /*primary*/, escaped, &ret_len);
+                assert_zero(ret, "i:%d %s testUtilZXingCPPCmp %d != 0 %s\n  actual: %.*s\nexpected: %.*s\n",
+                               i, testUtilBarcodeName(symbol->symbology), ret, cmp_msg, cmp_len, cmp_buf, ret_len, escaped);
+            }
         }
 
         ZBarcode_Delete(symbol);
@@ -6906,12 +8225,15 @@ static void test_rmqr_optimize(int index, int generate, int debug) {
     testFinish();
 }
 
-static void test_rmqr_encode(int index, int generate, int debug) {
+static void test_rmqr_encode(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int input_mode;
+        int eci;
         int option_1;
         int option_2;
+        int option_3;
         char *data;
         int ret;
 
@@ -6921,9 +8243,9 @@ static void test_rmqr_encode(int index, int generate, int debug) {
         char *comment;
         char *expected;
     };
-    // ISO/IEC 23941:2022
+    /* ISO/IEC 23941:2022 */
     struct item data[] = {
-        /*  0*/ { UNICODE_MODE, 4, 11, "0123456", 0, 11, 27, 1, "ISO 23941 Annex I Figure I.2, R11x27-H, same",
+        /*  0*/ { UNICODE_MODE, -1, 4, 11, ZINT_FULL_MULTIBYTE, "0123456", 0, 11, 27, 1, "ISO 23941 Annex I Figure I.2, R11x27-H, same",
                     "111111101010101010101010111"
                     "100000100110100001110100101"
                     "101110100001001111010011111"
@@ -6936,7 +8258,20 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "101010100110010100111010001"
                     "111010101010101010101011111"
                 },
-        /*  1*/ { UNICODE_MODE, 2, 17, "12345678901234567890123456", 0, 13, 27, 1, "ISO 23941 6.2 Figure 1, R13x27-M, same",
+        /*  1*/ { UNICODE_MODE, -1, 4, 11, -1, "0123456", 0, 11, 27, 1, "ISO 23941 Annex I Figure I.2, R11x27-H, same",
+                    "111111101010101010101010111"
+                    "100000100110100001110100101"
+                    "101110100001001111010011111"
+                    "101110101111011011110001100"
+                    "101110100101110111111001011"
+                    "100000101110000100111110010"
+                    "111111101111111110001011111"
+                    "000000001111101011010010001"
+                    "111100000010010100111110101"
+                    "101010100110010100111010001"
+                    "111010101010101010101011111"
+                },
+        /*  2*/ { UNICODE_MODE, -1, 2, 17, ZINT_FULL_MULTIBYTE, "12345678901234567890123456", 0, 13, 27, 1, "ISO 23941 6.2 Figure 1, R13x27-M, same",
                     "111111101010101010101010111"
                     "100000100001001100010011001"
                     "101110101100000011001110001"
@@ -6951,7 +8286,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "100011010010010100000010001"
                     "111010101010101010101011111"
                 },
-        /*  2*/ { UNICODE_MODE, 2, 2, "0123456789012345", 0, 7, 59, 1, "ISO 23941 7.4.2 Numeric mode Example, R7x59-M, same codewords",
+        /*  3*/ { UNICODE_MODE, -1, 2, 2, ZINT_FULL_MULTIBYTE, "0123456789012345", 0, 7, 59, 1, "ISO 23941 7.4.2 Numeric mode Example, R7x59-M, same codewords",
                     "11111110101010101011101010101010101010111010101010101010111"
                     "10000010101111011110100001100001100001101100100101100100101"
                     "10111010100100001011110010110000011110111110111100011011111"
@@ -6960,7 +8295,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "10000010101010110110100010111110010010101111101111110010001"
                     "11111110101010101011101010101010101010111010101010101011111"
                 },
-        /*  3*/ { UNICODE_MODE, 2, 2, "AC-42", 0, 7, 59, 1, "ISO 23941 7.4.3 Alphanumeric mode Example, R7x59-M, same codewords",
+        /*  4*/ { UNICODE_MODE, -1, 2, 2, ZINT_FULL_MULTIBYTE, "AC-42", 0, 7, 59, 1, "ISO 23941 7.4.3 Alphanumeric mode Example, R7x59-M, same codewords",
                     "11111110101010101011101010101010101010111010101010101010111"
                     "10000010101111010010110011010101100000101011001111100100101"
                     "10111010100100100011100100111100011101111100011011111011111"
@@ -6969,7 +8304,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "10000010101010111110100011101110011011101101011010110010001"
                     "11111110101010101011101010101010101010111010101010101011111"
                 },
-        /*  4*/ { UNICODE_MODE, -1, 1, "123456789012", 0, 7, 43, 1, "R7x34-M max numeric 12 digits",
+        /*  5*/ { UNICODE_MODE, -1, -1, 1, ZINT_FULL_MULTIBYTE, "123456789012", 0, 7, 43, 1, "R7x43-M max numeric 12 digits",
                     "1111111010101010101011101010101010101010111"
                     "1000001001010111111010100000100011011000101"
                     "1011101010111000100111101101011010111111111"
@@ -6978,7 +8313,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "1000001011110111111110101101001010111010001"
                     "1111111010101010101011101010101010101011111"
                 },
-        /*  5*/ { UNICODE_MODE, 4, 32, "1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678", 0, 17, 139, 1, "R17x139-H max numeric 178 digits",
+        /*  6*/ { UNICODE_MODE, -1, 4, 32, ZINT_FULL_MULTIBYTE, "1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678", 0, 17, 139, 1, "R17x139-H max numeric 178 digits",
                     "1111111010101010101010101011101010101010101010101010101110101010101010101010101010111010101010101010101010101011101010101010101010101010111"
                     "1000001011001111001111010110101111111110001100100101011011010101100000011101000010101101000110111100000111101010111011011000011100010001001"
                     "1011101010001001010100111011111010110101010101000101101110001111010001011001101110111001010011010101010100101011100001100100000011101011111"
@@ -6997,7 +8332,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "1010111110110100011001111010100011101111001101100101111011100101011100011011011000101010010000000100111000011010100000100111101001110110001"
                     "1110101010101010101010101011101010101010101010101010101110101010101010101010101010111010101010101010101010101011101010101010101010101011111"
                 },
-        /*  6*/ { UNICODE_MODE, 4, 33, "123456789012345678901234567890123456789012345678901234", 0, 7, 139, 1, "R7xauto-H max numeric 54 digits",
+        /*  7*/ { UNICODE_MODE, -1, 4, 33, ZINT_FULL_MULTIBYTE, "123456789012345678901234567890123456789012345678901234", 0, 7, 139, 1, "R7xauto-H max numeric 54 digits",
                     "1111111010101010101010101011101010101010101010101010101110101010101010101010101010111010101010101010101010101011101010101010101010101010111"
                     "1000001011010011001111100110101000111000110001101010101011100001010000000000011001101000110010111100010100100110101000010111100011001000001"
                     "1011101000011001010110011111111001010000100001011100101110111001110001011101010011111000110100100000100100111011100000000010010010101011111"
@@ -7006,7 +8341,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "1000001010001100101101000010110110010110000111100001011011001001011001111000100111101011001110101000010111101110101110000101110011110110001"
                     "1111111010101010101010101011101010101010101010101010101110101010101010101010101010111010101010101010101010101011101010101010101010101011111"
                 },
-        /*  7*/ { UNICODE_MODE, 4, 35, "123456789012345678901234567890123", 0, 11, 59, 1, "R11xauto-H with max numeric 33 digits for width 59",
+        /*  8*/ { UNICODE_MODE, -1, 4, 35, ZINT_FULL_MULTIBYTE, "123456789012345678901234567890123", 0, 11, 59, 1, "R11xauto-H with max numeric 33 digits for width 59",
                     "11111110101010101011101010101010101010111010101010101010111"
                     "10000010101001100110111000100110101100101100010101111110101"
                     "10111010000110100111101001001111110010111101000100110110011"
@@ -7019,7 +8354,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "10011101110110100010100011000110110010101001001100100110001"
                     "11101010101010101011101010101010101010111010101010101011111"
                 },
-        /*  8*/ { UNICODE_MODE, -1, 38, "1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901", 0, 17, 139, 1, "R17xauto-M max numeric 361 digits",
+        /*  9*/ { UNICODE_MODE, -1, -1, 38, ZINT_FULL_MULTIBYTE, "1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901", 0, 17, 139, 1, "R17xauto-M max numeric 361 digits",
                     "1111111010101010101010101011101010101010101010101010101110101010101010101010101010111010101010101010101010101011101010101010101010101010111"
                     "1000001001000101011111010110101000111111101000111100111011110101001110010101100011101100101011101111100000110010101010100000011111110110001"
                     "1011101011100111011000001111111010110000100000100110001111110101001001010011000110111101110100011101010101001111100001010000010111111111011"
@@ -7038,7 +8373,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "1010100110101011001011101010100000110111001110010011101011010011100100101000111010101110101100010001011100100010101010111100100001000110001"
                     "1110101010101010101010101011101010101010101010101010101110101010101010101010101010111010101010101010101010101011101010101010101010101011111"
                 },
-        /*  9*/ { UNICODE_MODE, 2, 1, "\001\002\003\004\005", 0, 7, 43, 1, "R7x43-M with max 5 binary",
+        /* 10*/ { UNICODE_MODE, -1, 2, 1, ZINT_FULL_MULTIBYTE, "\001\002\003\004\005", 0, 7, 43, 1, "R7x43-M with max 5 binary",
                     "1111111010101010101011101010101010101010111"
                     "1000001001010001101010101011001111011000101"
                     "1011101010111101100111100101110001011111111"
@@ -7047,7 +8382,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "1000001011110000000010101011001111011010001"
                     "1111111010101010101011101010101010101011111"
                 },
-        /* 10*/ { UNICODE_MODE, 4, 1, "\001\002", 0, 7, 43, 1, "R7x43-H with max 2 binary",
+        /* 11*/ { UNICODE_MODE, -1, 4, 1, ZINT_FULL_MULTIBYTE, "\001\002", 0, 7, 43, 1, "R7x43-H with max 2 binary",
                     "1111111010101010101011101010101010101010111"
                     "1000001011010010110010111001001111001000001"
                     "1011101011010011101011110001000001010011111"
@@ -7056,7 +8391,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "1000001001111110100010111110110110101010001"
                     "1111111010101010101011101010101010101011111"
                 },
-        /* 11*/ { UNICODE_MODE, 2, 1, "ABCDEFG", 0, 7, 43, 1, "R7x43-M with max 7 alphanumerics",
+        /* 12*/ { UNICODE_MODE, -1, 2, 1, ZINT_FULL_MULTIBYTE, "ABCDEFG", 0, 7, 43, 1, "R7x43-M with max 7 alphanumerics",
                     "1111111010101010101011101010101010101010111"
                     "1000001001011100111110111000000101011000101"
                     "1011101010111010101011110111101001011111111"
@@ -7065,7 +8400,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "1000001011111011101110111110000111111010001"
                     "1111111010101010101011101010101010101011111"
                 },
-        /* 12*/ { UNICODE_MODE, 2, 1, "点茗点", ZINT_WARN_NONCOMPLIANT, 7, 43, 1, "R7x43-M with max 3 Kanji",
+        /* 13*/ { UNICODE_MODE, -1, 2, 1, ZINT_FULL_MULTIBYTE, "点茗点", ZINT_WARN_NONCOMPLIANT, 7, 43, 1, "R7x43-M with max 3 Kanji",
                     "1111111010101010101011101010101010101010111"
                     "1000001001011000100010101001010001111000101"
                     "1011101010110101110111111001011101111111111"
@@ -7074,7 +8409,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "1000001011111100010110101111011000111010001"
                     "1111111010101010101011101010101010101011111"
                 },
-        /* 13*/ { UNICODE_MODE, 2, 4, "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLM", 0, 7, 99, 1, "R7x99-M with max 39 alphanumerics",
+        /* 14*/ { UNICODE_MODE, -1, 2, 4, ZINT_FULL_MULTIBYTE, "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLM", 0, 7, 99, 1, "R7x99-M with max 39 alphanumerics",
                     "111111101010101010101011101010101010101010101010111010101010101010101010101110101010101010101010111"
                     "100000100111110010010010101010100110101001000011101100101101000010101110001011100000010001111100101"
                     "101110100101000000101011100100010000001000001111111111011111000000110101111111101111100000100011111"
@@ -7083,7 +8418,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "100000101010111010111010111110101001111001101011101010101010001100101101111011100101101010110010001"
                     "111111101010101010101011101010101010101010101010111010101010101010101010101110101010101010101011111"
                 },
-        /* 14*/ { UNICODE_MODE, 4, 5, "\001\002\003\004\005\006\007\010\011\012\013\014\015\016\017\020\021\022\023\024\025\026", 0, 7, 139, 1, "R7x139-H with max 22 binary",
+        /* 15*/ { UNICODE_MODE, -1, 4, 5, ZINT_FULL_MULTIBYTE, "\001\002\003\004\005\006\007\010\011\012\013\014\015\016\017\020\021\022\023\024\025\026", 0, 7, 139, 1, "R7x139-H with max 22 binary",
                     "1111111010101010101010101011101010101010101010101010101110101010101010101010101010111010101010101010101010101011101010101010101010101010111"
                     "1000001011010100100110110110100110111000001010100110101010111101000011111010001000101100000100001011011110111110100110011110001101001000001"
                     "1011101000010011101011000111111011101001111011110101011110111001000010011111001110111001100001010101110110100011110011110001010001001011111"
@@ -7092,7 +8427,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "1000001010000100011110111110111000111001100010111001111011001011011111000110010101101111111111001110101110101010101110110010001100110110001"
                     "1111111010101010101010101011101010101010101010101010101110101010101010101010101010111010101010101010101010101011101010101010101010101011111"
                 },
-        /* 15*/ { UNICODE_MODE, 2, 7, "\001\002\003\004\005\006\007\010\011\012\013\014\015\016\017\020\021\022\023\024", 0, 9, 59, 1, "R9x59-M with max 20 binary",
+        /* 16*/ { UNICODE_MODE, -1, 2, 7, ZINT_FULL_MULTIBYTE, "\001\002\003\004\005\006\007\010\011\012\013\014\015\016\017\020\021\022\023\024", 0, 9, 59, 1, "R9x59-M with max 20 binary",
                     "11111110101010101011101010101010101010111010101010101010111"
                     "10000010100110111010110111101111000011101110010011100001001"
                     "10111010101100001011111100111100011111111100011001111100101"
@@ -7103,7 +8438,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "00000000000011111010111011010100000000101110011010000110001"
                     "11101010101010101011101010101010101010111010101010101011111"
                 },
-        /* 16*/ { UNICODE_MODE, 2, 9, "12345678901234567890123456789012345678901234567", 0, 9, 99, 1, "R9x99-M with max 47 numerics",
+        /* 17*/ { UNICODE_MODE, -1, 2, 9, ZINT_FULL_MULTIBYTE, "12345678901234567890123456789012345678901234567", 0, 9, 99, 1, "R9x99-M with max 47 numerics",
                     "111111101010101010101011101010101010101010101010111010101010101010101010101110101010101010101010111"
                     "100000100010000101001110111001101000101110111000101110001100111010100000001011110010011100011001101"
                     "101110101011011101000011110000001000010010010000111011001001111111000001001110101111110010111000101"
@@ -7114,7 +8449,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "000000000111000111011010100110011010111011010011101110110100100111001011111010110011000000001010001"
                     "111010101010101010101011101010101010101010101010111010101010101010101010101110101010101010101011111"
                 },
-        /* 17*/ { UNICODE_MODE, 2, 11, "\001\002\003\004\005\006", 0, 11, 27, 1, "R11x27-M with max 6 binary",
+        /* 18*/ { UNICODE_MODE, -1, 2, 11, ZINT_FULL_MULTIBYTE, "\001\002\003\004\005\006", 0, 11, 27, 1, "R11x27-M with max 6 binary",
                     "111111101010101010101010111"
                     "100000101110010000111000101"
                     "101110100111010000000011001"
@@ -7127,7 +8462,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "101001111010101000101010001"
                     "111010101010101010101011111"
                 },
-        /* 18*/ { UNICODE_MODE, 4, 11, "\001\002\003\004", 0, 11, 27, 1, "R11x27-H with max 4 binary",
+        /* 19*/ { UNICODE_MODE, -1, 4, 11, ZINT_FULL_MULTIBYTE, "\001\002\003\004", 0, 11, 27, 1, "R11x27-H with max 4 binary",
                     "111111101010101010101010111"
                     "100000100110100100111000101"
                     "101110100001011000000011001"
@@ -7140,7 +8475,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "101000000010100100111010001"
                     "111010101010101010101011111"
                 },
-        /* 19*/ { UNICODE_MODE, 2, 13, "12345678901234567890123456789012345678901234567890123456789012345678901", 0, 11, 59, 1, "R11x59-M with max 71 numerics",
+        /* 20*/ { UNICODE_MODE, -1, 2, 13, ZINT_FULL_MULTIBYTE, "12345678901234567890123456789012345678901234567890123456789012345678901", 0, 11, 59, 1, "R11x59-M with max 71 numerics",
                     "11111110101010101011101010101010101010111010101010101010111"
                     "10000010001010111110110110010100101111101111001110101100001"
                     "10111010011100010011110111110001111100111010111101000100011"
@@ -7153,7 +8488,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "10011100001011001110100101001100110111101001101110110110001"
                     "11101010101010101011101010101010101010111010101010101011111"
                 },
-        /* 20*/ { UNICODE_MODE, 2, 18, "1234567890123456789012345678901234567890123456789012345678901", 0, 13, 43, 1, "R13x43-M with max 61 numerics",
+        /* 21*/ { UNICODE_MODE, -1, 2, 18, ZINT_FULL_MULTIBYTE, "1234567890123456789012345678901234567890123456789012345678901", 0, 13, 43, 1, "R13x43-M with max 61 numerics",
                     "1111111010101010101011101010101010101010111"
                     "1000001011111001100110111000110110011001001"
                     "1011101011100001110011110110101000100010111"
@@ -7168,7 +8503,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "1000110000010111110010110001001011001010001"
                     "1110101010101010101011101010101010101011111"
                 },
-        /* 21*/ { UNICODE_MODE, 4, 20, "\001\002\003\004\005\006\007\010\011\012\013\014\015\016\017\020\021\022\023\024\025\026\027\030\031\032\033", 0, 13, 77, 1, "R13x77-H with max 27 binary",
+        /* 22*/ { UNICODE_MODE, -1, 4, 20, ZINT_FULL_MULTIBYTE, "\001\002\003\004\005\006\007\010\011\012\013\014\015\016\017\020\021\022\023\024\025\026\027\030\031\032\033", 0, 13, 77, 1, "R13x77-H with max 27 binary",
                     "11111110101010101010101011101010101010101010101010111010101010101010101010111"
                     "10000010101100000001000010111011001111101101111101101110100010001011100001101"
                     "10111010010010101011110111100110000111101101101101111110000000011110111011011"
@@ -7183,7 +8518,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "10001001000010011011101110100010010001101111111101101000000110010000011010001"
                     "11101010101010101010101011101010101010101010101010111010101010101010101011111"
                 },
-        /* 22*/ { UNICODE_MODE, 2, 20, "123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123", 0, 13, 77, 1, "R13x77-M with max 123 numerics (note was 8 bit cci in draft 2019-6-24 when 7 suffices - corrected in ISO/IEC 23941:2022)",
+        /* 23*/ { UNICODE_MODE, -1, 2, 20, ZINT_FULL_MULTIBYTE, "123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123", 0, 13, 77, 1, "R13x77-M with max 123 numerics (note was 8 bit cci in draft 2019-6-24 when 7 suffices - corrected in ISO/IEC 23941:2022)",
                     "11111110101010101010101011101010101010101010101010111010101010101010101010111"
                     "10000010001100001001010010111101110110110101101001101011011001000011001101101"
                     "10111010001011111111101011111110010001001001010111111010111100100101101011011"
@@ -7198,7 +8533,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "10100110000111111100100010100011100000011010110100101111001000011010001010001"
                     "11101010101010101010101011101010101010101010101010111010101010101010101011111"
                 },
-        /* 23*/ { UNICODE_MODE, 2, 23, "\001\002\003\004\005\006\007\010\011\012\013\014\015\016\017\020\021\022\023\024\025\026\027\030\031\032\033\034\035\036\037", 0, 15, 43, 1, "R15x43-M with max 31 binary",
+        /* 24*/ { UNICODE_MODE, -1, 2, 23, ZINT_FULL_MULTIBYTE, "\001\002\003\004\005\006\007\010\011\012\013\014\015\016\017\020\021\022\023\024\025\026\027\030\031\032\033\034\035\036\037", 0, 15, 43, 1, "R15x43-M with max 31 binary",
                     "1111111010101010101011101010101010101010111"
                     "1000001011010010111010101000000011011011001"
                     "1011101011000000000011111001010001110001111"
@@ -7215,7 +8550,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "1001011111001000010010110100001011011110001"
                     "1110101010101010101011101010101010101011111"
                 },
-        /* 24*/ { UNICODE_MODE, 4, 27, "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRST", 0, 15, 139, 1, "R15x139-H with max 98 alphanumerics",
+        /* 25*/ { UNICODE_MODE, -1, 4, 27, ZINT_FULL_MULTIBYTE, "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRST", 0, 15, 139, 1, "R15x139-H with max 98 alphanumerics",
                     "1111111010101010101010101011101010101010101010101010101110101010101010101010101010111010101010101010101010101011101010101010101010101010111"
                     "1000001000101010110111000110101110111011110000110111111011010110110101010100010000101101000101101000000110101010110111000011111101010011001"
                     "1011101001100101001100010011101100000011101101100110011111100111110110101101110101111001000011000100010000110111111101101011100000111011001"
@@ -7232,7 +8567,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "1011010110101111010001000110110100010001001001100010101011001000110010111101000000101111001000110110011001111010100011110110001000100010001"
                     "1110101010101010101010101011101010101010101010101010101110101010101010101010101010111010101010101010101010101011101010101010101010101011111"
                 },
-        /* 25*/ { UNICODE_MODE, 2, 28, "123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890", 0, 17, 43, 1, "R17x43-M with max 90 numerics",
+        /* 26*/ { UNICODE_MODE, -1, 2, 28, ZINT_FULL_MULTIBYTE, "123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890", 0, 17, 43, 1, "R17x43-M with max 90 numerics",
                     "1111111010101010101011101010101010101010111"
                     "1000001001000101001010111110000001010100101"
                     "1011101000101110110011110100001001100110011"
@@ -7251,7 +8586,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "1010110110101010011110101110010011011010001"
                     "1110101010101010101011101010101010101011111"
                 },
-        /* 26*/ { UNICODE_MODE, 4, 29, "\001\002\003\004\005\006\007\010\011\012\013\014\015\016\017\020\021\022\023\024\025\026\027\030\031\032", 0, 17, 59, 1, "R17x59-H with max 26 binary",
+        /* 27*/ { UNICODE_MODE, -1, 4, 29, ZINT_FULL_MULTIBYTE, "\001\002\003\004\005\006\007\010\011\012\013\014\015\016\017\020\021\022\023\024\025\026\027\030\031\032", 0, 17, 59, 1, "R17x59-H with max 26 binary",
                     "11111110101010101011101010101010101010111010101010101010111"
                     "10000010111010100010101100011001100000101011110011110011101"
                     "10111010011000111011101011101011010010111000110100011100011"
@@ -7270,7 +8605,7 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                     "10001000111011111010100011010111101101101010011010011110001"
                     "11101010101010101011101010101010101010111010101010101011111"
                 },
-        /* 27*/ { UNICODE_MODE, 2, 32, "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCD", 0, 17, 139, 1, "R17x139-M with max 108 alphanumerics",
+        /* 28*/ { UNICODE_MODE, -1, 2, 32, ZINT_FULL_MULTIBYTE, "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCD", 0, 17, 139, 1, "R17x139-M with max 108 alphanumerics",
                     "1111111010101010101010101011101010101010101010101010101110101010101010101010101010111010101010101010101010101011101010101010101010101010111"
                     "1000001001001010010000011110111001001010110101010100011010100010100111011001101000101010101100000100100110001010101000100111011010000101001"
                     "1011101011101001000100010111100111100100100101100010111110100010110000000011101010111111111001010011110000010011101011000101000000010001001"
@@ -7292,31 +8627,33 @@ static void test_rmqr_encode(int index, int generate, int debug) {
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char escaped[4096];
     char cmp_buf[32768];
     char cmp_msg[1024];
 
-    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); // Only do BWIPP test if asked, too slow otherwise
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
 
-    testStart("test_rmqr_encode");
+    testStartSymbol("test_rmqr_encode", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
 
-        length = testUtilSetSymbol(symbol, BARCODE_RMQR, data[i].input_mode, -1 /*eci*/, data[i].option_1, data[i].option_2, ZINT_FULL_MULTIBYTE, -1 /*output_options*/, data[i].data, -1, debug);
+        length = testUtilSetSymbol(symbol, BARCODE_RMQR, data[i].input_mode, data[i].eci, data[i].option_1, data[i].option_2, data[i].option_3, -1 /*output_options*/, data[i].data, -1, debug);
 
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
-        if (generate) {
-            printf("        /*%3d*/ { %s, %d, %d, \"%s\", %s, %d, %d, %d, \"%s\",\n",
-                    i, testUtilInputModeName(data[i].input_mode), data[i].option_1, data[i].option_2,
+        if (p_ctx->generate) {
+            printf("        /*%3d*/ { %s, %d, %d, %d, %s, \"%s\", %s, %d, %d, %d, \"%s\",\n",
+                    i, testUtilInputModeName(data[i].input_mode), data[i].eci, data[i].option_1, data[i].option_2,
+                    testUtilOption3Name(BARCODE_RMQR, data[i].option_3),
                     testUtilEscape(data[i].data, length, escaped, sizeof(escaped)), testUtilErrorName(data[i].ret),
                     symbol->rows, symbol->width, data[i].bwipp_cmp, data[i].comment);
             testUtilModulesPrint(symbol, "                    ", "\n");
@@ -7342,6 +8679,17 @@ static void test_rmqr_encode(int index, int generate, int debug) {
                                        i, testUtilBarcodeName(symbol->symbology), ret, cmp_msg, cmp_buf, data[i].expected);
                     }
                 }
+                if (do_zxingcpp && testUtilCanZXingCPP(i, symbol, data[i].data, length, debug)) {
+                    int cmp_len, ret_len;
+                    char modules_dump[17 * 139 + 1];
+                    assert_notequal(testUtilModulesDump(symbol, modules_dump, sizeof(modules_dump)), -1, "i:%d testUtilModulesDump == -1\n", i);
+                    ret = testUtilZXingCPP(i, symbol, data[i].data, length, modules_dump, cmp_buf, sizeof(cmp_buf), &cmp_len);
+                    assert_zero(ret, "i:%d %s testUtilZXingCPP ret %d != 0\n", i, testUtilBarcodeName(symbol->symbology), ret);
+
+                    ret = testUtilZXingCPPCmp(symbol, cmp_msg, cmp_buf, cmp_len, data[i].data, length, NULL /*primary*/, escaped, &ret_len);
+                    assert_zero(ret, "i:%d %s testUtilZXingCPPCmp %d != 0 %s\n  actual: %.*s\nexpected: %.*s\n",
+                                   i, testUtilBarcodeName(symbol->symbology), ret, cmp_msg, cmp_len, cmp_buf, ret_len, escaped);
+                }
             }
         }
 
@@ -7351,7 +8699,8 @@ static void test_rmqr_encode(int index, int generate, int debug) {
     testFinish();
 }
 
-static void test_rmqr_encode_segs(int index, int generate, int debug) {
+static void test_rmqr_encode_segs(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int input_mode;
@@ -7460,20 +8809,20 @@ static void test_rmqr_encode_segs(int index, int generate, int debug) {
     };
     int data_size = ARRAY_SIZE(data);
     int i, j, seg_count, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char escaped[4096];
     char cmp_buf[32768];
     char cmp_msg[1024];
 
-    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); // Only do BWIPP test if asked, too slow otherwise
-    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); // Only do ZXing-C++ test if asked, too slow otherwise
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
 
-    testStart("test_rmqr_encode_segs");
+    testStartSymbol("test_rmqr_encode_segs", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -7486,7 +8835,7 @@ static void test_rmqr_encode_segs(int index, int generate, int debug) {
         ret = ZBarcode_Encode_Segs(symbol, data[i].segs, seg_count);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode_Segs ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
-        if (generate) {
+        if (p_ctx->generate) {
             char escaped1[4096];
             char escaped2[4096];
             int length = data[i].segs[0].length == -1 ? (int) ustrlen(data[i].segs[0].source) : data[i].segs[0].length;
@@ -7551,34 +8900,84 @@ static void test_rmqr_encode_segs(int index, int generate, int debug) {
     testFinish();
 }
 
+/* #300 Andre Maute */
+static void test_fuzz(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
+
+    struct item {
+        int symbology;
+        int input_mode;
+        int eci;
+        int option_1;
+        int option_2;
+        int option_3;
+        char *data;
+        int length;
+        int ret;
+        int bwipp_cmp;
+        char *comment;
+    };
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
+    struct item data[] = {
+        /*  0*/ { BARCODE_QRCODE, GS1_MODE | GS1NOCHECK_MODE, -1, -1, -1, -1, "[]CCCCCLLLLLLLLLLLLLLLLLLLLLCCCCCCCC@CCCCCCCCCCCCCCCCCCCCCCC%%C%C%%%%%%%%%%%%%%LLLCCCCCCCC%%C%C%%%%%%%%%%%%%%LLLLLLLLLLLLLLLLLLL000000032861710*383556LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL155816162LLLLLCC%%C%C%%%%%%%%%%%%%%LLLCCCCCCCC%%C%C%%%%%%%%%%%%%%LLLLLLLLLL)!1661055777[723]T5", -1, 0, 1, "" }, /* #300 (#14), Andre Maute */
+        /*  1*/ { BARCODE_QRCODE, DATA_MODE, -1, -1, -1, ZINT_FULL_MULTIBYTE, "\215\215\350\2156750\215\215\215\215\215\215\000\000\000\025\215\215\215\215\215\232\215\232\232\001\361\215\215\215\215\215\221\215\215\215\215JJJJJJNJJJJJJ\215\215\215\2159999\215\215\215\215\215\215\215\215\215\235\215\215\215\215\215\035\004\000\000@\000\000\000\000\375\000\000\000\000\000\000\000\000\000\000\000\000\000\241\000\000\000\000\000\000\000\241\247^^^\377\377\377\000 \000\000\000\000\000\000\377\377u\000\000\000\000\000\000\000^\377\377^^\000:\000\177\377\377\377?\377\377\377\377\377\377\377\377\377\377\377\377\377\377\241\241\232\232\232\232\232\232\232\232\000\377\377\377\242\003\000\000\377\377/\000AA\000\000\000\000\000\000\000\000\000\000\000\000T\000\000\000\000\000\000\000\000WWW\237\250WWWWWW\377\377R30      \377\377\000\000\000", 231, 0, 1, "" }, /* #300 (#15), Andre Maute */
+        /*  2*/ { BARCODE_QRCODE, DATA_MODE, 35, -1, -1, ZINT_FULL_MULTIBYTE, "\215\215\215\215\215\350\215\215999\215\21500000\215\215\215\215\215\215\377O\000\000\036\000\000\000\000\357\376\026\377\377\377\377\241\241\232\232\232\232\232\232\235\032@\374:JGB \000\000@d\000\000\000\241\241\000\000\027\002\241\241\000\000\014\000\000\000\000\357\327\004\000\000\000\000\000\000\000\375\000\000\000\000\000\000\000\000\000\000\000\000\0000253]9R4R44,44,4404[255\350999\215\21599999\215\215\215\2150000\215\215\215\215\215\215\215\215\215]9444442<4444,4044%44vA\000\000\002\000'\000\000\215\377@\215\215\350\215\215\215\215\215\215\215\307\306\306n\215\215\000\000\001\000\000\203\000\000\000\000\000\000@\215\215\215[\2154315@]R0", 229, 0, 1, "" }, /* #300 (#16), Andre Maute */
+    };
+    int data_size = ARRAY_SIZE(data);
+    int i, length, ret;
+    struct zint_symbol *symbol = NULL;
+
+    testStartSymbol("test_fuzz", &symbol);
+
+    for (i = 0; i < data_size; i++) {
+
+        if (testContinue(p_ctx, i)) continue;
+
+        symbol = ZBarcode_Create();
+        assert_nonnull(symbol, "Symbol not created\n");
+
+        length = testUtilSetSymbol(symbol, data[i].symbology, data[i].input_mode, data[i].eci, data[i].option_1, data[i].option_2, data[i].option_3, -1 /*output_options*/, data[i].data, data[i].length, debug);
+
+        ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
+        assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
+
+        ZBarcode_Delete(symbol);
+    }
+
+    testFinish();
+}
+
 int main(int argc, char *argv[]) {
 
-    testFunction funcs[] = { /* name, func, has_index, has_generate, has_debug */
-        { "test_qr_options", test_qr_options, 1, 0, 1 },
-        { "test_qr_input", test_qr_input, 1, 1, 1 },
-        { "test_qr_gs1", test_qr_gs1, 1, 1, 1 },
-        { "test_qr_optimize", test_qr_optimize, 1, 1, 1 },
-        { "test_qr_encode", test_qr_encode, 1, 1, 1 },
-        { "test_qr_encode_segs", test_qr_encode_segs, 1, 1, 1 },
-        { "test_qr_perf", test_qr_perf, 1, 0, 1 },
+    testFunction funcs[] = { /* name, func */
+        { "test_qr_large", test_qr_large },
+        { "test_qr_options", test_qr_options },
+        { "test_qr_input", test_qr_input },
+        { "test_qr_gs1", test_qr_gs1 },
+        { "test_qr_optimize", test_qr_optimize },
+        { "test_qr_encode", test_qr_encode },
+        { "test_qr_encode_segs", test_qr_encode_segs },
+        { "test_qr_perf", test_qr_perf },
 
-        { "test_microqr_options", test_microqr_options, 1, 0, 1 },
-        { "test_microqr_input", test_microqr_input, 1, 1, 1 },
-        { "test_microqr_padding", test_microqr_padding, 1, 1, 1 },
-        { "test_microqr_optimize", test_microqr_optimize, 1, 1, 1 },
-        { "test_microqr_encode", test_microqr_encode, 1, 1, 1 },
-        { "test_microqr_perf", test_microqr_perf, 1, 0, 1 },
+        { "test_microqr_options", test_microqr_options },
+        { "test_microqr_input", test_microqr_input },
+        { "test_microqr_padding", test_microqr_padding },
+        { "test_microqr_optimize", test_microqr_optimize },
+        { "test_microqr_encode", test_microqr_encode },
+        { "test_microqr_perf", test_microqr_perf },
 
-        { "test_upnqr_input", test_upnqr_input, 1, 1, 1 },
-        { "test_upnqr_encode", test_upnqr_encode, 1, 1, 1 },
+        { "test_upnqr_input", test_upnqr_input },
+        { "test_upnqr_encode", test_upnqr_encode },
 
-        { "test_rmqr_large", test_rmqr_large, 1, 0, 1 },
-        { "test_rmqr_options", test_rmqr_options, 1, 0, 1 },
-        { "test_rmqr_input", test_rmqr_input, 1, 1, 1 },
-        { "test_rmqr_gs1", test_rmqr_gs1, 1, 1, 1 },
-        { "test_rmqr_optimize", test_rmqr_optimize, 1, 1, 1 },
-        { "test_rmqr_encode", test_rmqr_encode, 1, 1, 1 },
-        { "test_rmqr_encode_segs", test_rmqr_encode_segs, 1, 1, 1 },
+        { "test_rmqr_large", test_rmqr_large },
+        { "test_rmqr_options", test_rmqr_options },
+        { "test_rmqr_input", test_rmqr_input },
+        { "test_rmqr_gs1", test_rmqr_gs1 },
+        { "test_rmqr_optimize", test_rmqr_optimize },
+        { "test_rmqr_encode", test_rmqr_encode },
+        { "test_rmqr_encode_segs", test_rmqr_encode_segs },
+
+        { "test_fuzz", test_fuzz },
     };
 
     testRun(argc, argv, funcs, ARRAY_SIZE(funcs));

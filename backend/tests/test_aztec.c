@@ -1,6 +1,6 @@
 /*
     libzint - the open source barcode library
-    Copyright (C) 2020-2022 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2020-2023 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -27,10 +27,201 @@
     OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
     SUCH DAMAGE.
  */
+/* SPDX-License-Identifier: BSD-3-Clause */
 
 #include "testcommon.h"
 
-static void test_options(int index, int debug) {
+static void test_large(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
+
+    struct item {
+        int symbology;
+        int eci;
+        int option_1;
+        int option_2;
+        int output_options;
+        struct zint_structapp structapp;
+        char *pattern;
+        int length;
+        int ret;
+        int expected_rows;
+        int expected_width;
+        const char *ret_errtxt;
+    };
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
+    struct item data[] = {
+        /*  0*/ { BARCODE_AZTEC, -1, 1, -1, -1, { 0, 0, "" }, "\xFF", 2053, 0, 151, 151, "" },
+        /*  1*/ { BARCODE_AZTEC, -1, 1, -1, -1, { 0, 0, "" }, "\xFF", 2054, ZINT_ERROR_TOO_LONG, -1, -1, "Error 504: Input too long (too many bits for selected ECC)" },
+        /*  2*/ { BARCODE_AZTEC, -1, 1, -1, -1, { 0, 0, "" }, "\xFF", 2237, ZINT_ERROR_TOO_LONG, -1, -1, "Error 504: Input too long (too many bits for selected ECC)" },
+        /*  3*/ { BARCODE_AZTEC, -1, 1, -1, -1, { 0, 0, "" }, "\xFF", 2238, ZINT_ERROR_TOO_LONG, -1, -1, "Error 502: Input too long or too many extended ASCII characters" },
+        /*  4*/ { BARCODE_AZTEC, -1, 2, -1, -1, { 0, 0, "" }, "1", 3835, 0, 151, 151, "" },
+        /*  5*/ { BARCODE_AZTEC, -1, 2, -1, -1, { 0, 0, "" }, "1", 3836, ZINT_ERROR_TOO_LONG, -1, -1, "Error 504: Input too long (too many bits for selected ECC)" },
+        /*  6*/ { BARCODE_AZTEC, -1, 2, -1, -1, { 0, 0, "" }, "A", 3069, 0, 151, 151, "" },
+        /*  7*/ { BARCODE_AZTEC, -1, 2, -1, -1, { 0, 0, "" }, "A", 3070, ZINT_ERROR_TOO_LONG, -1, -1, "Error 504: Input too long (too many bits for selected ECC)" },
+        /*  8*/ { BARCODE_AZTEC, -1, 2, -1, -1, { 0, 0, "" }, "\xFF", 1756, 0, 151, 151, "" },
+        /*  9*/ { BARCODE_AZTEC, -1, 2, -1, -1, { 0, 0, "" }, "\xFF", 1757, ZINT_ERROR_TOO_LONG, -1, -1, "Error 504: Input too long (too many bits for selected ECC)" },
+        /* 10*/ { BARCODE_AZTEC, -1, 3, -1, -1, { 0, 0, "" }, "1", 3184, 0, 151, 151, "" },
+        /* 11*/ { BARCODE_AZTEC, -1, 3, -1, -1, { 0, 0, "" }, "1", 3185, ZINT_ERROR_TOO_LONG, -1, -1, "Error 504: Input too long (too many bits for selected ECC)" },
+        /* 12*/ { BARCODE_AZTEC, -1, 3, -1, -1, { 0, 0, "" }, "A", 2548, 0, 151, 151, "" },
+        /* 13*/ { BARCODE_AZTEC, -1, 3, -1, -1, { 0, 0, "" }, "A", 2549, ZINT_ERROR_TOO_LONG, -1, -1, "Error 504: Input too long (too many bits for selected ECC)" },
+        /* 14*/ { BARCODE_AZTEC, -1, 3, -1, -1, { 0, 0, "" }, "\xFF", 1457, 0, 151, 151, "" },
+        /* 15*/ { BARCODE_AZTEC, -1, 3, -1, -1, { 0, 0, "" }, "\xFF", 1458, ZINT_ERROR_TOO_LONG, -1, -1, "Error 504: Input too long (too many bits for selected ECC)" },
+        /* 16*/ { BARCODE_AZTEC, -1, 4, -1, -1, { 0, 0, "" }, "1", 2485, 0, 151, 151, "" },
+        /* 17*/ { BARCODE_AZTEC, -1, 4, -1, -1, { 0, 0, "" }, "1", 2486, ZINT_ERROR_TOO_LONG, -1, -1, "Error 504: Input too long (too many bits for selected ECC)" },
+        /* 18*/ { BARCODE_AZTEC, -1, 4, -1, -1, { 0, 0, "" }, "A", 1989, 0, 151, 151, "" },
+        /* 19*/ { BARCODE_AZTEC, -1, 4, -1, -1, { 0, 0, "" }, "A", 1990, ZINT_ERROR_TOO_LONG, -1, -1, "Error 504: Input too long (too many bits for selected ECC)" },
+        /* 20*/ { BARCODE_AZTEC, -1, 4, -1, -1, { 0, 0, "" }, "\xFF", 1137, 0, 151, 151, "" },
+        /* 21*/ { BARCODE_AZTEC, -1, 4, -1, -1, { 0, 0, "" }, "\xFF", 1138, ZINT_ERROR_TOO_LONG, -1, -1, "Error 504: Input too long (too many bits for selected ECC)" },
+        /* 22*/ { BARCODE_AZTEC, -1, -1, 1, -1, { 0, 0, "" }, "\xFF", 7, 0, 15, 15, "" },
+        /* 23*/ { BARCODE_AZTEC, -1, -1, 1, -1, { 0, 0, "" }, "\xFF", 8, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 24*/ { BARCODE_AZTEC, -1, -1, 1, -1, { 0, 0, "" }, "\xFF", 2078, ZINT_ERROR_TOO_LONG, -1, -1, "Error 704: Data too long for specified Aztec Code symbol size" },
+        /* 25*/ { BARCODE_AZTEC, -1, -1, 2, -1, { 0, 0, "" }, "\xFF", 22, 0, 19, 19, "" },
+        /* 26*/ { BARCODE_AZTEC, -1, -1, 2, -1, { 0, 0, "" }, "\xFF", 23, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 27*/ { BARCODE_AZTEC, -1, -1, 2, -1, { 0, 0, "" }, "\xFF", 2077, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 28*/ { BARCODE_AZTEC, -1, -1, 2, -1, { 0, 0, "" }, "\xFF", 2078, ZINT_ERROR_TOO_LONG, -1, -1, "Error 704: Data too long for specified Aztec Code symbol size" },
+        /* 29*/ { BARCODE_AZTEC, -1, -1, 3, -1, { 0, 0, "" }, "\xFF", 39, 0, 23, 23, "" },
+        /* 30*/ { BARCODE_AZTEC, -1, -1, 3, -1, { 0, 0, "" }, "\xFF", 40, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 31*/ { BARCODE_AZTEC, -1, -1, 4, -1, { 0, 0, "" }, "\xFF", 51, 0, 27, 27, "" },
+        /* 32*/ { BARCODE_AZTEC, -1, -1, 4, -1, { 0, 0, "" }, "\xFF", 52, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 33*/ { BARCODE_AZTEC, -1, -1, 5, -1, { 0, 0, "" }, "\xFF", 10, 0, 19, 19, "" },
+        /* 34*/ { BARCODE_AZTEC, -1, -1, 5, -1, { 0, 0, "" }, "\xFF", 11, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 35*/ { BARCODE_AZTEC, -1, -1, 5, -1, { 0, 0, "" }, "\xFF", 2077, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 36*/ { BARCODE_AZTEC, -1, -1, 5, -1, { 0, 0, "" }, "\xFF", 2078, ZINT_ERROR_TOO_LONG, -1, -1, "Error 704: Data too long for specified Aztec Code symbol size" },
+        /* 37*/ { BARCODE_AZTEC, -1, -1, 6, -1, { 0, 0, "" }, "\xFF", 27, 0, 23, 23, "" },
+        /* 38*/ { BARCODE_AZTEC, -1, -1, 6, -1, { 0, 0, "" }, "\xFF", 28, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 39*/ { BARCODE_AZTEC, -1, -1, 7, -1, { 0, 0, "" }, "\xFF", 47, 0, 27, 27, "" },
+        /* 40*/ { BARCODE_AZTEC, -1, -1, 7, -1, { 0, 0, "" }, "\xFF", 48, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 41*/ { BARCODE_AZTEC, -1, -1, 8, -1, { 0, 0, "" }, "\xFF", 72, 0, 31, 31, "" },
+        /* 42*/ { BARCODE_AZTEC, -1, -1, 8, -1, { 0, 0, "" }, "\xFF", 73, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 43*/ { BARCODE_AZTEC, -1, -1, 9, -1, { 0, 0, "" }, "\xFF", 100, 0, 37, 37, "" },
+        /* 44*/ { BARCODE_AZTEC, -1, -1, 9, -1, { 0, 0, "" }, "\xFF", 101, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 45*/ { BARCODE_AZTEC, -1, -1, 10, -1, { 0, 0, "" }, "\xFF", 131, 0, 41, 41, "" },
+        /* 46*/ { BARCODE_AZTEC, -1, -1, 10, -1, { 0, 0, "" }, "\xFF", 132, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 47*/ { BARCODE_AZTEC, -1, -1, 11, -1, { 0, 0, "" }, "\xFF", 166, 0, 45, 45, "" },
+        /* 48*/ { BARCODE_AZTEC, -1, -1, 11, -1, { 0, 0, "" }, "\xFF", 167, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 49*/ { BARCODE_AZTEC, -1, -1, 12, -1, { 0, 0, "" }, "\xFF", 205, 0, 49, 49, "" },
+        /* 50*/ { BARCODE_AZTEC, -1, -1, 12, -1, { 0, 0, "" }, "\xFF", 206, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 51*/ { BARCODE_AZTEC, -1, -1, 13, -1, { 0, 0, "" }, "\xFF", 253, 0, 53, 53, "" },
+        /* 52*/ { BARCODE_AZTEC, -1, -1, 13, -1, { 0, 0, "" }, "\xFF", 254, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 53*/ { BARCODE_AZTEC, -1, -1, 14, -1, { 0, 0, "" }, "\xFF", 300, 0, 57, 57, "" },
+        /* 54*/ { BARCODE_AZTEC, -1, -1, 14, -1, { 0, 0, "" }, "\xFF", 301, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 55*/ { BARCODE_AZTEC, -1, -1, 15, -1, { 0, 0, "" }, "\xFF", 349, 0, 61, 61, "" },
+        /* 56*/ { BARCODE_AZTEC, -1, -1, 15, -1, { 0, 0, "" }, "\xFF", 350, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 57*/ { BARCODE_AZTEC, -1, -1, 16, -1, { 0, 0, "" }, "\xFF", 403, 0, 67, 67, "" },
+        /* 58*/ { BARCODE_AZTEC, -1, -1, 16, -1, { 0, 0, "" }, "\xFF", 404, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 59*/ { BARCODE_AZTEC, -1, -1, 17, -1, { 0, 0, "" }, "\xFF", 462, 0, 71, 71, "" },
+        /* 60*/ { BARCODE_AZTEC, -1, -1, 17, -1, { 0, 0, "" }, "\xFF", 463, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 61*/ { BARCODE_AZTEC, -1, -1, 18, -1, { 0, 0, "" }, "\xFF", 523, 0, 75, 75, "" },
+        /* 62*/ { BARCODE_AZTEC, -1, -1, 18, -1, { 0, 0, "" }, "\xFF", 524, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 63*/ { BARCODE_AZTEC, -1, -1, 19, -1, { 0, 0, "" }, "\xFF", 588, 0, 79, 79, "" },
+        /* 64*/ { BARCODE_AZTEC, -1, -1, 19, -1, { 0, 0, "" }, "\xFF", 589, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 65*/ { BARCODE_AZTEC, -1, -1, 20, -1, { 0, 0, "" }, "\xFF", 655, 0, 83, 83, "" },
+        /* 66*/ { BARCODE_AZTEC, -1, -1, 20, -1, { 0, 0, "" }, "\xFF", 656, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 67*/ { BARCODE_AZTEC, -1, -1, 21, -1, { 0, 0, "" }, "\xFF", 727, 0, 87, 87, "" },
+        /* 68*/ { BARCODE_AZTEC, -1, -1, 21, -1, { 0, 0, "" }, "\xFF", 728, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 69*/ { BARCODE_AZTEC, -1, -1, 22, -1, { 0, 0, "" }, "\xFF", 804, 0, 91, 91, "" },
+        /* 70*/ { BARCODE_AZTEC, -1, -1, 22, -1, { 0, 0, "" }, "\xFF", 805, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 71*/ { BARCODE_AZTEC, -1, -1, 23, -1, { 0, 0, "" }, "\xFF", 883, 0, 95, 95, "" },
+        /* 72*/ { BARCODE_AZTEC, -1, -1, 23, -1, { 0, 0, "" }, "\xFF", 884, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 73*/ { BARCODE_AZTEC, -1, -1, 24, -1, { 0, 0, "" }, "\xFF", 966, 0, 101, 101, "" },
+        /* 74*/ { BARCODE_AZTEC, -1, -1, 24, -1, { 0, 0, "" }, "\xFF", 967, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 75*/ { BARCODE_AZTEC, -1, -1, 25, -1, { 0, 0, "" }, "\xFF", 1051, 0, 105, 105, "" },
+        /* 76*/ { BARCODE_AZTEC, -1, -1, 25, -1, { 0, 0, "" }, "\xFF", 1052, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 77*/ { BARCODE_AZTEC, -1, -1, 26, -1, { 0, 0, "" }, "\xFF", 1141, 0, 109, 109, "" },
+        /* 78*/ { BARCODE_AZTEC, -1, -1, 26, -1, { 0, 0, "" }, "\xFF", 1142, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 79*/ { BARCODE_AZTEC, -1, -1, 27, -1, { 0, 0, "" }, "\xFF", 1258, 0, 113, 113, "" },
+        /* 80*/ { BARCODE_AZTEC, -1, -1, 27, -1, { 0, 0, "" }, "\xFF", 1259, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 81*/ { BARCODE_AZTEC, -1, -1, 28, -1, { 0, 0, "" }, "\xFF", 1357, 0, 117, 117, "" },
+        /* 82*/ { BARCODE_AZTEC, -1, -1, 28, -1, { 0, 0, "" }, "\xFF", 1358, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 83*/ { BARCODE_AZTEC, -1, -1, 29, -1, { 0, 0, "" }, "\xFF", 1459, 0, 121, 121, "" },
+        /* 84*/ { BARCODE_AZTEC, -1, -1, 29, -1, { 0, 0, "" }, "\xFF", 1460, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 85*/ { BARCODE_AZTEC, -1, -1, 30, -1, { 0, 0, "" }, "\xFF", 1566, 0, 125, 125, "" },
+        /* 86*/ { BARCODE_AZTEC, -1, -1, 30, -1, { 0, 0, "" }, "\xFF", 1567, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 87*/ { BARCODE_AZTEC, -1, -1, 31, -1, { 0, 0, "" }, "\xFF", 1676, 0, 131, 131, "" },
+        /* 88*/ { BARCODE_AZTEC, -1, -1, 31, -1, { 0, 0, "" }, "\xFF", 1677, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 89*/ { BARCODE_AZTEC, -1, -1, 32, -1, { 0, 0, "" }, "\xFF", 1789, 0, 135, 135, "" },
+        /* 90*/ { BARCODE_AZTEC, -1, -1, 32, -1, { 0, 0, "" }, "\xFF", 1790, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 91*/ { BARCODE_AZTEC, -1, -1, 33, -1, { 0, 0, "" }, "\xFF", 1907, 0, 139, 139, "" },
+        /* 92*/ { BARCODE_AZTEC, -1, -1, 33, -1, { 0, 0, "" }, "\xFF", 1908, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 93*/ { BARCODE_AZTEC, -1, -1, 34, -1, { 0, 0, "" }, "\xFF", 2028, 0, 143, 143, "" },
+        /* 94*/ { BARCODE_AZTEC, -1, -1, 34, -1, { 0, 0, "" }, "\xFF", 2029, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 95*/ { BARCODE_AZTEC, -1, -1, 35, -1, { 0, 0, "" }, "\xFF", 2149, 0, 147, 147, "" },
+        /* 96*/ { BARCODE_AZTEC, -1, -1, 35, -1, { 0, 0, "" }, "\xFF", 2150, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /* 97*/ { BARCODE_AZTEC, -1, -1, 36, -1, { 0, 0, "" }, "\xFF", 2237, 0, 151, 151, "" },
+        /* 98*/ { BARCODE_AZTEC, -1, -1, 36, -1, { 0, 0, "" }, "\xFF", 2238, ZINT_ERROR_TOO_LONG, -1, -1, "Error 502: Input too long or too many extended ASCII characters" },
+        /* 97*/ { BARCODE_AZTEC, -1, -1, 36, -1, { 0, 0, "" }, "\xFF", 2205, 0, 151, 151, "" },
+        /* 99*/ { BARCODE_AZTEC, -1, -1, 34, -1, { 0, 0, "" }, "1", 4429, 0, 143, 143, "" },
+        /*100*/ { BARCODE_AZTEC, -1, -1, 34, -1, { 0, 0, "" }, "1", 4430, ZINT_ERROR_TOO_LONG, -1, -1, "Error 505: Data too long for specified Aztec Code symbol size" },
+        /*101*/ { BARCODE_AZTEC, -1, -1, 35, -1, { 0, 0, "" }, "1", 4483, 0, 147, 147, "" },
+        /*102*/ { BARCODE_AZTEC, -1, -1, 35, -1, { 0, 0, "" }, "1", 4484, ZINT_ERROR_TOO_LONG, -1, -1, "Error 502: Input too long or too many extended ASCII characters" },
+        /*103*/ { BARCODE_AZTEC, -1, -1, 36, -1, { 0, 0, "" }, "1", 4483, 0, 151, 151, "" },
+        /*104*/ { BARCODE_AZTEC, -1, -1, 36, -1, { 0, 0, "" }, "1", 4484, ZINT_ERROR_TOO_LONG, -1, -1, "Error 502: Input too long or too many extended ASCII characters" },
+        /*105*/ { BARCODE_AZTEC, 899, -1, 36, -1, { 0, 0, "" }, "\xFF", 2234, 0, 151, 151, "" },
+        /*106*/ { BARCODE_AZTEC, 899, -1, 36, -1, { 0, 0, "" }, "\xFF", 2235, ZINT_ERROR_TOO_LONG, -1, -1, "Error 502: Input too long or too many extended ASCII characters" },
+        /*107*/ { BARCODE_AZTEC, -1, -1, 36, -1, { 2, 3, "1234567890123456789012" }, "\xFF", 2221, 0, 151, 151, "" },
+        /*108*/ { BARCODE_AZTEC, -1, -1, 36, -1, { 2, 3, "1234567890123456789012" }, "\xFF", 2222, ZINT_ERROR_TOO_LONG, -1, -1, "Error 502: Input too long or too many extended ASCII characters" },
+        /*109*/ { BARCODE_AZTEC, 899, -1, 36, -1, { 2, 3, "1234567890123456789012" }, "\xFF", 2218, 0, 151, 151, "" },
+        /*110*/ { BARCODE_AZTEC, 899, -1, 36, -1, { 2, 3, "1234567890123456789012" }, "\xFF", 2219, ZINT_ERROR_TOO_LONG, -1, -1, "Error 502: Input too long or too many extended ASCII characters" },
+    };
+    int data_size = ARRAY_SIZE(data);
+    int i, length, ret;
+    struct zint_symbol *symbol = NULL;
+
+    char escaped[8192];
+    char cmp_buf[32768];
+    char cmp_msg[8192];
+
+    char data_buf[ZINT_MAX_DATA_LEN];
+
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
+
+    testStartSymbol("test_large", &symbol);
+
+    for (i = 0; i < data_size; i++) {
+
+        if (testContinue(p_ctx, i)) continue;
+
+        symbol = ZBarcode_Create();
+        assert_nonnull(symbol, "Symbol not created\n");
+
+        testUtilStrCpyRepeat(data_buf, data[i].pattern, data[i].length);
+        assert_equal(data[i].length, (int) strlen(data_buf), "i:%d length %d != strlen(data_buf) %d\n", i, data[i].length, (int) strlen(data_buf));
+
+        length = testUtilSetSymbol(symbol, data[i].symbology, -1 /*input_mode*/, data[i].eci, data[i].option_1, data[i].option_2, -1, data[i].output_options, data_buf, data[i].length, debug);
+        if (data[i].structapp.count) {
+            symbol->structapp = data[i].structapp;
+        }
+
+        ret = ZBarcode_Encode(symbol, (unsigned char *) data_buf, length);
+        assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
+
+        if (ret < ZINT_ERROR) {
+            assert_equal(symbol->rows, data[i].expected_rows, "i:%d symbol->rows %d != %d\n", i, symbol->rows, data[i].expected_rows);
+            assert_equal(symbol->width, data[i].expected_width, "i:%d symbol->width %d != %d\n", i, symbol->width, data[i].expected_width);
+
+            if (do_zxingcpp && testUtilCanZXingCPP(i, symbol, data_buf, length, debug)) {
+                int cmp_len, ret_len;
+                char modules_dump[22801 + 1];
+                assert_notequal(testUtilModulesDump(symbol, modules_dump, sizeof(modules_dump)), -1, "i:%d testUtilModulesDump == -1\n", i);
+                ret = testUtilZXingCPP(i, symbol, data_buf, length, modules_dump, cmp_buf, sizeof(cmp_buf), &cmp_len);
+                assert_zero(ret, "i:%d %s testUtilZXingCPP ret %d != 0\n", i, testUtilBarcodeName(symbol->symbology), ret);
+
+                ret = testUtilZXingCPPCmp(symbol, cmp_msg, cmp_buf, cmp_len, data_buf, length, NULL /*primary*/, escaped, &ret_len);
+                assert_zero(ret, "i:%d %s testUtilZXingCPPCmp %d != 0 %s\n  actual: %.*s\nexpected: %.*s\n",
+                               i, testUtilBarcodeName(symbol->symbology), ret, cmp_msg, cmp_len, cmp_buf, ret_len, escaped);
+            }
+        } else {
+            assert_zero(strcmp(symbol->errtxt, data[i].ret_errtxt), "i:%d errtxt %s != %s\n", i, symbol->errtxt, data[i].ret_errtxt);
+        }
+
+        ZBarcode_Delete(symbol);
+    }
+
+    testFinish();
+}
+
+static void test_options(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int symbology;
@@ -46,7 +237,7 @@ static void test_options(int index, int debug) {
         int expected_width;
         const char *expected_errtxt;
     };
-    // s/\/\*[ 0-9]*\*\//\=printf("\/*%3d*\/", line(".") - line("'<"))
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
     struct item data[] = {
         /*  0*/ { BARCODE_AZTEC, -1, -1, -1, -1, { 0, 0, "" }, "1234567890", 0, 15, 15, "" },
         /*  1*/ { BARCODE_AZTEC, -1, -1, 1, -1, { 0, 0, "" }, "1234567890", 0, 15, 15, "" },
@@ -58,10 +249,10 @@ static void test_options(int index, int debug) {
         /*  7*/ { BARCODE_AZTEC, GS1_MODE, READER_INIT, -1, -1, { 0, 0, "" }, "[91]A", ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 501: Cannot encode in GS1 and Reader Initialisation mode at the same time" },
         /*  8*/ { BARCODE_AZTEC, GS1_MODE, -1, -1, -1, { 0, 0, "" }, "[91]A", 0, 15, 15, "" },
         /*  9*/ { BARCODE_AZTEC, GS1_MODE | GS1PARENS_MODE, -1, -1, -1, { 0, 0, "" }, "(91)A", 0, 15, 15, "" },
-        /* 10*/ { BARCODE_AZTEC, -1, READER_INIT, -1, 26, { 0, 0, "" }, "A", 0, 109, 109, "" }, // 22 layers
-        /* 11*/ { BARCODE_AZTEC, -1, READER_INIT, -1, 27, { 0, 0, "" }, "A", ZINT_ERROR_TOO_LONG, -1, -1, "Error 506: Data too long for reader initialisation symbol" }, // 23 layers
-        /* 12*/ { BARCODE_AZTEC, -1, READER_INIT, -1, 1, { 0, 0, "" }, "A", 0, 15, 15, "" }, // Compact 1 layer
-        /* 13*/ { BARCODE_AZTEC, -1, READER_INIT, -1, 2, { 0, 0, "" }, "A", 0, 19, 19, "" }, // Compact 2 layers gets set to full 1 layer if READER_INIT set
+        /* 10*/ { BARCODE_AZTEC, -1, READER_INIT, -1, 26, { 0, 0, "" }, "A", 0, 109, 109, "" }, /* 22 layers */
+        /* 11*/ { BARCODE_AZTEC, -1, READER_INIT, -1, 27, { 0, 0, "" }, "A", ZINT_ERROR_TOO_LONG, -1, -1, "Error 506: Data too long for reader initialisation symbol" }, /* 23 layers */
+        /* 12*/ { BARCODE_AZTEC, -1, READER_INIT, -1, 1, { 0, 0, "" }, "A", 0, 15, 15, "" }, /* Compact 1 layer */
+        /* 13*/ { BARCODE_AZTEC, -1, READER_INIT, -1, 2, { 0, 0, "" }, "A", 0, 19, 19, "" }, /* Compact 2 layers gets set to full 1 layer if READER_INIT set */
         /* 14*/ { BARCODE_AZRUNE, -1, -1, -1, -1, { 0, 0, "" }, "0001", ZINT_ERROR_TOO_LONG, -1, -1, "Error 507: Input too large (3 character maximum)" },
         /* 15*/ { BARCODE_AZRUNE, -1, -1, -1, -1, { 0, 0, "" }, "A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 508: Invalid character in data (digits only)" },
         /* 16*/ { BARCODE_AZRUNE, -1, -1, -1, -1, { 0, 0, "" }, "256", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 509: Input out of range (0 to 255)" },
@@ -74,13 +265,13 @@ static void test_options(int index, int debug) {
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
-    testStart("test_options");
+    testStartSymbol("test_options", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -105,7 +296,8 @@ static void test_options(int index, int debug) {
     testFinish();
 }
 
-static void test_encode(int index, int generate, int debug) {
+static void test_encode(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int symbology;
@@ -125,7 +317,7 @@ static void test_encode(int index, int generate, int debug) {
         char *expected;
     };
     struct item data[] = {
-        /*  0*/ { BARCODE_AZTEC, UNICODE_MODE, -1, -1, -1, -1, "123456789012", -1, 0, 15, 15, 1, "ISO/IEC 24778:2008 Figure 1 (left)",
+        /*  0*/ { BARCODE_AZTEC, UNICODE_MODE, -1, -1, -1, 1, "123456789012", -1, 0, 15, 15, 1, "ISO/IEC 24778:2008 Figure 1 (left)",
                     "000111000011100"
                     "110111001110010"
                     "111100001000100"
@@ -185,7 +377,7 @@ static void test_encode(int index, int generate, int debug) {
                     "00010010010011001011011010000110001000101"
                     "10001000001010100110100000001001001110000"
                 },
-        /*  2*/ { BARCODE_AZTEC, UNICODE_MODE, -1, -1, -1, -1, "Code 2D!", -1, 0, 15, 15, 1, "ISO/IEC 24778:2008 Figure G.2",
+        /*  2*/ { BARCODE_AZTEC, UNICODE_MODE, -1, -1, -1, -1, "Code 2D!", -1, 0, 15, 15, 0, "ISO/IEC 24778:2008 Figure G.2; BWIPP defaults to full (see following)",
                     "000110001100000"
                     "000000110000010"
                     "101100001000101"
@@ -560,7 +752,7 @@ static void test_encode(int index, int generate, int debug) {
                     "011010111000111110011011110"
                     "000010010001000011010000001"
                 },
-        /* 15*/ { BARCODE_AZTEC, DATA_MODE, -1, -1, -1, -1, "\377\000\000\377\300\000\017\377\376\217\300\017", 12, 0, 19, 19, 1, "6 bit words",
+        /* 15*/ { BARCODE_AZTEC, DATA_MODE, -1, -1, -1, 2, "\377\000\000\377\300\000\017\377\376\217\300\017", 12, 0, 19, 19, 1, "6 bit words",
                     "1101000001111000001"
                     "1101011000011100000"
                     "1000001010001001001"
@@ -776,7 +968,7 @@ static void test_encode(int index, int generate, int debug) {
                     "11000000001000001011101101101101101001100000101000000000010111000000100101000110010000110010000011000101011111000"
                     "11100000100000001110111110110000111110011100000010001110101010101111000011001011111001101101010010001011111011101"
                 },
-        /* 19*/ { BARCODE_AZTEC, UNICODE_MODE, -1, READER_INIT, -1, -1, "A", -1, 0, 15, 15, 1, "",
+        /* 19*/ { BARCODE_AZTEC, UNICODE_MODE, -1, READER_INIT, -1, 1, "A", -1, 0, 15, 15, 1, "",
                     "000011000111101"
                     "001110010011000"
                     "011100100000100"
@@ -814,7 +1006,7 @@ static void test_encode(int index, int generate, int debug) {
                     "0011111001001010011"
                     "1001101000100100001"
                 },
-        /* 21*/ { BARCODE_AZTEC, DATA_MODE, 3, -1, -1, -1, "\101\300", -1, 0, 15, 15, 1, "AÀ",
+        /* 21*/ { BARCODE_AZTEC, DATA_MODE, 3, -1, -1, 1, "\101\300", -1, 0, 15, 15, 1, "AÀ",
                     "000000101011100"
                     "000100010100111"
                     "001100000110110"
@@ -831,7 +1023,7 @@ static void test_encode(int index, int generate, int debug) {
                     "110001000111110"
                     "111001100011011"
                 },
-        /* 22*/ { BARCODE_AZTEC, UNICODE_MODE, 26, -1, -1, -1, "AÀ", -1, 0, 15, 15, 1, "AÀ",
+        /* 22*/ { BARCODE_AZTEC, UNICODE_MODE, 26, -1, -1, 1, "AÀ", -1, 0, 15, 15, 1, "AÀ",
                     "001111011000101"
                     "000110100011000"
                     "001100001000111"
@@ -848,7 +1040,7 @@ static void test_encode(int index, int generate, int debug) {
                     "001100010010010"
                     "011110110011000"
                 },
-        /* 23*/ { BARCODE_AZTEC, UNICODE_MODE, 100, -1, -1, -1, "A", -1, 0, 15, 15, 1, "FLG(3)",
+        /* 23*/ { BARCODE_AZTEC, UNICODE_MODE, 100, -1, -1, 1, "A", -1, 0, 15, 15, 1, "FLG(3)",
                     "001101001111101"
                     "000000111011100"
                     "001100000100101"
@@ -865,7 +1057,7 @@ static void test_encode(int index, int generate, int debug) {
                     "100011101111100"
                     "000111110001110"
                 },
-        /* 24*/ { BARCODE_AZTEC, UNICODE_MODE, 1000, -1, -1, -1, "A", -1, 0, 15, 15, 1, "FLG(4)",
+        /* 24*/ { BARCODE_AZTEC, UNICODE_MODE, 1000, -1, -1, 1, "A", -1, 0, 15, 15, 1, "FLG(4)",
                     "001010100011011"
                     "001000100000101"
                     "001100000100111"
@@ -882,7 +1074,7 @@ static void test_encode(int index, int generate, int debug) {
                     "101000000111010"
                     "000001110101111"
                 },
-        /* 25*/ { BARCODE_AZTEC, UNICODE_MODE, 10000, -1, -1, -1, "A", -1, 0, 15, 15, 1, "FLG(5)",
+        /* 25*/ { BARCODE_AZTEC, UNICODE_MODE, 10000, -1, -1, 1, "A", -1, 0, 15, 15, 1, "FLG(5)",
                     "000100110110010"
                     "000001000010111"
                     "001100000110101"
@@ -899,7 +1091,7 @@ static void test_encode(int index, int generate, int debug) {
                     "101010001110110"
                     "000000011000101"
                 },
-        /* 26*/ { BARCODE_AZTEC, UNICODE_MODE, 100000, -1, -1, -1, "A", -1, 0, 15, 15, 1, "FLG(6)",
+        /* 26*/ { BARCODE_AZTEC, UNICODE_MODE, 100000, -1, -1, 1, "A", -1, 0, 15, 15, 1, "FLG(6)",
                     "000010010000010"
                     "001101000100110"
                     "001100000110111"
@@ -2387,20 +2579,20 @@ static void test_encode(int index, int generate, int debug) {
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char escaped[1024];
     char cmp_buf[32768];
     char cmp_msg[1024];
 
-    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); // Only do BWIPP test if asked, too slow otherwise
-    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); // Only do ZXing-C++ test if asked, too slow otherwise
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
 
-    testStart("test_encode");
+    testStartSymbol("test_encode", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -2410,7 +2602,7 @@ static void test_encode(int index, int generate, int debug) {
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
-        if (generate) {
+        if (p_ctx->generate) {
             printf("        /*%3d*/ { %s, %s, %d, %s, %d, %d, \"%s\", %d, %s, %d, %d, %d, \"%s\",\n",
                     i, testUtilBarcodeName(data[i].symbology), testUtilInputModeName(data[i].input_mode), data[i].eci, testUtilOutputOptionsName(data[i].output_options),
                     data[i].option_1, data[i].option_2, testUtilEscape(data[i].data, length, escaped, sizeof(escaped)), data[i].length,
@@ -2459,7 +2651,8 @@ static void test_encode(int index, int generate, int debug) {
     testFinish();
 }
 
-static void test_encode_segs(int index, int generate, int debug) {
+static void test_encode_segs(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int input_mode;
@@ -2476,7 +2669,7 @@ static void test_encode_segs(int index, int generate, int debug) {
         char *expected;
     };
     struct item data[] = {
-        /*  0*/ { UNICODE_MODE, -1, -1, -1, { { TU("¶"), -1, 0 }, { TU("Ж"), -1, 7 }, { TU(""), 0, 0 } }, 0, 15, 15, 1, "ISO/IEC 24778:2008 16.5 example",
+        /*  0*/ { UNICODE_MODE, -1, -1, 1, { { TU("¶"), -1, 0 }, { TU("Ж"), -1, 7 }, { TU(""), 0, 0 } }, 0, 15, 15, 1, "ISO/IEC 24778:2008 16.5 example",
                     "001111000011111"
                     "110111100100011"
                     "111100001000111"
@@ -2493,7 +2686,7 @@ static void test_encode_segs(int index, int generate, int debug) {
                     "001010111001010"
                     "000001011100111"
                 },
-        /*  1*/ { UNICODE_MODE, -1, -1, -1, { { TU("¶"), -1, 0 }, { TU("Ж"), -1, 0 }, { TU(""), 0, 0 } }, ZINT_WARN_USES_ECI, 15, 15, 1, "ISO/IEC 24778:2008 16.5 example auto-ECI",
+        /*  1*/ { UNICODE_MODE, -1, -1, 1, { { TU("¶"), -1, 0 }, { TU("Ж"), -1, 0 }, { TU(""), 0, 0 } }, ZINT_WARN_USES_ECI, 15, 15, 1, "ISO/IEC 24778:2008 16.5 example auto-ECI",
                     "001111000011111"
                     "110111100100011"
                     "111100001000111"
@@ -2603,7 +2796,7 @@ static void test_encode_segs(int index, int generate, int debug) {
                     "1001101000110101111010100111100011111001000100101"
                     "0001001010011000000100101101100110101000100000000"
                 },
-        /*  5*/ { DATA_MODE, -1, -1, -1, { { TU("\357"), 1, 0 }, { TU("\357"), 1, 7 }, { TU("\357"), 1, 0 } }, 0, 19, 19, 1, "Standard example + extra seg, data mode",
+        /*  5*/ { DATA_MODE, -1, -1, 2, { { TU("\357"), 1, 0 }, { TU("\357"), 1, 7 }, { TU("\357"), 1, 0 } }, 0, 19, 19, 1, "Standard example + extra seg, data mode",
                     "1110011101010111000"
                     "1100010001011100011"
                     "1001110101000010110"
@@ -2652,20 +2845,20 @@ static void test_encode_segs(int index, int generate, int debug) {
     };
     int data_size = ARRAY_SIZE(data);
     int i, j, seg_count, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char escaped[1024];
     char cmp_buf[32768];
     char cmp_msg[1024];
 
-    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); // Only do BWIPP test if asked, too slow otherwise
-    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); // Only do ZXing-C++ test if asked, too slow otherwise
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
 
-    testStart("test_encode_segs");
+    testStartSymbol("test_encode_segs", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -2677,7 +2870,7 @@ static void test_encode_segs(int index, int generate, int debug) {
         ret = ZBarcode_Encode_Segs(symbol, data[i].segs, seg_count);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode_Segs ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
-        if (generate) {
+        if (p_ctx->generate) {
             char escaped1[4096];
             char escaped2[4096];
             int length = data[i].segs[0].length == -1 ? (int) ustrlen(data[i].segs[0].source) : data[i].segs[0].length;
@@ -2743,8 +2936,9 @@ static void test_encode_segs(int index, int generate, int debug) {
     testFinish();
 }
 
-// #181 Nico Gunkel OSS-Fuzz
-static void test_fuzz(int index, int debug) {
+/* #181 Nico Gunkel OSS-Fuzz and #300 Andre Maute */
+static void test_fuzz(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int symbology;
@@ -2752,11 +2946,12 @@ static void test_fuzz(int index, int debug) {
         int length;
         int input_mode;
         int option_1;
+        int option_2;
         int ret;
     };
-    // s/\/\*[ 0-9]*\*\//\=printf("\/*%2d*\/", line(".") - line("'<"))
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
     struct item data[] = {
-        /* 0*/ { BARCODE_AZTEC,
+        /*  0*/ { BARCODE_AZTEC,
                     "\133\060\060\060\135\060\125\125\125\125\140\060\125\125\125\125\060\060\060\271\060\060\125\103\164\125\125\125\377\377\125\125"
                     "\125\125\125\125\125\133\060\076\060\135\261\177\261\261\261\236\261\261\261\040\261\261\261\261\261\261\261\020\261\261\261\261"
                     "\261\261\265\261\261\261\261\261\261\261\261\261\261\261\261\040\224\261\261\261\261\261\000\000\004\000\031\060\031\031\031\031"
@@ -2828,8 +3023,9 @@ static void test_fuzz(int index, int debug) {
                     "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
                     "\377\377\377\377\377\377\261\261\261\261\261\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\135\135\135\135\135\135"
                     "\135\335\135\060\060\010\010\010\010\010\060",
-                    2251, DATA_MODE, -1, ZINT_ERROR_TOO_LONG }, // Original OSS-Fuzz triggering data for malloc leak
-        /* 1*/ { BARCODE_AZTEC,
+                    2251, DATA_MODE, -1, -1, ZINT_ERROR_TOO_LONG
+                }, /* Original OSS-Fuzz triggering data for malloc leak */
+        /*  1*/ { BARCODE_AZTEC,
                     "\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060"
                     "\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\000\060\060\060\060\000\060\060\000\060\060\060\060"
                     "\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060\060"
@@ -2918,8 +3114,9 @@ static void test_fuzz(int index, int debug) {
                     "\060\060\060\363\060\060\060\060\060\060\060\060\060\060\060\060\362\060\060\060\060\060\000\060\060\377\060\060\060\175\175\175"
                     "\175\060\060\060\175\175\175\175\060\060\005\060\005\060\005\060\060\060\060\000\000\060\060\060\060\060\060\377\060\060\060\060"
                     "\377\060\377\377\060\060\057\060\060\057\060\060\060\000\000\060\060",
-                    2801, DATA_MODE, -1, ZINT_ERROR_TOO_LONG }, // Original OSS-Fuzz triggering data for binary_string buffer overrun
-        /* 2*/ { BARCODE_AZTEC,
+                    2801, DATA_MODE, -1, -1, ZINT_ERROR_TOO_LONG
+                }, /* Original OSS-Fuzz triggering data for binary_string buffer overrun */
+        /*  2*/ { BARCODE_AZTEC,
                     "123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890"
                     "123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890"
                     "123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890"
@@ -2953,8 +3150,9 @@ static void test_fuzz(int index, int debug) {
                     "123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890"
                     "123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890"
                     "1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123",
-                    4483, -1, 1, 0 }, // 4483 = (1664 (Max codewords) - 169 (ECC codewords) - 2 (overhead)) * 3 (3 4-bit digits per 12-bit wordcode)
-        /* 3*/ { BARCODE_AZTEC,
+                    4483, -1, 1, -1, 0
+                }, /* 4483 = (1664 (Max codewords) - 169 (ECC codewords) - 5/12 (D/L) - 3/12 (padding)) * 3 (3 4-bit digits per 12-bit wordcode) = 4483 */
+        /*  3*/ { BARCODE_AZTEC,
                     "123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890"
                     "123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890"
                     "123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890"
@@ -2988,8 +3186,9 @@ static void test_fuzz(int index, int debug) {
                     "123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890"
                     "123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890"
                     "1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123",
-                    4484, -1, 1, ZINT_ERROR_TOO_LONG },
-        /* 4*/ { BARCODE_AZTEC,
+                    4484, -1, 1, -1, ZINT_ERROR_TOO_LONG
+                },
+        /*  4*/ { BARCODE_AZTEC,
                     "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ"
                     "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ"
                     "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -3018,8 +3217,9 @@ static void test_fuzz(int index, int debug) {
                     "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ"
                     "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ"
                     "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXY",
-                    3587, -1, 1, 0 },
-        /* 5*/ { BARCODE_AZTEC,
+                    3587, -1, 1, -1, 0
+                },
+        /*  5*/ { BARCODE_AZTEC,
                     "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ"
                     "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ"
                     "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -3048,8 +3248,9 @@ static void test_fuzz(int index, int debug) {
                     "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ"
                     "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ"
                     "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ",
-                    3588, -1, 1, ZINT_ERROR_TOO_LONG },
-        /* 6*/ { BARCODE_AZTEC,
+                    3588, -1, 1, -1, ZINT_ERROR_TOO_LONG
+                },
+        /*  6*/ { BARCODE_AZTEC,
                     "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240"
                     "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240"
                     "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240"
@@ -3101,13 +3302,14 @@ static void test_fuzz(int index, int debug) {
                     "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240"
                     "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240"
                     "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240"
-                    "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240",
-                    2079, -1, 1, 0 },
-        /* 7*/ { BARCODE_AZTEC,
                     "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240"
                     "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240"
                     "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240"
                     "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240"
+                    "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240",
+                    2237, -1, 1, -1, 0
+                },
+        /*  7*/ { BARCODE_AZTEC,
                     "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240"
                     "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240"
                     "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240"
@@ -3155,26 +3357,255 @@ static void test_fuzz(int index, int debug) {
                     "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240"
                     "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240"
                     "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240"
-                    "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240",
-                    2080, -1, 1, ZINT_ERROR_TOO_LONG },
+                    "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240"
+                    "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240"
+                    "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240"
+                    "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240"
+                    "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240"
+                    "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240"
+                    "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240"
+                    "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240"
+                    "\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240\240",
+                    2238, -1, 1, -1, ZINT_ERROR_TOO_LONG
+                },
+        /*  8*/ { BARCODE_AZTEC,
+                    "\105\105\000\000\000\000\000\000\000\000\077\012\377\377\377\072\376\376\350\350\350\350\350\250\350\350\350\350\354\350\350\350\350\350\001\000\000\000\000\000"
+                    "\000\036\103\012\072\103\103\000\100\116\000\000\000\000\000\000\000\000\000\000\002\222\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\077\012"
+                    "\377\377\377\072\376\376\350\350\350\350\350\250\350\350\350\350\354\350\350\350\000\000\000\000\000\000\000\033\000\036\103\012\072\103\103\000\100\116\000\000"
+                    "\000\000\000\000\000\000\000\000\000\222\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\012\000\000\000\000\072\103\103\103\103\012\012\000\365\365\365\365\365\365\374\365\365\365\365\365\000\000\001\000\000\000\000\000\100\377\337\377"
+                    "\377\377\377\377\000\000\000\000\372\377\000\100\377\377\350\350\000\000\350\350\350\350\350\350\350\350\001\000\000\000\000\000\000\036\103\012\072\103\365\000"
+                    "\000\000\000\000\000\000\000\000\377\377\377\350\350\350\350\350\350\350\350\350\350\350\350\350\350\061\350\350\350\350\354\350\350\350\350\350\001\000\000\000"
+                    "\000\000\000\036\103\012\072\103\103\000\100\116\000\000\000\000\000\000\000\000\000\000\000\216\000\000\000\000\000\000\000\377\377\377\377\377\377\377\000\000"
+                    "\377\365\374\365\365\365\365\001\236\365\000\000\001\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\064\064\064\064\064\064\064\064\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153"
+                    "\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\064\064\064\064\064\064\064\064\064\064\044\064\064\064\064\064\064\064\064\064"
+                    "\064\064\064\064\064\064\064\064\064\064\064\064\064\064\064\064\064\264\264\362\362\362\362\242\242\242\242\242\242\242\242\242\242\242\242\242\242\242\242\242"
+                    "\242\242\242\242\242\242\242\242\242\242\242\242\242\103\000\100\116\000\000\000\000\000\000\000\000\000\000\000\222\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\012\000\000\000\000\072\103\103\103\103\012\012\000\365\365\365\365\365"
+                    "\365\374\365\365\365\365\365\000\000\001\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\001"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\100\377\377\377\377\377\377\377\000\000\000\000"
+                    "\000\000\000\100\377\377\350\350\000\000\350\350\350\350\350\350\350\350\001\000\000\000\000\000\000\036\103\012\072\103\365\000\000\000\000\000\000\000\266\266"
+                    "\266\266\112\000\000\000\266\266\266\266\266\266\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\022\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\077\012\377"
+                    "\377\377\072\376\376\350\350\350\350\350\000\000\000\000\001\000\000\000\350\350\350\001\000\000\000\000\000\000\036\103\012\072\103\103\000\100\116\000\000\000"
+                    "\000\000\000\000\000\000\000\000\222\000\000\000\000\000\000\000\000\000\000\025\000\000\000\000\001\000\000\000\000\000\000\003\000\000\000\000\000\000\000\000"
+                    "\000\000\012\000\000\000\000\072\103\103\103\103\012\012\000\365\365\365\365\365\365\374\365\365\365\365\365\000\000\000\311\000\000\000\000\100\377\337\377\377"
+                    "\377\377\377\000\000\000\000\000\000\000\100\377\377\350\353\000\000\350\150\350\350\350\350\350\350\001\000\000\000\000\000\000\036\103\012\072\103\365\000\000"
+                    "\000\000\000\000\000\047\000\377\377\377\350\350\350\350\350\350\350\350\350\350\350\350\350\350\254\350\350\350\350\354\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\350\350\350\350\350\001\000\000\127\000\000\000\036\103"
+                    "\012\072\103\103\000\100\116\000\000\000\000\000\000\000\000\000\000\000\220\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\050\050\050\000\000\000"
+                    "\000\000\000\000\000\000\001\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\001\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\377\377\377\377\377\377\377\377\377\377\000\000\000\000\000\000\000\000\000\000\000\000\266"
+                    "\266\266\266\266\266\377\377\377\377\377\013\000\000\000\000\000\000\000\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\005\000\000\000\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\266\266\266\266\266\266\266\266\266\266\377\377\377\377\377\377\377\377\377\377\377\377\044"
+                    "\377\377\377\377\377\377\050\064\064\064\000\000\000\000\072\376\376\350\350\350\350\350\350\377\377\377\377\377\377\377\377\377\377\377\377\377\005\377\377\377"
+                    "\377\350\350\350\350\350\350\350\310\350\350\001\000\000\000\000\000\000\036\103\012\072\103\103\000\000\000\000\000\000\000\000\000\000\000\000\000\000\266\266"
+                    "\266\266\266\266\377\377\377\377\377\013\000\000\000\000\000\000\000\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\005\000\000\000\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\266\266\266\266\266\266\266\266\266\266\377\377\377\377\377\377\377\377\377\377\377\377\044\377"
+                    "\377\377\377\377\377\050\064\064\064\000\000\000\000\072\376\376\350\350\350\350\350\350\377\377\377\377\377\377\377\377\377\377\377\377\377\005\377\377\377\377"
+                    "\350\350\350\350\350\350\350\310\350\350\001\000\000\000\000\000\000\036\103\012\072\103\103\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\310\000\064\064\064\064\064\064\064\064\064\064\064\064\064\064\073\064\064\064\064"
+                    "\064\064\064\064\064\064\064\064\000\377\365\374\365\365\365\365\001\236\365\000\000\001\000\000\000\000\000\000\000\000\000\000\001\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\064\064\064\064\064\064\064\064\153\153\153\153\153"
+                    "\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\337\266\266\266\000"
+                    "\000\000\000\000\000\000\377\377\377\377\377\000\000\000\000\000\000\000\100\377\377\350\350\000\000\350\350\350\350\350\350\350\350\001\000\000\000\000\000\000"
+                    "\036\103\012\072\103\365\000\000\000\000\000\000\000\000\000\377\377\377\350\350\350\350\350\350\350\350\350\350\350\350\350\350\254\350\350\350\350\354\350\350"
+                    "\350\350\350\001\000\000\000\000\000\000\036\103\012\072\103\103\000\100\116\000\000\000\000\000\000\000\000\000\000\000\221\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\050\000\050\050\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\001\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\004\000\000\000\000\000\000\000\000\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\377\377\377\377\377\377\377\000\177\377\377\377"
+                    "\046\000\000\000\000\000\000\027\027\027\027\027\027\027\027\027\027\027\027\000\027\027\027\027\000\004\000\000\000\000\000\135\000\044\103\000\000\377\377\377"
+                    "\377\377\103\377\364\377\364",
+                    2167, DATA_MODE, -1, 1, ZINT_ERROR_TOO_LONG
+                }, /* #300 (#2) Andre Maute */
+        /*  9*/ { BARCODE_AZTEC,
+                    "111\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "111",
+                    2054, DATA_MODE, 1, -1, 0
+                }, /* 2048 byte block surrounded by digits */
+        /* 10*/ { BARCODE_AZTEC,
+                    "\105\105\000\000\000\000\000\000\000\000\077\012\377\377\377\072\376\376\350\350\350\350\350\250\350\350\350\350\354\350\350\350\350\350\001\000\000\000\000\000"
+                    "\000\036\103\012\072\103\103\000\100\116\000\000\000\000\000\000\000\000\000\000\002\222\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\077\012"
+                    "\377\377\377\072\376\376\350\350\350\350\350\250\350\350\350\350\354\350\350\350\000\000\000\000\000\000\000\033\000\036\103\012\072\103\103\000\100\116\000\000"
+                    "\000\000\000\000\000\000\000\000\000\222\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\012\000\000\000\000\072\103\103\103\103\012\012\000\365\365\365\365\365\365\374\365\365\365\365\365\000\000\001\000\000\000\000\000\100\377\337\377"
+                    "\377\377\377\377\000\000\000\000\372\377\000\100\377\377\350\350\000\000\350\350\350\350\350\350\350\350\001\000\000\000\000\000\000\036\103\012\072\103\365\000"
+                    "\000\000\000\000\000\000\000\000\377\377\377\350\350\350\350\350\350\350\350\350\350\350\350\350\350\061\350\350\350\350\354\350\350\350\350\350\001\000\000\000"
+                    "\000\000\000\036\103\012\072\103\103\000\100\116\000\000\000\000\000\000\000\000\000\000\000\216\000\000\000\000\000\000\000\377\377\377\377\377\377\377\000\000"
+                    "\377\365\374\365\365\365\365\001\236\365\000\000\001\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\064\064\064\064\064\064\064\064\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153"
+                    "\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\064\064\064\064\064\064\064\064\064\064\044\064\064\064\064\064\064\064\064\064"
+                    "\064\064\064\064\064\064\064\064\064\064\064\064\064\064\064\064\064\264\264\362\362\362\362\242\242\242\242\242\242\242\242\242\242\242\242\242\242\242\242\242"
+                    "\242\242\242\242\242\242\242\242\242\242\242\242\242\103\000\100\116\000\000\000\000\000\000\000\000\000\000\000\222\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\012\000\000\000\000\072\103\103\103\103\012\012\000\365\365\365\365\365"
+                    "\365\374\365\365\365\365\365\000\000\001\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\001"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\100\377\377\377\377\377\377\377\000\000\000\000"
+                    "\000\000\000\100\377\377\350\350\000\000\350\350\350\350\350\350\350\350\001\000\000\000\000\000\000\036\103\012\072\103\365\000\000\000\000\000\000\000\266\266"
+                    "\266\266\112\000\000\000\266\266\266\266\266\266\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\022\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\077\012\377"
+                    "\377\377\072\376\376\350\350\350\350\350\000\000\000\000\001\000\000\000\350\350\350\001\000\000\000\000\000\000\036\103\012\072\103\103\000\100\116\000\000\000"
+                    "\000\000\000\000\000\000\000\000\222\000\000\000\000\000\000\000\000\000\000\025\000\000\000\000\001\000\000\000\000\000\000\003\000\000\000\000\000\000\000\000"
+                    "\000\000\012\000\000\000\000\072\103\103\103\103\012\012\000\365\365\365\365\365\365\374\365\365\365\365\365\000\000\000\311\000\000\000\000\100\377\337\377\377"
+                    "\377\377\377\000\000\000\000\000\000\000\100\377\377\350\353\000\000\350\150\350\350\350\350\350\350\001\000\000\000\000\000\000\036\103\012\072\103\365\000\000"
+                    "\000\000\000\000\000\047\000\377\377\377\350\350\350\350\350\350\350\350\350\350\350\350\350\350\254\350\350\350\350\354\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\350\350\350\350\350\001\000\000\127\000\000\000\036\103"
+                    "\012\072\103\103\000\100\116\000\000\000\000\000\000\000\000\000\000\000\220\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\050\050\050\000\000\000"
+                    "\000\000\000\000\000\000\001\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\001\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\377\377\377\377\377\377\377\377\377\377\000\000\000\000\000\000\000\000\000\000\000\000\266"
+                    "\266\266\266\266\266\377\377\377\377\377\013\000\000\000\000\000\000\000\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\005\000\000\000\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\172\377\377"
+                    "\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\266\266\266\266\266\266\266\266\266\266\377\377\377\377\377\377\377\377\377\377\377\377\044"
+                    "\377\377\377\377\377\377\050\064\064\064\000\000\000\000\072\376\376\350\350\350\350\350\350\377\377\377\377\377\377\377\377\377\377\377\377\377\005\377\377\377"
+                    "\377\350\350\350\350\350\350\350\310\350\350\001\000\000\000\000\000\000\036\103\012\072\103\103\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\310\000\064\064\064\064\064\064\064\064\064\064\064\064\064\064\073\064\064\064\064\064\064\064\064\064\064\064"
+                    "\064\000\377\365\374\365\365\365\365\001\236\365\000\000\001\000\000\000\000\000\000\000\000\000\000\001\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\064\064\064\064\064\064\064\064\153\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\153\153\153\153"
+                    "\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\153\337\266\266\266\000"
+                    "\000\000\000\000\000\000\377\377\377\377\377\000\000\000\000\000\000\000\100\377\377\350\350\000\000\350\350\350\350\350\350\350\350\001\000\000\000\000\000\000"
+                    "\036\103\012\072\103\365\000\000\000\000\000\000\000\000\000\377\377\377\350\350\350\350\350\350\350\350\350\350\350\350\350\350\254\350\350\350\350\354\350\350"
+                    "\350\350\350\001\000\000\000\000\000\000\036\103\012\072\103\103\000\100\116\000\000\000\000\000\000\000\000\000\000\000\221\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\050\000\050\050\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\001\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\004\000\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032"
+                    "\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032\032"
+                    "\032\032\032\032\032\032\032\032\032\032\032\032\032\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377"
+                    "\377\032\032\032\000\000\000\000\000\000\000\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\377\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\377\377\377\377\377\377\377\000\177\377\377\377\046\000\000\000\000\000\000\027\027\027"
+                    "\027\027\027\027\027\027\027\027\027\000\027\027\027\027\000\004\000\000\000\000\000\135\000\044\103\000\000\377\377\377\377\377\103\377\364\377\364",
+                    2157, DATA_MODE, -1, 1, ZINT_ERROR_TOO_LONG
+                }, /* #300 (#3) Andre Maute */
+        /* 11*/ { BARCODE_AZTEC,
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+                    "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000",
+                    996, DATA_MODE, 2, -1, 0
+                }, /* Padding 11 example causing issue with ZXing-C++ */
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
-    testStart("test_fuzz");
+    char escaped[8192];
+    char cmp_buf[32768];
+    char cmp_msg[8192];
+
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
+
+    testStartSymbol("test_fuzz", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
 
-        length = testUtilSetSymbol(symbol, data[i].symbology, data[i].input_mode, -1 /*eci*/, data[i].option_1, -1, -1, -1 /*output_options*/, data[i].data, data[i].length, debug);
+        length = testUtilSetSymbol(symbol, data[i].symbology, data[i].input_mode, -1 /*eci*/, data[i].option_1, data[i].option_2, -1, -1 /*output_options*/, data[i].data, data[i].length, debug);
 
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
+
+        if (ret < ZINT_ERROR) {
+
+            if (do_zxingcpp && testUtilCanZXingCPP(i, symbol, data[i].data, length, debug)) {
+                int cmp_len, ret_len;
+                char modules_dump[22801 + 1];
+                assert_notequal(testUtilModulesDump(symbol, modules_dump, sizeof(modules_dump)), -1, "i:%d testUtilModulesDump == -1\n", i);
+                ret = testUtilZXingCPP(i, symbol, data[i].data, length, modules_dump, cmp_buf, sizeof(cmp_buf), &cmp_len);
+                assert_zero(ret, "i:%d %s testUtilZXingCPP ret %d != 0\n", i, testUtilBarcodeName(symbol->symbology), ret);
+
+                ret = testUtilZXingCPPCmp(symbol, cmp_msg, cmp_buf, cmp_len, data[i].data, length, NULL /*primary*/, escaped, &ret_len);
+                assert_zero(ret, "i:%d %s testUtilZXingCPPCmp %d != 0 %s\n  actual: %.*s\nexpected: %.*s\n",
+                               i, testUtilBarcodeName(symbol->symbology), ret, cmp_msg, cmp_len, cmp_buf, ret_len, escaped);
+            }
+        }
 
         ZBarcode_Delete(symbol);
     }
@@ -3186,8 +3617,9 @@ static void test_fuzz(int index, int debug) {
 
 #define TEST_PERF_ITERATIONS    1000
 
-// Not a real test, just performance indicator
-static void test_perf(int index, int debug) {
+/* Not a real test, just performance indicator */
+static void test_perf(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int symbology;
@@ -3254,7 +3686,7 @@ static void test_perf(int index, int debug) {
     for (i = 0; i < data_size; i++) {
         int j;
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         diff_encode = diff_buffer = 0;
 
@@ -3285,19 +3717,20 @@ static void test_perf(int index, int debug) {
         total_encode += diff_encode;
         total_buffer += diff_buffer;
     }
-    if (index != -1) {
+    if (p_ctx->index != -1) {
         printf("totals: encode %gms, buffer %gms\n", total_encode * 1000.0 / CLOCKS_PER_SEC, total_buffer * 1000.0 / CLOCKS_PER_SEC);
     }
 }
 
 int main(int argc, char *argv[]) {
 
-    testFunction funcs[] = { /* name, func, has_index, has_generate, has_debug */
-        { "test_options", test_options, 1, 0, 1 },
-        { "test_encode", test_encode, 1, 1, 1 },
-        { "test_encode_segs", test_encode_segs, 1, 1, 1 },
-        { "test_fuzz", test_fuzz, 1, 0, 1 },
-        { "test_perf", test_perf, 1, 0, 1 },
+    testFunction funcs[] = { /* name, func */
+        { "test_large", test_large },
+        { "test_options", test_options },
+        { "test_encode", test_encode },
+        { "test_encode_segs", test_encode_segs },
+        { "test_fuzz", test_fuzz },
+        { "test_perf", test_perf },
     };
 
     testRun(argc, argv, funcs, ARRAY_SIZE(funcs));

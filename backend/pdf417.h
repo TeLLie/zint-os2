@@ -1,5 +1,4 @@
 /* pdf417.h - PDF417 tables and coefficients declarations */
-
 /*
     libzint - the open source barcode library
     Copyright (C) 2008-2022 Robin Stuart <rstuart114@gmail.com>
@@ -30,6 +29,7 @@
     OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
     SUCH DAMAGE.
  */
+/* SPDX-License-Identifier: BSD-3-Clause */
 
 /* See "pdf417_tabs.h" for table definitions */
 
@@ -45,7 +45,7 @@ INTERNAL_DATA_EXTERN const unsigned short pdf_bitpattern[2787];
 INTERNAL_DATA_EXTERN const unsigned short pdf_Microcoeffs[344];
 
 /* rows, columns, error codewords, k-offset of valid MicroPDF417 sizes from ISO/IEC 24728:2006 */
-INTERNAL_DATA_EXTERN const unsigned short pdf_MicroVariants[170];
+INTERNAL_DATA_EXTERN const unsigned short pdf_MicroVariants[136];
 
 /* following is Left RAP, Centre RAP, Right RAP and Start Cluster from ISO/IEC 24728:2006 tables 10, 11 and 12 */
 INTERNAL_DATA_EXTERN const char pdf_RAPTable[136];
@@ -56,8 +56,8 @@ INTERNAL_DATA_EXTERN const unsigned short pdf_rap_side[52];
 /* Centre Row Address Pattern from Table 2 */
 INTERNAL_DATA_EXTERN const unsigned short pdf_rap_centre[52];
 
-INTERNAL void pdf_byteprocess(int *chainemc, int *mclength, const unsigned char chaine[], int start, const int length,
-                const int debug);
+INTERNAL void pdf_byteprocess(short *chainemc, int *p_mclength, const unsigned char chaine[], int start,
+                const int length, const int lastmode, const int debug);
 
 /* vim: set ts=4 sw=4 et : */
 #endif /* Z_PDF417_H */

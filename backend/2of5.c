@@ -1,7 +1,7 @@
 /* 2of5.c - Handles Code 2 of 5 barcodes */
 /*
     libzint - the open source barcode library
-    Copyright (C) 2008-2022 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2008-2023 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -67,9 +67,9 @@ static int c25_common(struct zint_symbol *symbol, const unsigned char source[], 
             const int is_matrix, const char *start_stop[2], const int start_length, const int error_base) {
 
     int i;
-    char dest[500]; /* Largest destination 6 + (80 + 1) * 6 + 5 + 1 = 498 */
+    char dest[818]; /* Largest destination 4 + (80 + 1) * 10 + 3 + 1 = 818 */
     char *d = dest;
-    unsigned char temp[80 + 1 + 1]; /* Largest maximum 80 + optional check digit */
+    unsigned char temp[113 + 1 + 1]; /* Largest maximum 113 + optional check digit */
     int have_checkdigit = symbol->option_2 == 1 || symbol->option_2 == 2;
 
     if (length > max) {
@@ -89,6 +89,7 @@ static int c25_common(struct zint_symbol *symbol, const unsigned char source[], 
         /* Add standard GS1 check digit */
         temp[length] = gs1_check_digit(source, length);
         temp[++length] = '\0';
+        if (symbol->debug & ZINT_DEBUG_PRINT) printf("Check digit: %c\n", temp[length - 1]);
     }
 
     /* Start character */
@@ -122,35 +123,39 @@ static int c25_common(struct zint_symbol *symbol, const unsigned char source[], 
 
 /* Code 2 of 5 Standard (Code 2 of 5 Matrix) */
 INTERNAL int c25standard(struct zint_symbol *symbol, unsigned char source[], int length) {
-    return c25_common(symbol, source, length, 80, 1 /*is_matrix*/, C25MatrixStartStop, 6, 301);
+    /* 9 + (112 + 1) * 10 + 8 = 1147 */
+    return c25_common(symbol, source, length, 112, 1 /*is_matrix*/, C25MatrixStartStop, 6, 301);
 }
 
 /* Code 2 of 5 Industrial */
 INTERNAL int c25ind(struct zint_symbol *symbol, unsigned char source[], int length) {
-    return c25_common(symbol, source, length, 45, 0 /*is_matrix*/, C25IndustStartStop, 6, 303);
+    /* 10 + (79 + 1) * 14 + 9 = 1139 */
+    return c25_common(symbol, source, length, 79, 0 /*is_matrix*/, C25IndustStartStop, 6, 303);
 }
 
 /* Code 2 of 5 IATA */
 INTERNAL int c25iata(struct zint_symbol *symbol, unsigned char source[], int length) {
-    return c25_common(symbol, source, length, 45, 0 /*is_matrix*/, C25IataLogicStartStop, 4, 305);
+    /* 4 + (80 + 1) * 14 + 5 = 1143 */
+    return c25_common(symbol, source, length, 80, 0 /*is_matrix*/, C25IataLogicStartStop, 4, 305);
 }
 
 /* Code 2 of 5 Data Logic */
 INTERNAL int c25logic(struct zint_symbol *symbol, unsigned char source[], int length) {
-    return c25_common(symbol, source, length, 80, 1 /*is_matrix*/, C25IataLogicStartStop, 4, 307);
+    /* 4 + (113 + 1) * 10 + 5 = 1149 */
+    return c25_common(symbol, source, length, 113, 1 /*is_matrix*/, C25IataLogicStartStop, 4, 307);
 }
 
 /* Common to Interleaved, ITF-14, DP Leitcode, DP Identcode */
 static int c25_inter_common(struct zint_symbol *symbol, unsigned char source[], int length,
             const int dont_set_height) {
     int i, j, error_number = 0;
-    char dest[468]; /* 4 + (90 + 2) * 5 + 3 + 1 = 468 */
+    char dest[638]; /* 4 + (125 + 1) * 5 + 3 + 1 = 638 */
     char *d = dest;
-    unsigned char temp[90 + 2 + 1];
+    unsigned char temp[125 + 1 + 1];
     int have_checkdigit = symbol->option_2 == 1 || symbol->option_2 == 2;
 
-    if (length > 90) {
-        strcpy(symbol->errtxt, "309: Input too long (90 character maximum)");
+    if (length > 125) { /* 4 + (125 + 1) * 9 + 5 = 1143 */
+        strcpy(symbol->errtxt, "309: Input too long (125 character maximum)");
         return ZINT_ERROR_TOO_LONG;
     }
     if (!is_sane(NEON_F, source, length)) {
@@ -207,7 +212,7 @@ static int c25_inter_common(struct zint_symbol *symbol, unsigned char source[], 
             /* ISO/IEC 16390:2007 Section 4.4 min height 5mm or 15% of symbol width whichever greater where
                (P = character pairs, N = wide/narrow ratio = 3)
                width = (P(4N + 6) + N + 6)X = (length / 2) * 18 + 9 */
-            /* Taking X = 0.330mm from Annex D.3.1 (application specification) */
+            /* Taking min X = 0.330mm from Annex D.3.1 (application specification) */
             const float min_height_min = stripf(5.0f / 0.33f);
             float min_height = stripf((18.0f * (length / 2) + 9.0f) * 0.15f);
             if (min_height < min_height_min) {
@@ -231,7 +236,7 @@ INTERNAL int c25inter(struct zint_symbol *symbol, unsigned char source[], int le
 
 /* Interleaved 2-of-5 (ITF-14) */
 INTERNAL int itf14(struct zint_symbol *symbol, unsigned char source[], int length) {
-    int i, error_number, warn_number = 0, zeroes;
+    int i, error_number, zeroes;
     unsigned char localstr[16] = {0};
 
     if (length > 13) {
@@ -257,32 +262,35 @@ INTERNAL int itf14(struct zint_symbol *symbol, unsigned char source[], int lengt
     error_number = c25_inter_common(symbol, localstr, 14, 1 /*dont_set_height*/);
     ustrcpy(symbol->text, localstr);
 
-    if (!((symbol->output_options & BARCODE_BOX) || (symbol->output_options & BARCODE_BIND))) {
-        /* If no option has been selected then uses default box option */
-        symbol->output_options |= BARCODE_BOX;
-        if (symbol->border_width == 0) { /* Allow override if non-zero */
-            /* GS1 General Specifications 21.0.1 Sections 5.3.2.4 & 5.3.6 (4.83 / 1.016 ~ 4.75) */
-            symbol->border_width = 5; /* Note change from previous value 8 */
-        }
-    }
-
     if (error_number < ZINT_ERROR) {
+        if (!(symbol->output_options & (BARCODE_BOX | BARCODE_BIND | BARCODE_BIND_TOP))) {
+            /* If no option has been selected then uses default box option */
+            symbol->output_options |= BARCODE_BOX;
+            if (symbol->border_width == 0) { /* Allow override if non-zero */
+                /* GS1 General Specifications 21.0.1 Sections 5.3.2.4 & 5.3.6 (4.83 / 1.016 ~ 4.75) */
+                symbol->border_width = 5; /* Note change from previous value 8 */
+            }
+        }
+
         if (symbol->output_options & COMPLIANT_HEIGHT) {
             /* GS1 General Specifications 21.0.1 5.12.3.2 table 2, including footnote (**): (note bind/box additional
                to symbol->height), same as GS1-128: "in case of further space constraints"
                height 5.8mm / 1.016mm (X max) ~ 5.7; default 31.75mm / 0.495mm ~ 64.14 */
-            warn_number = set_height(symbol, stripf(5.8f / 1.016f), stripf(31.75f / 0.495f), 0.0f, 0 /*no_errtxt*/);
+            error_number = set_height(symbol, stripf(5.8f / 1.016f), stripf(31.75f / 0.495f), 0.0f, 0 /*no_errtxt*/);
         } else {
             (void) set_height(symbol, 0.0f, 50.0f, 0.0f, 1 /*no_errtxt*/);
         }
     }
 
-    return error_number ? error_number : warn_number;
+    return error_number;
 }
 
-/* Deutshe Post Leitcode */
+/* Deutsche Post Leitcode */
+/* Documentation (of a very incomplete and non-technical type):
+https://www.deutschepost.de/content/dam/dpag/images/D_d/dialogpost-schwer/dp-dialogpost-schwer-broschuere-072021.pdf
+*/
 INTERNAL int dpleit(struct zint_symbol *symbol, unsigned char source[], int length) {
-    int i, error_number;
+    int i, j, error_number;
     unsigned int count;
     int factor;
     unsigned char localstr[16] = {0};
@@ -311,16 +319,27 @@ INTERNAL int dpleit(struct zint_symbol *symbol, unsigned char source[], int leng
     localstr[13] = c25_check_digit(count);
     localstr[14] = '\0';
     error_number = c25_inter_common(symbol, localstr, 14, 1 /*dont_set_height*/);
-    ustrcpy(symbol->text, localstr);
+
+    /* HRT formatting as per DIALOGPOST SCHWER brochure but TEC-IT differs as do examples at
+       https://www.philaseiten.de/cgi-bin/index.pl?ST=8615&CP=0&F=1#M147 */
+    for (i = 0, j = 0; i <= 14; i++) {
+        symbol->text[j++] = localstr[i];
+        if (i == 4 || i == 7 || i == 10) {
+            symbol->text[j++] = '.';
+        }
+    }
 
     /* TODO: Find documentation on BARCODE_DPLEIT dimensions/height */
+    /* Based on eyeballing DIALOGPOST SCHWER, using 72X as default */
+    (void) set_height(symbol, 0.0f, 72.0f, 0.0f, 1 /*no_errtxt*/);
 
     return error_number;
 }
 
 /* Deutsche Post Identcode */
+/* See dpleit() for (sort of) documentation reference */
 INTERNAL int dpident(struct zint_symbol *symbol, unsigned char source[], int length) {
-    int i, error_number, zeroes;
+    int i, j, error_number, zeroes;
     unsigned int count;
     int factor;
     unsigned char localstr[16] = {0};
@@ -348,9 +367,20 @@ INTERNAL int dpident(struct zint_symbol *symbol, unsigned char source[], int len
     localstr[11] = c25_check_digit(count);
     localstr[12] = '\0';
     error_number = c25_inter_common(symbol, localstr, 12, 1 /*dont_set_height*/);
-    ustrcpy(symbol->text, localstr);
+
+    /* HRT formatting as per DIALOGPOST SCHWER brochure but TEC-IT differs as do other examples (see above) */
+    for (i = 0, j = 0; i <= 12; i++) {
+        symbol->text[j++] = localstr[i];
+        if (i == 1 || i == 4 || i == 7) {
+            symbol->text[j++] = '.';
+        } else if (i == 3 || i == 10) {
+            symbol->text[j++] = ' ';
+        }
+    }
 
     /* TODO: Find documentation on BARCODE_DPIDENT dimensions/height */
+    /* Based on eyeballing DIALOGPOST SCHWER, using 72X as default */
+    (void) set_height(symbol, 0.0f, 72.0f, 0.0f, 1 /*no_errtxt*/);
 
     return error_number;
 }

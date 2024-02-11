@@ -6,22 +6,53 @@ this capability into your own programs.
 
 Zint is able to encode data in the following formats:
 
-Code 11, Standard Code 2 of 5, IATA Code 2 of 5, Industrial Code 2 of 5,
-Interleaved Code 2 of 5, Code 2 of 5 Data Logic, ITF-14, Deutshe Post Leitcode,
-Deutshe Post Identcode, UPC-A, UPC-E, EAN-2, EAN-5, EAN-8, EAN-13, ISBN, UK
-Plessey, MSI Plessey, Telepen Alpha, Telepen Numeric, Code 39, Extended Code 39,
-Code 93, PZN, Code 32, LOGMARS, Codabar, Pharmacode, Code 128, GS1-128, NVE-18,
-Code 16k, PDF417, MicroPDF417, Two-Track Pharmacode, POSTNET, PLANET, Australia
-Post 4-State Symbols, RM4SCC, Dutch Post KIX, USPS Intelligent Mail, GS1 DataBar
-Omnidirectional, GS1 DataBar Limited, GS1 DataBar Expanded, GS1 DataBar Stacked,
-Composite Symbology, Data Matrix, QR Code, MaxiCode, Aztec Code, Aztec Runes,
-EAN-14, Micro QR, Korea Post Barcode, HIBC Code 128, HIBC Code 39, HIBC Data
-Matrix, HIBC PDF417, HIBC MicroPDF417, HIBC QR Code, HIBC Codablock-F, HIBC
-Aztec Code, Japanese Postal Code, Code 49, Channel Code, Code One, Grid Matrix,
-DAFT, FIM and Flattermarken, Codablock-F, DotCode, Han Xin Code, rMQR,
-Ultracode, UPNQR, VIN, and DPD Code.
+Australia Post Redirect Code            GS1 DataBar Expanded
+Australia Post Reply-Paid               GS1 DataBar Expanded Stacked
+Australia Post Routing Code             GS1 DataBar Limited
+Australia Post Standard Customer        GS1 DataBar Omnidirectional
+Aztec Code (and HIBC)                   GS1 DataBar Stacked
+Aztec Runes                             GS1 DataBar Stacked Omnidirectional
+BC412 (SEMI T1-95)                      Han Xin (Chinese Sensible) Code
+Brazilian Postal Code (CEPNet)          ISBN
+Channel Code                            ITF-14
+Codabar                                 Japanese Postal Barcode
+Codablock-F (and HIBC)                  Korean Postal Barcode
+Code 11                                 LOGMARS
+Code 128 (and GS1-128 and HIBC)         MaxiCode
+Code 16K                                MicroPDF417 (and HIBC)
+Code 2 of 5 Data Logic                  Micro QR Code
+Code 2 of 5 IATA                        MSI Plessey
+Code 2 of 5 Industrial                  NVE-18 (SSCC-18)
+Code 2 of 5 Interleaved                 PDF417 (and Compact and HIBC)
+Code 2 of 5 Standard (Matrix)           Pharmacode
+Code 32 (Italian Pharmacode)            Pharmacode 2-track
+Code 39 (and HIBC)                      Pharma Zentralnummer (PZN)
+Code 39 Extended                        PLANET
+Code 49                                 POSTNET
+Code 93                                 QR Code (and HIBC)
+Code One                                Rectangular Micro QR (rMQR)
+DAFT Code                               Royal Mail 2D Mailmark (CMDM)
+Data Matrix (and HIBC)                  Royal Mail 4-state Customer Code
+Deutsche Post Identcode                 Royal Mail 4-state Mailmark
+Deutsche Post Leitcode                  Telepen
+DotCode                                 Telepen Numeric
+DPD Code                                UK Plessey
+Dutch Post KIX                          Ultracode
+EAN (EAN-2, EAN-5, EAN-8 and EAN-13)    UPC-A
+EAN-14                                  UPC-E
+FIM (Facing Identification Mark)        UPNQR
+Flattermarken                           UPU S10
+Grid Matrix                             USPS Intelligent Mail (OneCode)
+GS1 Composite (EAN/UPC/DataBar/GS-128)  VIN (Vehicle Identification Number)
 
-Output can be saved as BMP, EPS, GIF, PCX, TIF, EMF, PNG or SVG.
+Output can be saved as BMP, EMF, EPS, GIF, PCX, PNG, SVG or TIF.
+
+
+DOCUMENTATION
+-------------
+For documentation see "docs/manual.txt" or online at
+
+    <https://zint.org.uk/manual/>
 
 
 PROJECT HISTORY
@@ -31,7 +62,7 @@ Please see "ChangeLog" in the project root directory.
 
 LICENSE
 -------
-Zint, libzint and Zint Barcode Studio are Copyright © 2022 Robin Stuart. All
+Zint, libzint and Zint Barcode Studio are Copyright © 2023 Robin Stuart. All
 historical versions are distributed under the GNU General Public License
 version 3 or later. Versions 2.5 and later are released under a dual license:
 the encoding library is released under the BSD (3 clause) license whereas the
@@ -74,5 +105,5 @@ Please note the following points...
 * Please DO NOT post messages asking for us to change the license
   arrangements. You will be ignored.
 * Please remember that Zint is developed by volunteers. While we attempt to
-  answer all messages within a week, this is highly dependant on external
+  answer all messages within a week, this is highly dependent on external
   circumstances.

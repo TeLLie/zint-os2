@@ -1,5 +1,5 @@
 # Copyright (C) 2008 by BogDan Vatra < bogdan@licentia.eu >
-# Copyright (C) 2009-2021 Robin Stuart <rstuart114@gmail.com>
+# Copyright (C) 2009-2023 Robin Stuart <rstuart114@gmail.com>
 # vim: set ts=4 sw=4 et :
 
 cmake_minimum_required(VERSION 3.5)
@@ -8,24 +8,31 @@ project(zint-package)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 set(ZINT_VERSION_MAJOR 2)
-set(ZINT_VERSION_MINOR 11)
+set(ZINT_VERSION_MINOR 13)
 set(ZINT_VERSION_RELEASE 0)
-set(ZINT_VERSION_BUILD 9) # Set to 0 before release, set to 9 after release
+set(ZINT_VERSION_BUILD 0) # Set to 0 before release, set to 9 after release
 set(ZINT_VERSION "${ZINT_VERSION_MAJOR}.${ZINT_VERSION_MINOR}.${ZINT_VERSION_RELEASE}.${ZINT_VERSION_BUILD}")
 
 add_definitions(-DZINT_VERSION=\"${ZINT_VERSION}\")
 
-set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules")
+set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 
-option(ZINT_DEBUG    "Set debug compile flags"         OFF)
-option(ZINT_NOOPT    "Set no optimize compile flags"   OFF)
-option(ZINT_SANITIZE "Set sanitize compile/link flags" OFF)
-option(ZINT_TEST     "Set test compile flag"           OFF)
-option(ZINT_COVERAGE "Set code coverage flags"         OFF)
-option(ZINT_STATIC   "Build static library"            OFF)
-option(ZINT_USE_PNG  "Build with PNG support"          ON)
-option(ZINT_USE_QT   "Build with Qt support"           ON)
-option(ZINT_QT6      "If ZINT_USE_QT, use Qt6"         OFF)
+option(ZINT_DEBUG     "Set debug compile flags"         OFF)
+option(ZINT_NOOPT     "Set no optimize compile flags"   OFF)
+option(ZINT_SANITIZE  "Set sanitize compile/link flags" OFF)
+option(ZINT_TEST      "Set test compile flag"           OFF)
+option(ZINT_COVERAGE  "Set code coverage flags"         OFF)
+option(ZINT_SHARED    "Build shared library"            ON)
+option(ZINT_STATIC    "Build static library"            OFF)
+option(ZINT_USE_PNG   "Build with PNG support"          ON)
+option(ZINT_USE_QT    "Build with Qt support"           ON)
+option(ZINT_QT6       "If ZINT_USE_QT, use Qt6"         OFF)
+option(ZINT_UNINSTALL "Add uninstall target"            ON)
+option(ZINT_FRONTEND  "Build frontend"                  ON)
+
+if(NOT ZINT_SHARED AND NOT ZINT_STATIC)
+    message(SEND_ERROR "Either ZINT_SHARED or ZINT_STATIC or both must be set")
+endif()
 
 include(SetPaths.cmake)
 
@@ -87,6 +94,10 @@ if(ZINT_SANITIZE)
             # Gives warning on MainWindow::setupUI() and retries (& takes forever) if var-tracking-assignments enabled
             add_compile_options(-fno-var-tracking-assignments)
         endif()
+        if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+            # Recent clangs added deprecation warnings for `sprintf()` that are only triggered on sanitize - suppress
+            add_compile_options(-Wno-deprecated-declarations)
+        endif()
     endif()
 endif()
 
@@ -134,7 +145,9 @@ if(NOT HAVE_GETOPT)
 endif()
 
 add_subdirectory(backend)
-add_subdirectory(frontend)
+if(ZINT_FRONTEND)
+    add_subdirectory(frontend)
+endif()
 
 if(NOT ZINT_USE_QT)
     message(STATUS "Qt support was disabled for this build")
@@ -175,13 +188,15 @@ else()
     endif()
 endif()
 
-configure_file(
-  "${CMAKE_CURRENT_SOURCE_DIR}/cmake_uninstall.cmake.in"
-  "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
-  IMMEDIATE @ONLY)
-
-add_custom_target(uninstall
-  "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake")
+if(ZINT_UNINSTALL)
+    configure_file(
+      "${CMAKE_CURRENT_SOURCE_DIR}/cmake_uninstall.cmake.in"
+      "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
+      IMMEDIATE @ONLY)
+    
+    add_custom_target(uninstall
+      "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake")
+endif()
 
 # staniek: don't install
 if(DATA_INSTALL_DIR)
@@ -191,6 +206,8 @@ else()
 endif()
 
 install(FILES cmake/modules/FindZint.cmake DESTINATION ${CMAKE_MODULES_INSTALL_PATH} COMPONENT Devel)
+configure_file("zint-config.cmake.in" "zint-config.cmake" @ONLY)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/zint-config.cmake" DESTINATION "${SHARE_INSTALL_PREFIX}/zint")
 
 # This needs to be run very last so other parts of the scripts can take
 # advantage of this.

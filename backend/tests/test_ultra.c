@@ -1,6 +1,6 @@
 /*
     libzint - the open source barcode library
-    Copyright (C) 2020-2022 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2020-2023 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -27,10 +27,12 @@
     OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
     SUCH DAMAGE.
  */
+/* SPDX-License-Identifier: BSD-3-Clause */
 
 #include "testcommon.h"
 
-static void test_large(int index, int debug) {
+static void test_large(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int option_1;
@@ -42,14 +44,14 @@ static void test_large(int index, int debug) {
         int expected_rows;
         int expected_width;
     };
-    // s/\/\*[ 0-9]*\*\//\=printf("\/*%3d*\/", line(".") - line("'<"))
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
     struct item data[] = {
-        /*  0*/ { -1, -1, { 0, 0, "" }, "1", 252, 0, 31, 66 }, // Default EC2
+        /*  0*/ { -1, -1, { 0, 0, "" }, "1", 252, 0, 31, 66 }, /* Default EC2 */
         /*  1*/ { -1, -1, { 0, 0, "" }, "1", 253, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*  2*/ { -1, -1, { 0, 0, "" }, "1", ZINT_MAX_DATA_LEN, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*  3*/ { -1, -1, { 1, 2, "" }, "1", 251, 0, 31, 66 }, // Structured Append no File Number 1 codeword overhead
+        /*  3*/ { -1, -1, { 1, 2, "" }, "1", 251, 0, 31, 66 }, /* Structured Append no File Number 1 codeword overhead */
         /*  4*/ { -1, -1, { 1, 2, "" }, "1", 252, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*  5*/ { -1, -1, { 1, 2, "1" }, "1", 249, 0, 31, 66 }, // Structured Append with File Number 3 codewords overhead
+        /*  5*/ { -1, -1, { 1, 2, "1" }, "1", 249, 0, 31, 66 }, /* Structured Append with File Number 3 codewords overhead */
         /*  6*/ { -1, -1, { 1, 2, "1" }, "1", 250, ZINT_ERROR_TOO_LONG, -1, -1 },
         /*  7*/ { -1, -1, { 0, 0, "" }, "A", 252, 0, 31, 66 },
         /*  8*/ { -1, -1, { 0, 0, "" }, "A", 253, ZINT_ERROR_TOO_LONG, -1, -1 },
@@ -84,15 +86,15 @@ static void test_large(int index, int debug) {
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char data_buf[ZINT_MAX_DATA_LEN + 1];
 
-    testStart("test_large");
+    testStartSymbol("test_large", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -119,7 +121,8 @@ static void test_large(int index, int debug) {
     testFinish();
 }
 
-static void test_reader_init(int index, int generate, int debug) {
+static void test_reader_init(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int input_mode;
@@ -138,30 +141,30 @@ static void test_reader_init(int index, int generate, int debug) {
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char escaped[1024];
 
-    testStart("test_reader_init");
+    testStartSymbol("test_reader_init", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
-        if ((debug & ZINT_DEBUG_TEST_PRINT) && !(debug & ZINT_DEBUG_TEST_LESS_NOISY)) printf("i:%d\n", i);
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
 
-        symbol->debug = ZINT_DEBUG_TEST; // Needed to get codeword dump in errtxt
+        symbol->debug = ZINT_DEBUG_TEST; /* Needed to get codeword dump in errtxt */
 
         length = testUtilSetSymbol(symbol, BARCODE_ULTRA, data[i].input_mode, -1 /*eci*/, -1 /*option_1*/, -1 /*option_2*/, data[i].option_3, data[i].output_options, data[i].data, -1, debug);
 
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
-        if (generate) {
+        if (p_ctx->generate) {
             printf("        /*%3d*/ { %s, %s, %s, \"%s\", %s, %d, %d, \"%s\", \"%s\" },\n",
-                    i, testUtilInputModeName(data[i].input_mode), testUtilOutputOptionsName(data[i].output_options), testUtilOption3Name(data[i].option_3),
+                    i, testUtilInputModeName(data[i].input_mode), testUtilOutputOptionsName(data[i].output_options),
+                    testUtilOption3Name(BARCODE_ULTRA, data[i].option_3),
                     testUtilEscape(data[i].data, length, escaped, sizeof(escaped)),
                     testUtilErrorName(data[i].ret), symbol->rows, symbol->width, symbol->errtxt, data[i].comment);
         } else {
@@ -178,7 +181,8 @@ static void test_reader_init(int index, int generate, int debug) {
     testFinish();
 }
 
-static void test_input(int index, int generate, int debug) {
+static void test_input(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int input_mode;
@@ -250,34 +254,33 @@ static void test_input(int index, int generate, int debug) {
         /* 54*/ { UNICODE_MODE, 0, -1, -1, ULTRA_COMPRESSION, { 0, 0, "" }, "https://url.com", 0, "(6) 282 262 133 216 269 251", "Mode: ccccccc (7)" },
         /* 55*/ { UNICODE_MODE, 0, -1, -1, ULTRA_COMPRESSION, { 0, 0, "" }, "{", 0, "(2) 272 123", "Mode: a (1)" },
         /* 56*/ { UNICODE_MODE, 0, -1, -1, -1, { 2, 3, "" }, "A", 0, "(2) 257 65", "" },
-        /* 57*/ { UNICODE_MODE, 0, -1, -1, -1, { 1, 1, "" }, "A", ZINT_ERROR_INVALID_OPTION, "Error 558: Structured Append count out of range (2-8)", "" },
-        /* 58*/ { UNICODE_MODE, 0, -1, -1, -1, { 1, 9, "" }, "A", ZINT_ERROR_INVALID_OPTION, "Error 558: Structured Append count out of range (2-8)", "" },
-        /* 59*/ { UNICODE_MODE, 0, -1, -1, -1, { 0, 3, "" }, "A", ZINT_ERROR_INVALID_OPTION, "Error 559: Structured Append index out of range (1-3)", "" },
-        /* 60*/ { UNICODE_MODE, 0, -1, -1, -1, { 4, 3, "" }, "A", ZINT_ERROR_INVALID_OPTION, "Error 559: Structured Append index out of range (1-3)", "" },
+        /* 57*/ { UNICODE_MODE, 0, -1, -1, -1, { 1, 1, "" }, "A", ZINT_ERROR_INVALID_OPTION, "Error 596: Structured Append count out of range (2-8)", "" },
+        /* 58*/ { UNICODE_MODE, 0, -1, -1, -1, { 1, 9, "" }, "A", ZINT_ERROR_INVALID_OPTION, "Error 596: Structured Append count out of range (2-8)", "" },
+        /* 59*/ { UNICODE_MODE, 0, -1, -1, -1, { 0, 3, "" }, "A", ZINT_ERROR_INVALID_OPTION, "Error 597: Structured Append index out of range (1-3)", "" },
+        /* 60*/ { UNICODE_MODE, 0, -1, -1, -1, { 4, 3, "" }, "A", ZINT_ERROR_INVALID_OPTION, "Error 597: Structured Append index out of range (1-3)", "" },
         /* 61*/ { UNICODE_MODE, 0, -1, -1, -1, { 8, 8, "0" }, "A", 0, "(2) 257 65", "" },
         /* 62*/ { UNICODE_MODE, 0, -1, -1, -1, { 8, 8, "80088" }, "A", 0, "(2) 257 65", "" },
-        /* 63*/ { UNICODE_MODE, 0, -1, -1, -1, { 8, 8, "123456" }, "A", ZINT_ERROR_INVALID_OPTION, "Error 727: Structured Append ID too long (5 digit maximum)", "" },
-        /* 64*/ { UNICODE_MODE, 0, -1, -1, -1, { 8, 8, "A" }, "A", ZINT_ERROR_INVALID_OPTION, "Error 728: Invalid Structured Append ID (digits only)", "" },
-        /* 65*/ { UNICODE_MODE, 0, -1, -1, -1, { 8, 8, "80089" }, "A", ZINT_ERROR_INVALID_OPTION, "Error 729: Structured Append ID '80089' out of range (1-80088)", "" },
+        /* 63*/ { UNICODE_MODE, 0, -1, -1, -1, { 8, 8, "123456" }, "A", ZINT_ERROR_INVALID_OPTION, "Error 593: Structured Append ID too long (5 digit maximum)", "" },
+        /* 64*/ { UNICODE_MODE, 0, -1, -1, -1, { 8, 8, "A" }, "A", ZINT_ERROR_INVALID_OPTION, "Error 594: Invalid Structured Append ID (digits only)", "" },
+        /* 65*/ { UNICODE_MODE, 0, -1, -1, -1, { 8, 8, "80089" }, "A", ZINT_ERROR_INVALID_OPTION, "Error 595: Structured Append ID '80089' out of range (1-80088)", "" },
         /* 66*/ { UNICODE_MODE, 0, -1, 3, -1, { 0, 0, "" }, "A", ZINT_ERROR_INVALID_OPTION, "Error 592: Revision must be 1 or 2", "" },
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char escaped[1024];
 
-    testStart("test_input");
+    testStartSymbol("test_input", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
-        if ((debug & ZINT_DEBUG_TEST_PRINT) && !(debug & ZINT_DEBUG_TEST_LESS_NOISY)) printf("i:%d\n", i);
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
 
-        symbol->debug = ZINT_DEBUG_TEST; // Needed to get codeword dump in errtxt
+        symbol->debug = ZINT_DEBUG_TEST; /* Needed to get codeword dump in errtxt */
 
         length = testUtilSetSymbol(symbol, BARCODE_ULTRA, data[i].input_mode, data[i].eci,
                                     data[i].option_1, data[i].option_2, data[i].option_3,
@@ -289,9 +292,10 @@ static void test_input(int index, int generate, int debug) {
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
-        if (generate) {
+        if (p_ctx->generate) {
             printf("        /*%3d*/ { %s, %d, %d, %d, %s, { %d, %d, \"%s\" }, \"%s\", %s, \"%s\", \"%s\" },\n",
-                    i, testUtilInputModeName(data[i].input_mode), data[i].eci, data[i].option_1, data[i].option_2, testUtilOption3Name(data[i].option_3),
+                    i, testUtilInputModeName(data[i].input_mode), data[i].eci, data[i].option_1, data[i].option_2,
+                    testUtilOption3Name(BARCODE_ULTRA, data[i].option_3),
                     data[i].structapp.index, data[i].structapp.count, data[i].structapp.id,
                     testUtilEscape(data[i].data, length, escaped, sizeof(escaped)), testUtilErrorName(data[i].ret), symbol->errtxt, data[i].comment);
         } else {
@@ -304,7 +308,8 @@ static void test_input(int index, int generate, int debug) {
     testFinish();
 }
 
-static void test_encode(int index, int generate, int debug) {
+static void test_encode(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int input_mode;
@@ -322,8 +327,9 @@ static void test_encode(int index, int generate, int debug) {
         char *comment;
         char *expected;
     };
-    // Based on AIMD/TSC15032-43 (v 0.99c), with values updated from BWIPP update 2021-07-14
-    // https://github.com/bwipp/postscriptbarcode/commit/4255810845fa8d45c6192dd30aee1fdad1aaf0cc
+    /* Based on AIMD/TSC15032-43 (v 0.99c), with values updated from BWIPP update 2021-07-14
+       https://github.com/bwipp/postscriptbarcode/commit/4255810845fa8d45c6192dd30aee1fdad1aaf0cc
+    */
     struct item data[] = {
         /*  0*/ { UNICODE_MODE, 0, -1, -1, ULTRA_COMPRESSION, { 0, 0, "" }, "ULTRACODE_123456789!", 0, 13, 22, 1, "AIMD/TSC15032-43 Figure G.1 **NOT SAME** different compression",
                     "7777777777777777777777"
@@ -772,20 +778,19 @@ static void test_encode(int index, int generate, int debug) {
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char escaped[1024];
     char bwipp_buf[32768];
     char bwipp_msg[1024];
 
-    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); // Only do BWIPP test if asked, too slow otherwise
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
 
-    testStart("test_encode");
+    testStartSymbol("test_encode", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
-        if ((debug & ZINT_DEBUG_TEST_PRINT) && !(debug & ZINT_DEBUG_TEST_LESS_NOISY)) printf("i:%d\n", i);
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -798,9 +803,10 @@ static void test_encode(int index, int generate, int debug) {
         ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
-        if (generate) {
+        if (p_ctx->generate) {
             printf("        /*%3d*/ { %s, %d, %d, %d, %s, { %d, %d, \"%s\" }, \"%s\", %s, %d, %d, %d, \"%s\",\n",
-                    i, testUtilInputModeName(data[i].input_mode), data[i].eci, data[i].option_1, data[i].option_2, testUtilOption3Name(data[i].option_3),
+                    i, testUtilInputModeName(data[i].input_mode), data[i].eci, data[i].option_1, data[i].option_2,
+                    testUtilOption3Name(BARCODE_ULTRA, data[i].option_3),
                     data[i].structapp.index, data[i].structapp.count, data[i].structapp.id,
                     testUtilEscape(data[i].data, length, escaped, sizeof(escaped)), testUtilErrorName(data[i].ret),
                     symbol->rows, symbol->width, data[i].bwipp_cmp, data[i].comment);
@@ -836,7 +842,8 @@ static void test_encode(int index, int generate, int debug) {
     testFinish();
 }
 
-static void test_encode_segs(int index, int generate, int debug) {
+static void test_encode_segs(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
 
     struct item {
         int input_mode;
@@ -853,8 +860,9 @@ static void test_encode_segs(int index, int generate, int debug) {
         char *comment;
         char *expected;
     };
-    // Based on AIMD/TSC15032-43 (v 0.99c), with values updated from BWIPP update 2021-07-14
-    // https://github.com/bwipp/postscriptbarcode/commit/4255810845fa8d45c6192dd30aee1fdad1aaf0cc
+    /* Based on AIMD/TSC15032-43 (v 0.99c), with values updated from BWIPP update 2021-07-14
+       https://github.com/bwipp/postscriptbarcode/commit/4255810845fa8d45c6192dd30aee1fdad1aaf0cc
+    */
     struct item data[] = {
         /*  0*/ { UNICODE_MODE, -1, -1, ULTRA_COMPRESSION, { 0, 0, "" }, { { TU("¶"), -1, 0 }, { TU("Ж"), -1, 7 }, { TU(""), 0, 0 } }, 0, 13, 15, 0, "Standard example; BWIPP no ECI support for Ultracode",
                     "777777777777777"
@@ -1012,20 +1020,19 @@ static void test_encode_segs(int index, int generate, int debug) {
     };
     int data_size = ARRAY_SIZE(data);
     int i, j, seg_count, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char escaped[1024];
     char bwipp_buf[32768];
     char bwipp_msg[1024];
 
-    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); // Only do BWIPP test if asked, too slow otherwise
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
 
-    testStart("test_encode_segs");
+    testStartSymbol("test_encode_segs", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
-        if (index != -1 && i != index) continue;
-        if ((debug & ZINT_DEBUG_TEST_PRINT) && !(debug & ZINT_DEBUG_TEST_LESS_NOISY)) printf("i:%d\n", i);
+        if (testContinue(p_ctx, i)) continue;
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -1040,14 +1047,15 @@ static void test_encode_segs(int index, int generate, int debug) {
         ret = ZBarcode_Encode_Segs(symbol, data[i].segs, seg_count);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode_Segs ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
-        if (generate) {
+        if (p_ctx->generate) {
             char escaped1[4096];
             char escaped2[4096];
             int length = data[i].segs[0].length == -1 ? (int) ustrlen(data[i].segs[0].source) : data[i].segs[0].length;
             int length1 = data[i].segs[1].length == -1 ? (int) ustrlen(data[i].segs[1].source) : data[i].segs[1].length;
             int length2 = data[i].segs[2].length == -1 ? (int) ustrlen(data[i].segs[2].source) : data[i].segs[2].length;
             printf("        /*%3d*/ { %s, %d, %d, %s, { %d, %d, \"%s\" }, { { TU(\"%s\"), %d, %d }, { TU(\"%s\"), %d, %d }, { TU(\"%s\"), %d, %d } }, %s, %d, %d, %d, \"%s\",\n",
-                    i, testUtilInputModeName(data[i].input_mode), data[i].option_1, data[i].option_2, testUtilOption3Name(data[i].option_3),
+                    i, testUtilInputModeName(data[i].input_mode), data[i].option_1, data[i].option_2,
+                    testUtilOption3Name(BARCODE_ULTRA, data[i].option_3),
                     data[i].structapp.index, data[i].structapp.count, data[i].structapp.id,
                     testUtilEscape((const char *) data[i].segs[0].source, length, escaped, sizeof(escaped)), data[i].segs[0].length, data[i].segs[0].eci,
                     testUtilEscape((const char *) data[i].segs[1].source, length1, escaped1, sizeof(escaped1)), data[i].segs[1].length, data[i].segs[1].eci,
@@ -1087,12 +1095,12 @@ static void test_encode_segs(int index, int generate, int debug) {
 
 int main(int argc, char *argv[]) {
 
-    testFunction funcs[] = { /* name, func, has_index, has_generate, has_debug */
-        { "test_large", test_large, 1, 0, 1 },
-        { "test_reader_init", test_reader_init, 1, 1, 1 },
-        { "test_input", test_input, 1, 1, 1 },
-        { "test_encode", test_encode, 1, 1, 1 },
-        { "test_encode_segs", test_encode_segs, 1, 1, 1 },
+    testFunction funcs[] = { /* name, func */
+        { "test_large", test_large },
+        { "test_reader_init", test_reader_init },
+        { "test_input", test_input },
+        { "test_encode", test_encode },
+        { "test_encode_segs", test_encode_segs },
     };
 
     testRun(argc, argv, funcs, ARRAY_SIZE(funcs));

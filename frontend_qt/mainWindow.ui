@@ -174,11 +174,11 @@
                  </widget>
                 </item>
                 <item>
-                 <widget class="QToolButton" name="btnMoreData">
-                  <property name="minimumSize">
+                 <widget class="QPushButton" name="btnMoreData">
+                  <property name="maximumSize">
                    <size>
-                    <width>0</width>
-                    <height>24</height>
+                    <width>34</width>
+                    <height>16777215</height>
                    </size>
                   </property>
                   <property name="toolTip">
@@ -191,11 +191,11 @@ or import from file</string>
                  </widget>
                 </item>
                 <item>
-                 <widget class="QPushButton" name="btnClearData">
+                 <widget class="QToolButton" name="btnClearData">
                   <property name="maximumSize">
                    <size>
                     <width>22</width>
-                    <height>16777215</height>
+                    <height>26</height>
                    </size>
                   </property>
                   <property name="toolTip">
@@ -464,11 +464,11 @@ or import from file</string>
                  </widget>
                 </item>
                 <item>
-                 <widget class="QPushButton" name="btnZap">
+                 <widget class="QToolButton" name="btnZap">
                   <property name="maximumSize">
                    <size>
                     <width>22</width>
-                    <height>16777215</height>
+                    <height>26</height>
                    </size>
                   </property>
                   <property name="toolTip">
@@ -619,14 +619,14 @@ Remember to place [square brackets] around AI identifiers</string>
                    </widget>
                   </item>
                   <item>
-                   <widget class="QPushButton" name="btnClearComposite">
+                   <widget class="QToolButton" name="btnClearComposite">
                     <property name="enabled">
                      <bool>false</bool>
                     </property>
                     <property name="maximumSize">
                      <size>
                       <width>22</width>
-                      <height>16777215</height>
+                      <height>26</height>
                      </size>
                     </property>
                     <property name="toolTip">
@@ -912,7 +912,7 @@ Extended Channel Interpretation (ECI)</string>
                  <widget class="QLineEdit" name="txtDataSeg1">
                   <property name="minimumSize">
                    <size>
-                    <width>200</width>
+                    <width>150</width>
                     <height>0</height>
                    </size>
                   </property>
@@ -925,11 +925,11 @@ Extended Channel Interpretation (ECI)</string>
                  </widget>
                 </item>
                 <item>
-                 <widget class="QToolButton" name="btnMoreDataSeg1">
-                  <property name="minimumSize">
+                 <widget class="QPushButton" name="btnMoreDataSeg1">
+                  <property name="maximumSize">
                    <size>
-                    <width>0</width>
-                    <height>24</height>
+                    <width>34</width>
+                    <height>16777215</height>
                    </size>
                   </property>
                   <property name="toolTip">
@@ -942,11 +942,11 @@ or import from file</string>
                  </widget>
                 </item>
                 <item>
-                 <widget class="QPushButton" name="btnClearDataSeg1">
+                 <widget class="QToolButton" name="btnClearDataSeg1">
                   <property name="maximumSize">
                    <size>
                     <width>22</width>
-                    <height>16777215</height>
+                    <height>26</height>
                    </size>
                   </property>
                   <property name="toolTip">
@@ -1173,7 +1173,7 @@ or import from file</string>
                  <widget class="QLineEdit" name="txtDataSeg2">
                   <property name="minimumSize">
                    <size>
-                    <width>200</width>
+                    <width>150</width>
                     <height>0</height>
                    </size>
                   </property>
@@ -1186,11 +1186,11 @@ or import from file</string>
                  </widget>
                 </item>
                 <item>
-                 <widget class="QToolButton" name="btnMoreDataSeg2">
-                  <property name="minimumSize">
+                 <widget class="QPushButton" name="btnMoreDataSeg2">
+                  <property name="maximumSize">
                    <size>
-                    <width>0</width>
-                    <height>24</height>
+                    <width>34</width>
+                    <height>16777215</height>
                    </size>
                   </property>
                   <property name="toolTip">
@@ -1203,11 +1203,11 @@ or import from file</string>
                  </widget>
                 </item>
                 <item>
-                 <widget class="QPushButton" name="btnClearDataSeg2">
+                 <widget class="QToolButton" name="btnClearDataSeg2">
                   <property name="maximumSize">
                    <size>
                     <width>22</width>
-                    <height>16777215</height>
+                    <height>26</height>
                    </size>
                   </property>
                   <property name="toolTip">
@@ -1434,7 +1434,7 @@ or import from file</string>
                  <widget class="QLineEdit" name="txtDataSeg3">
                   <property name="minimumSize">
                    <size>
-                    <width>200</width>
+                    <width>150</width>
                     <height>0</height>
                    </size>
                   </property>
@@ -1447,11 +1447,11 @@ or import from file</string>
                  </widget>
                 </item>
                 <item>
-                 <widget class="QToolButton" name="btnMoreDataSeg3">
-                  <property name="minimumSize">
+                 <widget class="QPushButton" name="btnMoreDataSeg3">
+                  <property name="maximumSize">
                    <size>
-                    <width>0</width>
-                    <height>24</height>
+                    <width>34</width>
+                    <height>16777215</height>
                    </size>
                   </property>
                   <property name="toolTip">
@@ -1464,11 +1464,11 @@ or import from file</string>
                  </widget>
                 </item>
                 <item>
-                 <widget class="QPushButton" name="btnClearDataSeg3">
+                 <widget class="QToolButton" name="btnClearDataSeg3">
                   <property name="maximumSize">
                    <size>
                     <width>22</width>
-                    <height>16777215</height>
+                    <height>26</height>
                    </size>
                   </property>
                   <property name="toolTip">
@@ -1481,6 +1481,39 @@ or import from file</string>
                 </item>
                </layout>
               </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QGroupBox" name="grpSpecific">
+             <property name="enabled">
+              <bool>true</bool>
+             </property>
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="minimumSize">
+              <size>
+               <width>0</width>
+               <height>0</height>
+              </size>
+             </property>
+             <property name="maximumSize">
+              <size>
+               <width>16777215</width>
+               <height>400</height>
+              </size>
+             </property>
+             <property name="toolTip">
+              <string>Additional Settings</string>
+             </property>
+             <property name="title">
+              <string>Options</string>
+             </property>
+             <layout class="QVBoxLayout" name="vLayoutSpecific">
              </layout>
             </widget>
            </item>
@@ -1530,6 +1563,7 @@ or import from file</string>
 &lt;tr&gt;&lt;td&gt;\R&amp;nbsp;&lt;/td&gt;&lt;td&gt;Record Separator (0x1E)&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;\\&amp;nbsp;&lt;/td&gt;&lt;td&gt;Backslash (0x5C)&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;\dNNN&amp;nbsp;&lt;/td&gt;&lt;td&gt;8-bit character (N decimal)&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;\oNNN&amp;nbsp;&lt;/td&gt;&lt;td&gt;8-bit character (N octal)&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;\xNN&amp;nbsp;&lt;/td&gt;&lt;td&gt;8-bit character (N hex)&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;\uNNNN&amp;nbsp;&lt;/td&gt;&lt;td&gt;16-bit Unicode BMP (N hex)&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td&gt;\UNNNNNN&amp;nbsp;&lt;/td&gt;&lt;td&gt;21-bit Unicode (N hex)&lt;/td&gt;&lt;/tr&gt;
@@ -1603,7 +1637,7 @@ as delimiters for GS1 Application Identifiers
           <layout class="QVBoxLayout" name="vLayoutAppearance">
            <item>
             <layout class="QGridLayout" name="gridLayout">
-             <item row="0" column="0" colspan="2">
+             <item row="0" column="0" colspan="3">
               <layout class="QHBoxLayout" name="hLayoutAutoHeight">
                <item>
                 <widget class="QCheckBox" name="chkAutoHeight">
@@ -1622,8 +1656,8 @@ as delimiters for GS1 Application Identifiers
                <item>
                 <widget class="QCheckBox" name="chkCompliantHeight">
                  <property name="toolTip">
-                  <string>Warn if height not compliant with specification
-and use standard height (if any) for default
+                  <string>Warn if height specified not compliant with specification,
+or use standard height (if any) for default
 (ignored if disabled)</string>
                  </property>
                  <property name="text">
@@ -1656,7 +1690,7 @@ and use standard height (if any) for default
                </property>
               </widget>
              </item>
-             <item row="1" column="1">
+             <item row="1" column="1" colspan="2">
               <widget class="QDoubleSpinBox" name="heightb">
                <property name="enabled">
                 <bool>false</bool>
@@ -1692,41 +1726,6 @@ and use standard height (if any) for default
               </widget>
              </item>
              <item row="2" column="0">
-              <widget class="QLabel" name="lblBorderWidth">
-               <property name="toolTip">
-                <string>Width of boundary bars or border in X-dimensions</string>
-               </property>
-               <property name="text">
-                <string>Border &amp;Width:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-               </property>
-               <property name="buddy">
-                <cstring>bwidth</cstring>
-               </property>
-              </widget>
-             </item>
-             <item row="2" column="1">
-              <widget class="QSpinBox" name="bwidth">
-               <property name="toolTip">
-                <string>Width of boundary bars or border in X-dimensions</string>
-               </property>
-               <property name="suffix">
-                <string> X</string>
-               </property>
-               <property name="minimum">
-                <number>0</number>
-               </property>
-               <property name="maximum">
-                <number>16</number>
-               </property>
-               <property name="value">
-                <number>0</number>
-               </property>
-              </widget>
-             </item>
-             <item row="3" column="0">
               <widget class="QLabel" name="lblBorderType">
                <property name="toolTip">
                 <string>Add border or box</string>
@@ -1742,7 +1741,7 @@ and use standard height (if any) for default
                </property>
               </widget>
              </item>
-             <item row="3" column="1">
+             <item row="2" column="1" colspan="2">
               <widget class="QComboBox" name="btype">
                <property name="toolTip">
                 <string>Add border or box</string>
@@ -1765,6 +1764,46 @@ and use standard height (if any) for default
                  <string>Box</string>
                 </property>
                </item>
+               <item>
+                <property name="text">
+                 <string>Bind Top</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+             <item row="3" column="0">
+              <widget class="QLabel" name="lblBorderWidth">
+               <property name="toolTip">
+                <string>Width of boundary bars or border in X-dimensions</string>
+               </property>
+               <property name="text">
+                <string>B&amp;order Width:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+               </property>
+               <property name="buddy">
+                <cstring>bwidth</cstring>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="1" colspan="2">
+              <widget class="QSpinBox" name="bwidth">
+               <property name="toolTip">
+                <string>Width of boundary bars or border in X-dimensions</string>
+               </property>
+               <property name="suffix">
+                <string> X</string>
+               </property>
+               <property name="minimum">
+                <number>0</number>
+               </property>
+               <property name="maximum">
+                <number>16</number>
+               </property>
+               <property name="value">
+                <number>0</number>
+               </property>
               </widget>
              </item>
              <item row="4" column="0">
@@ -1783,13 +1822,13 @@ and use standard height (if any) for default
                </property>
               </widget>
              </item>
-             <item row="4" column="1">
+             <item row="4" column="1" colspan="2">
               <layout class="QGridLayout" name="gridLayoutWhitespace">
                <item row="0" column="0">
                 <widget class="QSpinBox" name="spnWhitespace">
                  <property name="toolTip">
-                  <string>Width of horizontal whitespace on either side of barcode
-in X-dimensions</string>
+                  <string>Width of horizontal whitespace on either side
+of barcode in X-dimensions</string>
                  </property>
                  <property name="suffix">
                   <string> X</string>
@@ -1802,8 +1841,8 @@ in X-dimensions</string>
                <item row="0" column="1">
                 <widget class="QSpinBox" name="spnVWhitespace">
                  <property name="toolTip">
-                  <string>Height of vertical whitespace above and below the barcode
-in X-dimensions</string>
+                  <string>Height of vertical whitespace above and below
+the barcode in X-dimensions</string>
                  </property>
                  <property name="suffix">
                   <string> X</string>
@@ -1815,46 +1854,17 @@ in X-dimensions</string>
                </item>
               </layout>
              </item>
-             <item row="5" column="0">
-              <widget class="QLabel" name="lblScale">
+             <item row="5" column="0" colspan="2">
+              <widget class="QCheckBox" name="chkHRTShow">
                <property name="toolTip">
-                <string>Image scale when output to file
-(adjusts the X-dimension)</string>
+                <string>Show Human Readable Text in image
+(ignored if disabled)</string>
                </property>
                <property name="text">
-                <string>&amp;Printing Scale:</string>
+                <string>Show Te&amp;xt</string>
                </property>
-               <property name="alignment">
-                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-               </property>
-               <property name="buddy">
-                <cstring>spnScale</cstring>
-               </property>
-              </widget>
-             </item>
-             <item row="5" column="1">
-              <widget class="QDoubleSpinBox" name="spnScale">
-               <property name="toolTip">
-                <string>Image scale when output to file
-(adjusts the X-dimension)</string>
-               </property>
-               <property name="suffix">
-                <string/>
-               </property>
-               <property name="decimals">
-                <number>2</number>
-               </property>
-               <property name="minimum">
-                <double>0.100000000000000</double>
-               </property>
-               <property name="maximum">
-                <double>100.000000000000000</double>
-               </property>
-               <property name="singleStep">
-                <double>0.500000000000000</double>
-               </property>
-               <property name="value">
-                <double>1.000000000000000</double>
+               <property name="checked">
+                <bool>true</bool>
                </property>
               </widget>
              </item>
@@ -1875,7 +1885,7 @@ in X-dimensions</string>
                </property>
               </widget>
              </item>
-             <item row="6" column="1">
+             <item row="6" column="1" colspan="2">
               <widget class="QComboBox" name="cmbFontSetting">
                <property name="toolTip">
                 <string>Set font characteristics
@@ -1903,21 +1913,153 @@ in X-dimensions</string>
                </item>
               </widget>
              </item>
-             <item row="7" column="0" colspan="2">
-              <widget class="QCheckBox" name="chkHRTShow">
+             <item row="7" column="0">
+              <widget class="QLabel" name="lblTextGap">
                <property name="toolTip">
-                <string>Show Human Readable Text in image
+                <string>Gap between barcode and text in X-dimensions
 (ignored if disabled)</string>
                </property>
                <property name="text">
-                <string>Show Te&amp;xt</string>
+                <string>Text &amp;Gap:</string>
                </property>
-               <property name="checked">
-                <bool>true</bool>
+               <property name="alignment">
+                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+               </property>
+               <property name="buddy">
+                <cstring>spnTextGap</cstring>
                </property>
               </widget>
              </item>
-             <item row="0" column="2">
+             <item row="7" column="1">
+              <widget class="QDoubleSpinBox" name="spnTextGap">
+               <property name="toolTip">
+                <string>Gap between barcode and text in X-dimensions
+(ignored if disabled)</string>
+               </property>
+               <property name="prefix">
+                <string/>
+               </property>
+               <property name="suffix">
+                <string> X</string>
+               </property>
+               <property name="decimals">
+                <number>2</number>
+               </property>
+               <property name="minimum">
+                <double>-5.000000000000000</double>
+               </property>
+               <property name="maximum">
+                <double>10.000000000000000</double>
+               </property>
+               <property name="singleStep">
+                <double>0.100000000000000</double>
+               </property>
+               <property name="value">
+                <double>1.000000000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item row="7" column="2">
+              <widget class="QToolButton" name="btnClearTextGap">
+               <property name="maximumSize">
+                <size>
+                 <width>22</width>
+                 <height>26</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>Set text gap to default 1X</string>
+               </property>
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="8" column="0">
+              <widget class="QLabel" name="lblScale">
+               <property name="toolTip">
+                <string>Image scale when output to file
+(adjusts the X-dimension)</string>
+               </property>
+               <property name="text">
+                <string>&amp;Printing Scale:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+               </property>
+               <property name="buddy">
+                <cstring>spnScale</cstring>
+               </property>
+              </widget>
+             </item>
+             <item row="8" column="1">
+              <widget class="QDoubleSpinBox" name="spnScale">
+               <property name="toolTip">
+                <string>Image scale when output to file
+(adjusts the X-dimension)</string>
+               </property>
+               <property name="suffix">
+                <string/>
+               </property>
+               <property name="decimals">
+                <number>2</number>
+               </property>
+               <property name="minimum">
+                <double>0.100000000000000</double>
+               </property>
+               <property name="maximum">
+                <double>100.000000000000000</double>
+               </property>
+               <property name="singleStep">
+                <double>0.500000000000000</double>
+               </property>
+               <property name="value">
+                <double>1.000000000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item row="8" column="2">
+              <widget class="QToolButton" name="btnScale">
+               <property name="maximumSize">
+                <size>
+                 <width>22</width>
+                 <height>26</height>
+                </size>
+               </property>
+               <property name="toolTip">
+                <string>Set Printing Scale by X-dimension and resolution</string>
+               </property>
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="9" column="0">
+              <widget class="QLabel" name="lblSize">
+               <property name="toolTip">
+                <string>Image size (width x height) of barcode
+at given dot density</string>
+               </property>
+               <property name="text">
+                <string>Print Size:</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+               </property>
+              </widget>
+             </item>
+             <item row="9" column="1" colspan="5">
+              <widget class="QLabel" name="lblSizeMsg">
+               <property name="toolTip">
+                <string>Image size (width x height) of barcode
+at given dot density</string>
+               </property>
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="3">
               <widget class="QLabel" name="label_fgcolor">
                <property name="enabled">
                 <bool>true</bool>
@@ -1936,7 +2078,7 @@ in X-dimensions</string>
                </property>
               </widget>
              </item>
-             <item row="0" column="3">
+             <item row="0" column="4">
               <widget class="QLineEdit" name="txt_fgcolor">
                <property name="maximumSize">
                 <size>
@@ -1945,21 +2087,21 @@ in X-dimensions</string>
                 </size>
                </property>
                <property name="toolTip">
-                <string>Change ink colour, format
-is hexadecimal &quot;RRGGBB&quot;
-or &quot;RRGGBBAA&quot; (alpha)</string>
+                <string>Change ink colour, format is
+hexadecimal &quot;RRGGBB&quot; or &quot;RRGGBBAA&quot; (alpha)
+or decimal &quot;C,M,Y,K&quot; percentages (0-100)</string>
                </property>
                <property name="maxLength">
-                <number>8</number>
+                <number>15</number>
                </property>
               </widget>
              </item>
-             <item row="0" column="4">
-              <widget class="QPushButton" name="fgcolor">
+             <item row="0" column="5">
+              <widget class="QToolButton" name="fgcolor">
                <property name="maximumSize">
                 <size>
                  <width>22</width>
-                 <height>16777215</height>
+                 <height>26</height>
                 </size>
                </property>
                <property name="toolTip">
@@ -1970,7 +2112,7 @@ or &quot;RRGGBBAA&quot; (alpha)</string>
                </property>
               </widget>
              </item>
-             <item row="1" column="2">
+             <item row="1" column="3">
               <widget class="QLabel" name="label_bgcolor">
                <property name="enabled">
                 <bool>true</bool>
@@ -1979,7 +2121,7 @@ or &quot;RRGGBBAA&quot; (alpha)</string>
                 <string>Change colour of paper</string>
                </property>
                <property name="text">
-                <string>Back&amp;ground:</string>
+                <string>Bac&amp;kground:</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -1989,7 +2131,7 @@ or &quot;RRGGBBAA&quot; (alpha)</string>
                </property>
               </widget>
              </item>
-             <item row="1" column="3">
+             <item row="1" column="4">
               <widget class="QLineEdit" name="txt_bgcolor">
                <property name="maximumSize">
                 <size>
@@ -1998,21 +2140,23 @@ or &quot;RRGGBBAA&quot; (alpha)</string>
                 </size>
                </property>
                <property name="toolTip">
-                <string>Change paper colour, format
-is hexadecimal &quot;RRGGBB&quot;
-or &quot;RRGGBBAA&quot; (alpha)</string>
+                <string>Change paper colour, format is
+hexadecimal &quot;RRGGBB&quot; or &quot;RRGGBBAA&quot; (alpha)
+or decimal &quot;C,M,Y,K&quot; percentages (0-100).
+For no background, set alpha channel to zero,
+e.g. &quot;FFFFFF00&quot;</string>
                </property>
                <property name="maxLength">
-                <number>8</number>
+                <number>15</number>
                </property>
               </widget>
              </item>
-             <item row="1" column="4">
-              <widget class="QPushButton" name="bgcolor">
+             <item row="1" column="5">
+              <widget class="QToolButton" name="bgcolor">
                <property name="maximumSize">
                 <size>
                  <width>22</width>
-                 <height>16777215</height>
+                 <height>26</height>
                 </size>
                </property>
                <property name="toolTip">
@@ -2023,7 +2167,7 @@ or &quot;RRGGBBAA&quot; (alpha)</string>
                </property>
               </widget>
              </item>
-             <item row="2" column="2">
+             <item row="2" column="3">
               <widget class="QLabel" name="label_colours">
                <property name="enabled">
                 <bool>true</bool>
@@ -2042,7 +2186,7 @@ or &quot;RRGGBBAA&quot; (alpha)</string>
                </property>
               </widget>
              </item>
-             <item row="2" column="3">
+             <item row="2" column="4">
               <widget class="QPushButton" name="btnReset">
                <property name="maximumSize">
                 <size>
@@ -2058,12 +2202,12 @@ or &quot;RRGGBBAA&quot; (alpha)</string>
                </property>
               </widget>
              </item>
-             <item row="2" column="4">
-              <widget class="QPushButton" name="btnReverse">
+             <item row="2" column="5">
+              <widget class="QToolButton" name="btnReverse">
                <property name="maximumSize">
                 <size>
                  <width>22</width>
-                 <height>16777215</height>
+                 <height>26</height>
                 </size>
                </property>
                <property name="toolTip">
@@ -2075,23 +2219,23 @@ or &quot;RRGGBBAA&quot; (alpha)</string>
                </property>
               </widget>
              </item>
-             <item row="3" column="3" colspan="2">
+             <item row="3" column="4" colspan="2">
               <widget class="QCheckBox" name="chkCMYK">
                <property name="toolTip">
                 <string>Use CMYK colour space in EPS/TIF output</string>
                </property>
                <property name="text">
-                <string>CMY&amp;K (EPS/TIF)</string>
+                <string>CMYK (EPS&amp;/TIF)</string>
                </property>
                <property name="checked">
                 <bool>false</bool>
                </property>
               </widget>
              </item>
-             <item row="4" column="3" colspan="2">
+             <item row="4" column="4" colspan="2">
               <widget class="QCheckBox" name="chkQuietZones">
                <property name="toolTip">
-                <string>Add compliant quiet zones to whitespace
+                <string>Add compliant quiet zones (if any) to whitespace
 (ignored if disabled)</string>
                </property>
                <property name="text">
@@ -2102,7 +2246,7 @@ or &quot;RRGGBBAA&quot; (alpha)</string>
                </property>
               </widget>
              </item>
-             <item row="5" column="2">
+             <item row="5" column="3">
               <widget class="QLabel" name="lblRotate">
                <property name="toolTip">
                 <string>Rotate symbol by degrees</string>
@@ -2118,7 +2262,7 @@ or &quot;RRGGBBAA&quot; (alpha)</string>
                </property>
               </widget>
              </item>
-             <item row="5" column="3" colspan="2">
+             <item row="5" column="4" colspan="2">
               <widget class="QComboBox" name="cmbRotate">
                <property name="toolTip">
                 <string>Rotate symbol by degrees</string>
@@ -2145,7 +2289,21 @@ or &quot;RRGGBBAA&quot; (alpha)</string>
                </item>
               </widget>
              </item>
-             <item row="6" column="3" colspan="2">
+             <item row="6" column="4" colspan="2">
+              <widget class="QCheckBox" name="chkEmbedVectorFont">
+               <property name="toolTip">
+                <string>Embed font in SVG output
+(ignored if disabled)</string>
+               </property>
+               <property name="text">
+                <string>Embed Font &amp;(SVG)</string>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item row="7" column="4" colspan="2">
               <widget class="QCheckBox" name="chkDotty">
                <property name="toolTip">
                 <string>Use dots instead of squares for matrix symbols
@@ -2159,7 +2317,7 @@ or &quot;RRGGBBAA&quot; (alpha)</string>
                </property>
               </widget>
              </item>
-             <item row="7" column="2">
+             <item row="8" column="3">
               <widget class="QLabel" name="lblDotSize">
                <property name="enabled">
                 <bool>false</bool>
@@ -2179,7 +2337,7 @@ or &quot;RRGGBBAA&quot; (alpha)</string>
                </property>
               </widget>
              </item>
-             <item row="7" column="3" colspan="2">
+             <item row="8" column="4" colspan="2">
               <widget class="QDoubleSpinBox" name="spnDotSize">
                <property name="enabled">
                 <bool>false</bool>
@@ -2210,6 +2368,19 @@ or &quot;RRGGBBAA&quot; (alpha)</string>
              </item>
             </layout>
            </item>
+           <item>
+            <spacer name="vSpacerAppearance">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>10</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
           </layout>
          </widget>
         </widget>
@@ -2226,7 +2397,7 @@ or &quot;RRGGBBAA&quot; (alpha)</string>
         <string>Show menu</string>
        </property>
        <property name="text">
-        <string>Men&amp;u</string>
+        <string> Men&amp;u</string>
        </property>
       </widget>
      </item>
@@ -2269,7 +2440,7 @@ or &quot;RRGGBBAA&quot; (alpha)</string>
         <string>Output image to file (BMP/EMF/EPS/GIF/PCX/PNG/SVG/TIF)</string>
        </property>
        <property name="text">
-        <string>&amp;Save As…</string>
+        <string> &amp;Save...</string>
        </property>
       </widget>
      </item>
@@ -2279,7 +2450,7 @@ or &quot;RRGGBBAA&quot; (alpha)</string>
         <string>Exit Zint Barcode Studio</string>
        </property>
        <property name="text">
-        <string>&amp;Quit</string>
+        <string> &amp;Quit</string>
        </property>
       </widget>
      </item>

@@ -1,7 +1,7 @@
 /*  zint.h - definitions for libzint */
 /*
     libzint - the open source barcode library
-    Copyright (C) 2009-2022 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2009-2023 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -42,34 +42,37 @@
 extern "C" {
 #endif /* __cplusplus */
 
+    /* Vector elements - see vector header `zint_vector` below */
     struct zint_vector_rect {
-        float x, y, height, width;
+        float x, y;         /* Top left */
+        float height, width;
         int colour;         /* -1 for foreground, 1-8 for Cyan, Blue, Magenta, Red, Yellow, Green, Black, White */
         struct zint_vector_rect *next; /* Pointer to next rectangle */
     };
 
     struct zint_vector_hexagon {
-        float x, y, diameter;
-        int rotation;       /* 0, 90, 180, 270 degrees */
+        float x, y;         /* Centre */
+        float diameter;     /* Short (minimal) diameter (i.e. diameter of inscribed circle) */
+        int rotation;       /* 0, 90, 180, 270 degrees, where 0 has apex at top, i.e. short diameter is horizontal */
         struct zint_vector_hexagon *next; /* Pointer to next hexagon */
     };
 
     struct zint_vector_string {
-        float x, y;         /* x, y position relative to halign */
+        float x, y;         /* x is relative to halign (i.e. centre, left, right), y is relative to baseline */
         float fsize;        /* Font size */
-        float width;        /* Suggested string width, may be 0 if none recommended */
-        int length;         /* Number of characters */
+        float width;        /* Rendered width estimate */
+        int length;         /* Number of characters (bytes) */
         int rotation;       /* 0, 90, 180, 270 degrees */
         int halign;         /* Horizontal alignment: 0 for centre, 1 for left, 2 for right (end) */
-        unsigned char *text;
+        unsigned char *text; /* UTF-8, NUL-terminated */
         struct zint_vector_string *next; /* Pointer to next string */
     };
 
     struct zint_vector_circle {
-        float x, y;
+        float x, y;         /* Centre */
         float diameter;     /* Circle diameter. Does not include width (if any) */
         float width;        /* Width of circle perimeter (circumference). 0 for fill (disc) */
-        int colour;         /* Non-zero for draw with background colour (else draw with foreground colour) */
+        int colour;         /* Zero for draw with foreground colour (else draw with background colour (legacy)) */
         struct zint_vector_circle *next; /* Pointer to next circle */
     };
 
@@ -82,7 +85,7 @@ extern "C" {
         struct zint_vector_circle *circles; /* Pointer to first circle */
     };
 
-    /* Structured Append info - ignored unless `zint_structapp.count` is set to non-zero value */
+    /* Structured Append info (see `symbol->structapp` below) - ignored unless `zint_structapp.count` is non-zero */
     struct zint_structapp {
         int index;          /* Position in Structured Append sequence, 1-based. Must be <= `count` */
         int count;          /* Number of symbols in Structured Append sequence. Set >= 2 to add SA Info */
@@ -98,25 +101,26 @@ extern "C" {
         int whitespace_height; /* Height in X-dimensions of whitespace above & below the barcode */
         int border_width;   /* Size of border in X-dimensions */
         int output_options; /* Various output parameters (bind, box etc, see below) */
-        char fgcolour[10];  /* Foreground as RGB/RGBA hexadecimal string, 6 or 8 characters, NUL-terminated */
-        char bgcolour[10];  /* Background as RGB/RGBA hexadecimal string, 6 or 8 characters, NUL-terminated */
+        char fgcolour[16];  /* Foreground as hexadecimal RGB/RGBA or decimal "C,M,Y,K" string, NUL-terminated */
+        char bgcolour[16];  /* Background as hexadecimal RGB/RGBA or decimal "C,M,Y,K" string, NUL-terminated */
         char *fgcolor;      /* Pointer to fgcolour (alternate spelling) */
         char *bgcolor;      /* Pointer to bgcolour (alternate spelling) */
-        char outfile[256];  /* Name of file to output to, NUL-terminated. Default "out.png" ("out.gif" if NO_PNG) */
+        char outfile[256];  /* Name of file to output to, NUL-terminated. Default "out.png" ("out.gif" if no PNG) */
         char primary[128];  /* Primary message data (MaxiCode, Composite), NUL-terminated */
         int option_1;       /* Symbol-specific options (see "../docs/manual.txt") */
         int option_2;       /* Symbol-specific options */
         int option_3;       /* Symbol-specific options */
-        int show_hrt;       /* Show (1) or hide (0) Human Readable Text. Default 1 */
-        int fontsize;       /* Unused */
+        int show_hrt;       /* Show (1) or hide (0) Human Readable Text (HRT). Default 1 */
         int input_mode;     /* Encoding of input data (see DATA_MODE etc below). Default DATA_MODE */
         int eci;            /* Extended Channel Interpretation. Default 0 (none) */
+        float dpmm;         /* Resolution of output in dots per mm (BMP/EMF/PCX/PNG/TIF only). Default 0 (none) */
         float dot_size;     /* Size of dots used in BARCODE_DOTTY_MODE. Default 0.8 */
+        float text_gap;     /* Gap between barcode and text (HRT) in X-dimensions. Default 1 */
         float guard_descent; /* Height in X-dimensions that EAN/UPC guard bars descend. Default 5 */
         struct zint_structapp structapp; /* Structured Append info. Default structapp.count 0 (none) */
         int warn_level;     /* Affects error/warning value returned by Zint API (see WARN_XXX below) */
         int debug;          /* Debugging flags */
-        unsigned char text[128]; /* Human Readable Text (if any), UTF-8, NUL-terminated (output only) */
+        unsigned char text[200]; /* Human Readable Text (HRT) (if any), UTF-8, NUL-terminated (output only) */
         int rows;           /* Number of rows used by the symbol (output only) */
         int width;          /* Width of the generated symbol (output only) */
         unsigned char encoded_data[200][144]; /* Encoded data (output only). Allows for rows of 1152 modules */
@@ -126,7 +130,6 @@ extern "C" {
         int bitmap_width;   /* Width of bitmap image (raster output only) */
         int bitmap_height;  /* Height of bitmap image (raster output only) */
         unsigned char *alphamap; /* Array of alpha values used (raster output only) */
-        unsigned int bitmap_byte_length; /* Size of BMP bitmap data (raster output only) */
         struct zint_vector *vector; /* Pointer to vector header (vector output only) */
     };
 
@@ -178,12 +181,14 @@ extern "C" {
 #define BARCODE_PHARMA          51  /* Pharmacode One-Track */
 #define BARCODE_PZN             52  /* Pharmazentralnummer */
 #define BARCODE_PHARMA_TWO      53  /* Pharmacode Two-Track */
+#define BARCODE_CEPNET          54  /* Brazilian CEPNet Postal Code */
 #define BARCODE_PDF417          55  /* PDF417 */
 #define BARCODE_PDF417COMP      56  /* Compact PDF417 (Truncated PDF417) */
 #define BARCODE_PDF417TRUNC     56  /* Legacy */
 #define BARCODE_MAXICODE        57  /* MaxiCode */
 #define BARCODE_QRCODE          58  /* QR Code */
-#define BARCODE_CODE128B        60  /* Code 128 (Subset B) */
+#define BARCODE_CODE128AB       60  /* Code 128 (Suppress Code Set C) */
+#define BARCODE_CODE128B        60  /* Legacy */
 #define BARCODE_AUSPOST         63  /* Australia Post Standard Customer */
 #define BARCODE_AUSREPLY        66  /* Australia Post Reply Paid */
 #define BARCODE_AUSROUTE        67  /* Australia Post Routing */
@@ -233,7 +238,10 @@ extern "C" {
 #define BARCODE_HANXIN          116 /* Han Xin (Chinese Sensible) Code */
 
     /* Tbarcode 11 codes */
-#define BARCODE_MAILMARK        121 /* Royal Mail 4-State Mailmark */
+#define BARCODE_MAILMARK_2D     119 /* Royal Mail 2D Mailmark (CMDM) (Data Matrix) */
+#define BARCODE_UPU_S10         120 /* Universal Postal Union S10 */
+#define BARCODE_MAILMARK_4S     121 /* Royal Mail 4-State Mailmark */
+#define BARCODE_MAILMARK        121 /* Legacy */
 
     /* Zint specific */
 #define BARCODE_AZRUNE          128 /* Aztec Runes */
@@ -265,7 +273,8 @@ extern "C" {
 #define BARCODE_LAST            146 /* Max barcode number marker, not barcode */
 
 /* Output options (`symbol->output_options`) */
-#define BARCODE_NO_ASCII        0x0001  /* Legacy (no-op) */
+#define BARCODE_BIND_TOP        0x0001  /* Boundary bar above the symbol only (not below), does not affect stacking */
+                                        /* Note: value was once used by the legacy (never-used) BARCODE_NO_ASCII */
 #define BARCODE_BIND            0x0002  /* Boundary bars above & below the symbol and between stacked symbols */
 #define BARCODE_BOX             0x0004  /* Box around symbol */
 #define BARCODE_STDOUT          0x0008  /* Output to stdout */
@@ -280,7 +289,9 @@ extern "C" {
                                         /* Note: CODE16K, CODE49, CODABLOCKF, ITF14, EAN/UPC have default quiet zones
                                          */
 #define BARCODE_NO_QUIET_ZONES  0x1000  /* Disable quiet zones, notably those with defaults as listed above */
-#define COMPLIANT_HEIGHT        0x2000  /* Warn if height not compliant and use standard height (if any) as default */
+#define COMPLIANT_HEIGHT        0x2000  /* Warn if height not compliant, or use standard height (if any) as default */
+#define EANUPC_GUARD_WHITESPACE 0x4000  /* Add quiet zone indicators ("<"/">") to HRT whitespace (EAN/UPC) */
+#define EMBED_VECTOR_FONT       0x8000  /* Embed font in vector output - currently only for SVG output */
 
 /* Input data types (`symbol->input_mode`) */
 #define DATA_MODE               0       /* Binary */
@@ -291,12 +302,15 @@ extern "C" {
 #define GS1PARENS_MODE          0x0010  /* Process parentheses as GS1 AI delimiters (instead of square brackets) */
 #define GS1NOCHECK_MODE         0x0020  /* Do not check validity of GS1 data (except that printable ASCII only) */
 #define HEIGHTPERROW_MODE       0x0040  /* Interpret `height` as per-row rather than as overall height */
-#define FAST_MODE               0x0080  /* Use faster if less optimal encodation for symbologies that support it */
-                                        /* Note: only DATAMATRIX currently */
+#define FAST_MODE               0x0080  /* Use faster if less optimal encodation or other shortcuts if available */
+                                        /* Note: affects DATAMATRIX, MICROPDF417, PDF417, QRCODE & UPNQR only */
+#define EXTRA_ESCAPE_MODE       0x0100  /* Process special symbology-specific escape sequences */
+                                        /* Note: currently Code 128 only */
 
 /* Data Matrix specific options (`symbol->option_3`) */
 #define DM_SQUARE               100     /* Only consider square versions on automatic symbol size selection */
 #define DM_DMRE                 101     /* Consider DMRE versions on automatic symbol size selection */
+#define DM_ISO_144              128     /* Use ISO instead of "de facto" format for 144x144 (i.e. don't skew ECC) */
 
 /* QR, Han Xin, Grid Matrix specific options (`symbol->option_3`) */
 #define ZINT_FULL_MULTIBYTE     200     /* Enable Kanji/Hanzi compression for Latin-1 & binary data */
@@ -305,6 +319,7 @@ extern "C" {
 #define ULTRA_COMPRESSION       128     /* Enable Ultracode compression (experimental) */
 
 /* Warning and error conditions (API return values) */
+#define ZINT_WARN_HRT_TRUNCATED     1   /* Human Readable Text was truncated (max 199 bytes) */
 #define ZINT_WARN_INVALID_OPTION    2   /* Invalid option given but overridden by Zint */
 #define ZINT_WARN_USES_ECI          3   /* Automatic ECI inserted by Zint */
 #define ZINT_WARN_NONCOMPLIANT      4   /* Symbol created not compliant with standards */
@@ -319,15 +334,17 @@ extern "C" {
 #define ZINT_ERROR_FILE_WRITE       12  /* Error writing to output file */
 #define ZINT_ERROR_USES_ECI         13  /* Error counterpart of warning if WARN_FAIL_ALL set (see below) */
 #define ZINT_ERROR_NONCOMPLIANT     14  /* Error counterpart of warning if WARN_FAIL_ALL set */
+#define ZINT_ERROR_HRT_TRUNCATED    15  /* Error counterpart of warning if WARN_FAIL_ALL set */
 
-/* Warning warn (`symbol->warn_level`) */
+/* Warning level (`symbol->warn_level`) */
 #define WARN_DEFAULT            0  /* Default behaviour */
 #define WARN_FAIL_ALL           2  /* Treat warning as error */
 
 /* Capability flags (ZBarcode_Cap() `cap_flag`) */
 #define ZINT_CAP_HRT                0x0001  /* Prints Human Readable Text? */
 #define ZINT_CAP_STACKABLE          0x0002  /* Is stackable? */
-#define ZINT_CAP_EXTENDABLE         0x0004  /* Is extendable with add-on data? (Is EAN/UPC?) */
+#define ZINT_CAP_EANUPC             0x0004  /* Is EAN/UPC? */
+#define ZINT_CAP_EXTENDABLE         0x0004  /* Legacy */
 #define ZINT_CAP_COMPOSITE          0x0008  /* Can have composite data? */
 #define ZINT_CAP_ECI                0x0010  /* Supports Extended Channel Interpretations? */
 #define ZINT_CAP_GS1                0x0020  /* Supports GS1 data? */
@@ -357,6 +374,8 @@ extern "C" {
 #  else
 #    define ZINT_EXTERN extern
 #  endif
+#elif defined(__GNUC__) && __GNUC__ >= 4
+#  define ZINT_EXTERN extern __attribute__((visibility("default")))
 #else
 #  define ZINT_EXTERN extern
 #endif
@@ -366,6 +385,9 @@ extern "C" {
 
     /* Free any output buffers that may have been created and initialize output fields */
     ZINT_EXTERN void ZBarcode_Clear(struct zint_symbol *symbol);
+
+    /* Free any output buffers that may have been created and reset all fields to defaults */
+    ZINT_EXTERN void ZBarcode_Reset(struct zint_symbol *symbol);
 
     /* Free a symbol structure, including any output buffers */
     ZINT_EXTERN void ZBarcode_Delete(struct zint_symbol *symbol);
@@ -439,6 +461,23 @@ extern "C" {
 
     /* Return the capability flags for symbology `symbol_id` that match `cap_flag` */
     ZINT_EXTERN unsigned int ZBarcode_Cap(int symbol_id, unsigned int cap_flag);
+
+
+    /* Return default X-dimension in mm for symbology `symbol_id`. Returns 0 on error (invalid `symbol_id`) */
+    ZINT_EXTERN float ZBarcode_Default_Xdim(int symbol_id);
+
+    /* Return the scale to use for `symbol_id` for non-zero X-dimension `x_dim_mm` at `dpmm` dots per mm for
+       `filetype`. If `dpmm` zero defaults to 12. If `filetype` NULL/empty, defaults to "GIF". Returns 0 on error */
+    ZINT_EXTERN float ZBarcode_Scale_From_XdimDp(int symbol_id, float x_dim_mm, float dpmm, const char *filetype);
+
+    /* Reverse of `ZBarcode_Scale_From_XdimDp()` above to estimate the X-dimension or dpmm given non-zero `scale` and
+       non-zero `x_dim_mm_or_dpmm`. Return value bound to dpmm max not X-dimension max. Returns 0 on error */
+    ZINT_EXTERN float ZBarcode_XdimDp_From_Scale(int symbol_id, float scale, float x_dim_mm_or_dpmm,
+                        const char *filetype);
+
+
+    /* Whether Zint built without PNG support */
+    ZINT_EXTERN int ZBarcode_NoPng(void);
 
     /* Return the version of Zint linked to */
     ZINT_EXTERN int ZBarcode_Version(void);
