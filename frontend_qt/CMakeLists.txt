@@ -46,6 +46,17 @@ if(WIN32)
     target_sources(${PROJECT_NAME} PRIVATE res/qtZint.rc)
 endif()
 
+if(OS2)
+    target_sources(${PROJECT_NAME} PRIVATE res/qtzint-os2.rc)
+endif()
+
+if(OS2)
+enable_language(RC)
+set(zint-qt_SRCS ${zint-qt_SRCS} ${CMAKE_SOURCE_DIR}/res/qtzint-os2.rc)
+set_source_files_properties(${CMAKE_SOURCE_DIR}/res/qtzint-os2.rc PROPERTIES LANGUAGE RC)
+include_directories(${CMAKE_SOURCE_DIR}/res)
+endif(OS2)
+
 target_include_directories(${PROJECT_NAME} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../backend" "${CMAKE_CURRENT_SOURCE_DIR}/../backend_qt")
 
 if(ZINT_SHARED)

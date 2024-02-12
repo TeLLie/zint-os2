@@ -12,6 +12,17 @@ if(WIN32)
     target_sources(${PROJECT_NAME} PRIVATE zint.rc)
 endif()
 
+if(OS2)
+    target_sources(${PROJECT_NAME} PRIVATE zint-os2.rc)
+endif(OS2)
+
+if(OS2)
+enable_language(RC)
+set_source_files_properties("${CMAKE_SOURCE_DIR}/zint-os2.rc" PROPERTIES LANGUAGE RC) 
+set(zint-frontend_SRCS ${zint-frontend_SRCS} "${CMAKE_SOURCE_DIR}/zint-os2.rc")
+include_directories(${CMAKE_SOURCE_DIR})
+endif(OS2)
+
 target_include_directories(${PROJECT_NAME} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../backend")
 
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "zint")
