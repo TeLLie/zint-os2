@@ -69,4 +69,12 @@ target_link_libraries(${PROJECT_NAME} QZint
                         Qt${QT_VERSION_MAJOR}::Core)
 
 
+if(OS2)
+set_target_properties(${PROJECT_NAME} PROPERTIES
+ OS2_DEF_VENDOR "TeLLie OS2 forever"
+ OS2_DEF_PATCH "${ZINT_VERSION_MINOR}"
+ OS2_DEF_VERSION "${ZINT_VERSION}"
+ OS2_DEF_EXEType "WINDOWAPI")
+endif()
+
 install(TARGETS ${PROJECT_NAME} DESTINATION "${BIN_INSTALL_DIR}" RUNTIME)
