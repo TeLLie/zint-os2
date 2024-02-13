@@ -105,6 +105,14 @@ endif()
 install(EXPORT zint-targets NAMESPACE zint:: DESTINATION "${SHARE_INSTALL_PREFIX}/zint")
 install(FILES zint.h DESTINATION ${INCLUDE_INSTALL_DIR} COMPONENT Devel)
 
+if(OS2)
+set_target_properties(${PROJECT_NAME} PROPERTIES
+ OS2_DEF_VENDOR "TeLLie OS2 forever"
+ OS2_DEF_PATCH "${ZINT_VERSION_MINOR}"
+ OS2_DEF_VERSION "${ZINT_VERSION}"
+ OS2_DEF_EXEType "WINDOWAPI")
+endif()
+
 if(ZINT_TEST)
     add_subdirectory(tests)
 endif()
