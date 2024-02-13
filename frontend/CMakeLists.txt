@@ -41,6 +41,14 @@ if(UNIX)
     install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../docs/zint.1" DESTINATION "${MAN_INSTALL_DIR}/man1" COMPONENT doc)
 endif()
 
+if(OS2)
+set_target_properties(${PROJECT_NAME} PROPERTIES
+ OS2_DEF_VENDOR "TeLLie OS2 forever"
+ OS2_DEF_PATCH "${ZINT_FRONTEND_VERSION_MINOR}"
+ OS2_DEF_VERSION "${ZINT_FRONTEND_VERSION}"
+ OS2_DEF_EXEType "WINDOWAPI")
+endif()
+
 if(ZINT_TEST)
     add_subdirectory(tests)
 endif()
