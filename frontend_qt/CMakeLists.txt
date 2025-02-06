@@ -1,8 +1,9 @@
 # Copyright (C) 2008 by BogDan Vatra < bogdan@licentia.eu >
-# Copyright (C) 2009-2022 Robin Stuart <rstuart114@gmail.com>
+# Copyright (C) 2009-2024 Robin Stuart <rstuart114@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-or-later
 # vim: set ts=4 sw=4 et :
 
+cmake_minimum_required(VERSION 3.10)
 project(zint-qt)
 
 set(CMAKE_AUTORCC ON)
@@ -68,7 +69,6 @@ target_link_libraries(${PROJECT_NAME} QZint
                         Qt${QT_VERSION_MAJOR}::UiTools Qt${QT_VERSION_MAJOR}::Gui Qt${QT_VERSION_MAJOR}::Svg
                         Qt${QT_VERSION_MAJOR}::Core)
 
-
 if(OS2)
 set_target_properties(${PROJECT_NAME} PROPERTIES
  OS2_DEF_VENDOR "TeLLie OS2 forever"
@@ -78,3 +78,4 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 endif()
 
 install(TARGETS ${PROJECT_NAME} DESTINATION "${BIN_INSTALL_DIR}" RUNTIME)
+install(TARGETS ${PROJECT_NAME} DESTINATION "${CMAKE_INSTALL_BINDIR}" RUNTIME)
