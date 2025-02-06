@@ -1,6 +1,6 @@
 /*
     libzint - the open source barcode library
-    Copyright (C) 2020-2023 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2020-2025 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -36,20 +36,21 @@ static void test_large(const testCtx *const p_ctx) {
 
     struct item {
         int symbology;
-        char *pattern;
+        const char *pattern;
         int length;
         int ret;
         int expected_rows;
         int expected_width;
+        const char *expected_errtxt;
     };
     /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
-    struct item data[] = {
-        /*  0*/ { BARCODE_TELEPEN, "\177", 69, 0, 1, 1152 },
-        /*  1*/ { BARCODE_TELEPEN, "\177", 70, ZINT_ERROR_TOO_LONG, -1, -1 },
-        /*  2*/ { BARCODE_TELEPEN_NUM, "1", 136, 0, 1, 1136 },
-        /*  3*/ { BARCODE_TELEPEN_NUM, "1", 137, ZINT_ERROR_TOO_LONG, -1, -1 },
+    static const struct item data[] = {
+        /*  0*/ { BARCODE_TELEPEN, "\177", 69, 0, 1, 1152, "" },
+        /*  1*/ { BARCODE_TELEPEN, "\177", 70, ZINT_ERROR_TOO_LONG, -1, -1, "Error 390: Input length 70 too long (maximum 69)" },
+        /*  2*/ { BARCODE_TELEPEN_NUM, "1", 136, 0, 1, 1136, "" },
+        /*  3*/ { BARCODE_TELEPEN_NUM, "1", 137, ZINT_ERROR_TOO_LONG, -1, -1, "Error 392: Input length 137 too long (maximum 136)" },
     };
-    int data_size = ARRAY_SIZE(data);
+    const int data_size = ARRAY_SIZE(data);
     int i, length, ret;
     struct zint_symbol *symbol = NULL;
 
@@ -69,8 +70,10 @@ static void test_large(const testCtx *const p_ctx) {
 
         length = testUtilSetSymbol(symbol, data[i].symbology, -1 /*input_mode*/, -1 /*eci*/, -1 /*option_1*/, -1, -1, -1 /*output_options*/, data_buf, data[i].length, debug);
 
-        ret = ZBarcode_Encode(symbol, (unsigned char *) data_buf, length);
+        ret = ZBarcode_Encode(symbol, TCU(data_buf), length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
+        assert_equal(symbol->errtxt[0] == '\0', ret == 0, "i:%d symbol->errtxt not %s (%s)\n", i, ret ? "set" : "empty", symbol->errtxt);
+        assert_zero(strcmp(symbol->errtxt, data[i].expected_errtxt), "i:%d strcmp(%s, %s) != 0\n", i, symbol->errtxt, data[i].expected_errtxt);
 
         if (ret < ZINT_ERROR) {
             assert_equal(symbol->rows, data[i].expected_rows, "i:%d symbol->rows %d != %d\n", i, symbol->rows, data[i].expected_rows);
@@ -88,13 +91,13 @@ static void test_hrt(const testCtx *const p_ctx) {
 
     struct item {
         int symbology;
-        char *data;
+        const char *data;
         int length;
 
-        char *expected;
+        const char *expected;
     };
     /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
-    struct item data[] = {
+    static const struct item data[] = {
         /*  0*/ { BARCODE_TELEPEN, "ABC1234.;$", -1, "ABC1234.;$" },
         /*  1*/ { BARCODE_TELEPEN, "abc1234.;$", -1, "abc1234.;$" },
         /*  2*/ { BARCODE_TELEPEN, "ABC1234\001", -1, "ABC1234\001" },
@@ -104,7 +107,7 @@ static void test_hrt(const testCtx *const p_ctx) {
         /*  6*/ { BARCODE_TELEPEN_NUM, "123x", -1, "123X" }, /* Converts to upper */
         /*  7*/ { BARCODE_TELEPEN_NUM, "12345", -1, "012345" }, /* Adds leading zero if odd */
     };
-    int data_size = ARRAY_SIZE(data);
+    const int data_size = ARRAY_SIZE(data);
     int i, length, ret;
     struct zint_symbol *symbol = NULL;
 
@@ -119,7 +122,7 @@ static void test_hrt(const testCtx *const p_ctx) {
 
         length = testUtilSetSymbol(symbol, data[i].symbology, -1 /*input_mode*/, -1 /*eci*/, -1 /*option_1*/, -1, -1, -1 /*output_options*/, data[i].data, data[i].length, debug);
 
-        ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
+        ret = ZBarcode_Encode(symbol, TCU(data[i].data), length);
         assert_zero(ret, "i:%d ZBarcode_Encode ret %d != 0 %s\n", i, ret, symbol->errtxt);
 
         assert_zero(strcmp((char *) symbol->text, data[i].expected), "i:%d strcmp(%s, %s) != 0\n", i, symbol->text, data[i].expected);
@@ -135,25 +138,26 @@ static void test_input(const testCtx *const p_ctx) {
 
     struct item {
         int symbology;
-        char *data;
+        const char *data;
         int length;
         int ret;
         int expected_rows;
         int expected_width;
+        const char *expected_errtxt;
     };
     /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
-    struct item data[] = {
-        /*  0*/ { BARCODE_TELEPEN, " !\"#$%&'()*+,-./0123456789:;<", -1, 0, 1, 512 },
-        /*  1*/ { BARCODE_TELEPEN, "AZaz\176\001", -1, 0, 1, 144 },
-        /*  2*/ { BARCODE_TELEPEN, "\000\177", 2, 0, 1, 80 },
-        /*  3*/ { BARCODE_TELEPEN, "é", -1, ZINT_ERROR_INVALID_DATA, -1, -1 },
-        /*  4*/ { BARCODE_TELEPEN_NUM, "1234567890", -1, 0, 1, 128 },
-        /*  5*/ { BARCODE_TELEPEN_NUM, "123456789A", -1, ZINT_ERROR_INVALID_DATA, -1, -1 },
-        /*  6*/ { BARCODE_TELEPEN_NUM, "123456789X", -1, 0, 1, 128 }, /* [0-9]X allowed */
-        /*  7*/ { BARCODE_TELEPEN_NUM, "12345678X9", -1, ZINT_ERROR_INVALID_DATA, -1, -1 }, /* X[0-9] not allowed */
-        /*  8*/ { BARCODE_TELEPEN_NUM, "1X34567X9X", -1, 0, 1, 128 }, /* [0-9]X allowed multiple times */
+    static const struct item data[] = {
+        /*  0*/ { BARCODE_TELEPEN, " !\"#$%&'()*+,-./0123456789:;<", -1, 0, 1, 512, "" },
+        /*  1*/ { BARCODE_TELEPEN, "AZaz\176\001", -1, 0, 1, 144, "" },
+        /*  2*/ { BARCODE_TELEPEN, "\000\177", 2, 0, 1, 80, "" },
+        /*  3*/ { BARCODE_TELEPEN, "é", -1, ZINT_ERROR_INVALID_DATA, -1, -1, "Error 391: Invalid character at position 1 in input, extended ASCII not allowed" },
+        /*  4*/ { BARCODE_TELEPEN_NUM, "1234567890", -1, 0, 1, 128, "" },
+        /*  5*/ { BARCODE_TELEPEN_NUM, "123456789A", -1, ZINT_ERROR_INVALID_DATA, -1, -1, "Error 393: Invalid character at position 10 in input (digits and \"X\" only)" },
+        /*  6*/ { BARCODE_TELEPEN_NUM, "123456789X", -1, 0, 1, 128, "" }, /* [0-9]X allowed */
+        /*  7*/ { BARCODE_TELEPEN_NUM, "12345678X9", -1, ZINT_ERROR_INVALID_DATA, -1, -1, "Error 394: Invalid odd position 9 of \"X\" in Telepen data" }, /* X[0-9] not allowed */
+        /*  8*/ { BARCODE_TELEPEN_NUM, "1X34567X9X", -1, 0, 1, 128, "" }, /* [0-9]X allowed multiple times */
     };
-    int data_size = ARRAY_SIZE(data);
+    const int data_size = ARRAY_SIZE(data);
     int i, length, ret;
     struct zint_symbol *symbol = NULL;
 
@@ -168,8 +172,10 @@ static void test_input(const testCtx *const p_ctx) {
 
         length = testUtilSetSymbol(symbol, data[i].symbology, -1 /*input_mode*/, -1 /*eci*/, -1 /*option_1*/, -1, -1, -1 /*output_options*/, data[i].data, data[i].length, debug);
 
-        ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
+        ret = ZBarcode_Encode(symbol, TCU(data[i].data), length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
+        assert_equal(symbol->errtxt[0] == '\0', ret == 0, "i:%d symbol->errtxt not %s (%s)\n", i, ret ? "set" : "empty", symbol->errtxt);
+        assert_zero(strcmp(symbol->errtxt, data[i].expected_errtxt), "i:%d strcmp(%s, %s) != 0\n", i, symbol->errtxt, data[i].expected_errtxt);
 
         if (ret < ZINT_ERROR) {
             assert_equal(symbol->rows, data[i].expected_rows, "i:%d symbol->rows %d != %d\n", i, symbol->rows, data[i].expected_rows);
@@ -191,16 +197,16 @@ static void test_encode(const testCtx *const p_ctx) {
 
     struct item {
         int symbology;
-        char *data;
+        const char *data;
         int length;
         int ret;
 
         int expected_rows;
         int expected_width;
-        char *comment;
-        char *expected;
+        const char *comment;
+        const char *expected;
     };
-    struct item data[] = {
+    static const struct item data[] = {
         /*  0*/ { BARCODE_TELEPEN, "1A", -1, 0, 1, 80, "Telepen BSiH Example, same",
                     "10101010101110001011101000100010101110111011100010100010001110101110001010101010"
                 },
@@ -232,7 +238,7 @@ static void test_encode(const testCtx *const p_ctx) {
                     "10101010101110001010101010101110111011101110101011101110111011101110001010101010"
                 },
     };
-    int data_size = ARRAY_SIZE(data);
+    const int data_size = ARRAY_SIZE(data);
     int i, length, ret;
     struct zint_symbol *symbol = NULL;
 
@@ -253,7 +259,7 @@ static void test_encode(const testCtx *const p_ctx) {
 
         length = testUtilSetSymbol(symbol, data[i].symbology, -1 /*input_mode*/, -1 /*eci*/, -1 /*option_1*/, -1, -1, -1 /*output_options*/, data[i].data, data[i].length, debug);
 
-        ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
+        ret = ZBarcode_Encode(symbol, TCU(data[i].data), length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
         if (p_ctx->generate) {
@@ -295,13 +301,13 @@ static void test_fuzz(const testCtx *const p_ctx) {
 
     struct item {
         int symbology;
-        char *data;
+        const char *data;
         int length;
         int ret;
     };
     /* Note NULs where using DELs code (16 binary characters wide) */
     /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
-    struct item data[] = {
+    static const struct item data[] = {
         /*  0*/ { BARCODE_TELEPEN, "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000", 69, 0 },
         /*  1*/ { BARCODE_TELEPEN, "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000", 70, ZINT_ERROR_TOO_LONG },
         /*  2*/ { BARCODE_TELEPEN_NUM, "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000", 70, ZINT_ERROR_INVALID_DATA },
@@ -311,7 +317,7 @@ static void test_fuzz(const testCtx *const p_ctx) {
         /*  6*/ { BARCODE_TELEPEN_NUM, "9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999", 136, 0 },
         /*  7*/ { BARCODE_TELEPEN_NUM, "12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890", 4, 0 }, /* Length given, strlen > 137, so pseudo not NUL-terminated */
     };
-    int data_size = ARRAY_SIZE(data);
+    const int data_size = ARRAY_SIZE(data);
     int i, length, ret;
     struct zint_symbol *symbol = NULL;
 
@@ -329,7 +335,7 @@ static void test_fuzz(const testCtx *const p_ctx) {
 
         length = data[i].length == -1 ? (int) strlen(data[i].data) : data[i].length;
 
-        ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
+        ret = ZBarcode_Encode(symbol, TCU(data[i].data), length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
         ZBarcode_Delete(symbol);

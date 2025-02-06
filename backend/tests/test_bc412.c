@@ -1,6 +1,6 @@
 /*
     libzint - the open source barcode library
-    Copyright (C) 2022 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2022-2025 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -38,21 +38,21 @@ static void test_input(const testCtx *const p_ctx) {
         int input_mode;
         int option_1;
         int option_2;
-        char *data;
+        const char *data;
         int length;
         int ret;
         int expected_rows;
         int expected_width;
-        char *expected;
-        char *comment;
+        const char *expected;
+        const char *comment;
     };
     /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
-    struct item data[] = {
-        /*  0*/ { UNICODE_MODE, -1, -1, "123456", -1, ZINT_ERROR_TOO_LONG, -1, -1, "Error 790: Input wrong length (should be between 7 and 18 characters)", "" },
-        /*  1*/ { UNICODE_MODE, -1, -1, "1234567890123456789", -1, ZINT_ERROR_TOO_LONG, -1, -1, "Error 790: Input wrong length (should be between 7 and 18 characters)", "" },
+    static const struct item data[] = {
+        /*  0*/ { UNICODE_MODE, -1, -1, "123456", -1, ZINT_ERROR_TOO_LONG, -1, -1, "Error 792: Input length 6 too short (minimum 7)", "" },
+        /*  1*/ { UNICODE_MODE, -1, -1, "1234567890123456789", -1, ZINT_ERROR_TOO_LONG, -1, -1, "Error 790: Input length 19 too long (maximum 18)", "" },
         /*  2*/ { UNICODE_MODE, -1, -1, "1234567", -1, 0, 1, 102, "1U234567", "" },
-        /*  3*/ { UNICODE_MODE, -1, -1, "1234567 ", -1, ZINT_ERROR_INVALID_DATA, -1, -1, "Error 791: Invalid character in data (alphanumerics only, excluding the letter \"O\")", "" },
-        /*  4*/ { UNICODE_MODE, -1, -1, "ABCDEFGHIJKLMNOPQR", -1, ZINT_ERROR_INVALID_DATA, -1, -1, "Error 791: Invalid character in data (alphanumerics only, excluding the letter \"O\")", "" },
+        /*  3*/ { UNICODE_MODE, -1, -1, "1234567 ", -1, ZINT_ERROR_INVALID_DATA, -1, -1, "Error 791: Invalid character at position 8 in input (alphanumerics only, excluding \"O\")", "" },
+        /*  4*/ { UNICODE_MODE, -1, -1, "ABCDEFGHIJKLMNOPQR", -1, ZINT_ERROR_INVALID_DATA, -1, -1, "Error 791: Invalid character at position 15 in input (alphanumerics only, excluding \"O\")", "" },
         /*  5*/ { UNICODE_MODE, -1, -1, "ABCDEFGHIJKLMNPQRS", -1, 0, 1, 234, "AQBCDEFGHIJKLMNPQRS", "" },
         /*  6*/ { UNICODE_MODE, -1, -1, "STUVWXYZ1234567890", -1, 0, 1, 234, "SCTUVWXYZ1234567890", "" },
         /*  7*/ { UNICODE_MODE, -1, -1, "abcdefghijklmnpqrs", -1, 0, 1, 234, "AQBCDEFGHIJKLMNPQRS", "" },
@@ -71,16 +71,16 @@ static void test_input(const testCtx *const p_ctx) {
         /* 20*/ { UNICODE_MODE, -1, -1, "2J1STN4ZE8AHVLG90R", -1, 0, 1, 234, "2PJ1STN4ZE8AHVLG90R", "" },
         /* 21*/ { UNICODE_MODE, -1, -1, "JJJJJJJJJJJJJJJJJJ", -1, 0, 1, 234, "J9JJJJJJJJJJJJJJJJJ", "" },
     };
-    int data_size = ARRAY_SIZE(data);
+    const int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char bwipp_buf[8192];
     char bwipp_msg[1024];
 
     int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
 
-    testStart("test_input");
+    testStartSymbol("test_input", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
@@ -91,7 +91,7 @@ static void test_input(const testCtx *const p_ctx) {
 
         length = testUtilSetSymbol(symbol, BARCODE_BC412, data[i].input_mode, -1 /*eci*/, data[i].option_1, data[i].option_2, -1, -1 /*output_options*/, data[i].data, data[i].length, debug);
 
-        ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
+        ret = ZBarcode_Encode(symbol, TCU(data[i].data), length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
         if (ret < ZINT_ERROR) {
@@ -126,16 +126,16 @@ static void test_encode(const testCtx *const p_ctx) {
         int input_mode;
         int option_1;
         int option_2;
-        char *data;
+        const char *data;
         int ret;
 
         int expected_rows;
         int expected_width;
         int bwipp_cmp;
-        char *comment;
-        char *expected;
+        const char *comment;
+        const char *expected;
     };
-    struct item data[] = {
+    static const struct item data[] = {
         /*  0*/ { UNICODE_MODE, -1, -1, "AQ45670", 0, 1, 102, 1, "SEMI T1-95 Figure 2, same",
                     "100101000100100100010101000100010101000101010000010101001010000101001001000101001000100101010100000101"
                 },
@@ -143,9 +143,9 @@ static void test_encode(const testCtx *const p_ctx) {
                     "100101000100100100100010100101001001000101000100010101000010100101010010000101010001000101010000100101010000010101"
                 },
     };
-    int data_size = ARRAY_SIZE(data);
+    const int data_size = ARRAY_SIZE(data);
     int i, length, ret;
-    struct zint_symbol *symbol;
+    struct zint_symbol *symbol = NULL;
 
     char escaped[1024];
     char bwipp_buf[8192];
@@ -153,7 +153,7 @@ static void test_encode(const testCtx *const p_ctx) {
 
     int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
 
-    testStart("test_encode");
+    testStartSymbol("test_encode", &symbol);
 
     for (i = 0; i < data_size; i++) {
 
@@ -164,7 +164,7 @@ static void test_encode(const testCtx *const p_ctx) {
 
         length = testUtilSetSymbol(symbol, BARCODE_BC412, data[i].input_mode, -1 /*eci*/, data[i].option_1, data[i].option_2, -1, -1 /*output_options*/, data[i].data, -1, debug);
 
-        ret = ZBarcode_Encode(symbol, (unsigned char *) data[i].data, length);
+        ret = ZBarcode_Encode(symbol, TCU(data[i].data), length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
 
         if (p_ctx->generate) {
