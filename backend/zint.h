@@ -372,10 +372,10 @@ extern "C" {
 #define ZINT_DEBUG_PRINT        0x0001  /* Print debug info (if any) to stdout */
 #define ZINT_DEBUG_TEST         0x0002  /* For internal test use only */
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__OS2__)
 #  if defined(DLL_EXPORT) || defined(PIC) || defined(_USRDLL)
 #    define ZINT_EXTERN __declspec(dllexport)
-#  elif defined(ZINT_DLL)
+#  elif defined(ZINT_DLL) && !defined(__OS2__)
 #    define ZINT_EXTERN __declspec(dllimport)
 #  else
 #    define ZINT_EXTERN extern
