@@ -1534,7 +1534,7 @@ static void test_examples(const testCtx *const p_ctx) {
     char escaped[1024];
     char esc_composite[4096];
 
-    char bwipp_buf[32768];
+    char bwipp_buf[32768] = {0}; /* Suppress clang -fsanitize=memory false positive */
     char bwipp_msg[1024];
 
     int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
@@ -1836,7 +1836,7 @@ static void test_ean128_cc_shift(const testCtx *const p_ctx) {
     int i, length, composite_length, ret;
     struct zint_symbol *symbol = NULL;
 
-    char bwipp_buf[8192];
+    char bwipp_buf[8192] = {0}; /* Suppress clang -fsanitize=memory false positive */
     char bwipp_msg[1024];
 
     int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
@@ -2384,7 +2384,7 @@ static void test_encodation_0(const testCtx *const p_ctx) {
     int i, length, composite_length, ret;
     struct zint_symbol *symbol = NULL;
 
-    char bwipp_buf[8192];
+    char bwipp_buf[8192] = {0}; /* Suppress clang -fsanitize=memory false positive */
     char bwipp_msg[1024];
 
     int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
@@ -2522,7 +2522,7 @@ static void test_encodation_10(const testCtx *const p_ctx) {
     int i, length, composite_length, ret;
     struct zint_symbol *symbol = NULL;
 
-    char bwipp_buf[8192];
+    char bwipp_buf[8192] = {0}; /* Suppress clang -fsanitize=memory false positive */
     char bwipp_msg[1024];
 
     int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
@@ -2938,7 +2938,7 @@ static void test_encodation_11(const testCtx *const p_ctx) {
     int i, length, composite_length, ret;
     struct zint_symbol *symbol = NULL;
 
-    char bwipp_buf[8192];
+    char bwipp_buf[8192] = {0}; /* Suppress clang -fsanitize=memory false positive */
     char bwipp_msg[1024];
 
     int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
@@ -3089,7 +3089,7 @@ static void test_addongap(const testCtx *const p_ctx) {
     int i, length, composite_length, ret;
     struct zint_symbol *symbol = NULL;
 
-    char bwipp_buf[8192];
+    char bwipp_buf[8192] = {0}; /* Suppress clang -fsanitize=memory false positive */
     char bwipp_msg[1024];
 
     const char *composite = "[91]12";
@@ -3220,6 +3220,7 @@ static void test_hrt(const testCtx *const p_ctx) {
     struct item {
         int symbology;
         int input_mode;
+        int output_options;
         const char *data;
         const char *composite;
 
@@ -3228,45 +3229,60 @@ static void test_hrt(const testCtx *const p_ctx) {
     };
     /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
     static const struct item data[] = {
-        /*  0*/ { BARCODE_EANX_CC, -1, "1234567", "[20]12", 0, "12345670" }, /* EAN-8 */
-        /*  1*/ { BARCODE_EANX_CC, -1, "123456789012", "[20]12", 0, "1234567890128" }, /* EAN-13 */
-        /*  2*/ { BARCODE_EANX_CC, -1, "1234567890128", "[20]12", 0, "1234567890128" },
-        /*  3*/ { BARCODE_EANX_CC, -1, "1234567890123", "[20]12", ZINT_ERROR_INVALID_CHECK, "" },
-        /*  4*/ { BARCODE_EANX_CC, GS1NOCHECK_MODE, "1234567890123", "[20]12", ZINT_ERROR_INVALID_CHECK, "" }, /* Still checked */
-        /*  5*/ { BARCODE_EANX_CC, -1, "1234567890128", "[20]1A", ZINT_WARN_NONCOMPLIANT, "1234567890128" }, /* AI (20) should be 2 nos. */
-        /*  6*/ { BARCODE_EANX_CC, GS1NOCHECK_MODE, "1234567890128", "[20]1A", 0, "1234567890128" },
-        /*  7*/ { BARCODE_DBAR_OMN_CC, -1, "1234567890123", "[20]12", 0, "(01)12345678901231" },
-        /*  8*/ { BARCODE_DBAR_OMN_CC, -1, "12345678901231", "[20]12", 0, "(01)12345678901231" },
-        /*  9*/ { BARCODE_DBAR_OMN_CC, -1, "12345678901232", "[20]12", ZINT_ERROR_INVALID_CHECK, "" },
-        /* 10*/ { BARCODE_DBAR_OMN_CC, GS1NOCHECK_MODE, "12345678901232", "[20]12", ZINT_ERROR_INVALID_CHECK, "" }, /* Still checked */
-        /* 11*/ { BARCODE_DBAR_OMN_CC, -1, "12345678901231", "[20]1A", ZINT_WARN_NONCOMPLIANT, "(01)12345678901231" }, /* AI (20) should be 2 nos. */
-        /* 12*/ { BARCODE_DBAR_OMN_CC, GS1NOCHECK_MODE, "12345678901231", "[20]1A", 0, "(01)12345678901231" },
-        /* 13*/ { BARCODE_DBAR_LTD_CC, -1, "1234567890123", "[20]12", 0, "(01)12345678901231" },
-        /* 14*/ { BARCODE_DBAR_LTD_CC, -1, "12345678901231", "[20]12", 0, "(01)12345678901231" },
-        /* 15*/ { BARCODE_DBAR_LTD_CC, -1, "12345678901232", "[20]12", ZINT_ERROR_INVALID_CHECK, "" },
-        /* 16*/ { BARCODE_DBAR_LTD_CC, GS1NOCHECK_MODE, "12345678901232", "[20]12", ZINT_ERROR_INVALID_CHECK, "" }, /* Still checked */
-        /* 17*/ { BARCODE_DBAR_LTD_CC, -1, "12345678901231", "[20]1A", ZINT_WARN_NONCOMPLIANT, "(01)12345678901231" }, /* AI (20) should be 2 nos. */
-        /* 18*/ { BARCODE_DBAR_LTD_CC, GS1NOCHECK_MODE, "12345678901231", "[20]1A", 0, "(01)12345678901231" },
-        /* 19*/ { BARCODE_UPCA_CC, -1, "12345678901", "[20]12", 0, "123456789012" },
-        /* 20*/ { BARCODE_UPCA_CC, -1, "123456789012", "[20]12", 0, "123456789012" },
-        /* 21*/ { BARCODE_UPCA_CC, -1, "123456789013", "[20]12", ZINT_ERROR_INVALID_CHECK, "" },
-        /* 22*/ { BARCODE_UPCA_CC, GS1NOCHECK_MODE, "123456789013", "[20]12", ZINT_ERROR_INVALID_CHECK, "" }, /* Still checked */
-        /* 23*/ { BARCODE_UPCA_CC, -1, "123456789012", "[20]1A", ZINT_WARN_NONCOMPLIANT, "123456789012" }, /* AI (20) should be 2 nos. */
-        /* 24*/ { BARCODE_UPCA_CC, GS1NOCHECK_MODE, "123456789012", "[20]1A", 0, "123456789012" },
-        /* 25*/ { BARCODE_UPCE_CC, -1, "123456", "[20]12", 0, "01234565" },
-        /* 26*/ { BARCODE_UPCE_CC, -1, "1234567", "[20]12", 0, "12345670" },
-        /* 27*/ { BARCODE_UPCE_CC, -1, "12345670", "[20]12", 0, "12345670" },
-        /* 28*/ { BARCODE_UPCE_CC, -1, "12345671", "[20]12", ZINT_ERROR_INVALID_CHECK, "" },
-        /* 29*/ { BARCODE_UPCE_CC, GS1NOCHECK_MODE, "12345671", "[20]12", ZINT_ERROR_INVALID_CHECK, "" }, /* Still checked */
-        /* 30*/ { BARCODE_UPCE_CC, -1, "12345670", "[20]12", 0, "12345670" }, /* Check digit can now be given for UPCE_CC, like UPCA_CC */
-        /* 31*/ { BARCODE_UPCE_CC, -1, "1234567", "[20]1A", ZINT_WARN_NONCOMPLIANT, "12345670" }, /* AI (20) should be 2 nos. */
-        /* 32*/ { BARCODE_UPCE_CC, GS1NOCHECK_MODE, "1234567", "[20]1A", 0, "12345670" },
-        /* 33*/ { BARCODE_DBAR_STK_CC, -1, "12345678901231", "[20]12", 0, "" }, /* No HRT for stacked symbologies */
-        /* 34*/ { BARCODE_DBAR_OMNSTK_CC, -1, "12345678901231", "[20]12", 0, "" },
+        /*  0*/ { BARCODE_EANX_CC, -1, -1, "1234567", "[20]12", 0, "12345670" }, /* EAN-8 */
+        /*  1*/ { BARCODE_EANX_CC, -1, BARCODE_RAW_TEXT, "1234567", "[20]12", 0, "12345670" }, /* EAN-8 */
+        /*  2*/ { BARCODE_EANX_CC, -1, -1, "123456789012", "[20]12", 0, "1234567890128" }, /* EAN-13 */
+        /*  3*/ { BARCODE_EANX_CC, -1, BARCODE_RAW_TEXT, "123456789012", "[20]12", 0, "1234567890128" }, /* EAN-13 */
+        /*  4*/ { BARCODE_EANX_CC, -1, -1, "1234567890128", "[20]12", 0, "1234567890128" },
+        /*  5*/ { BARCODE_EANX_CC, -1, -1, "1234567890123", "[20]12", ZINT_ERROR_INVALID_CHECK, "" },
+        /*  6*/ { BARCODE_EANX_CC, GS1NOCHECK_MODE, -1, "1234567890123", "[20]12", ZINT_ERROR_INVALID_CHECK, "" }, /* Still checked */
+        /*  7*/ { BARCODE_EANX_CC, -1, -1, "1234567890128", "[20]1A", ZINT_WARN_NONCOMPLIANT, "1234567890128" }, /* AI (20) should be 2 nos. */
+        /*  8*/ { BARCODE_EANX_CC, GS1NOCHECK_MODE, -1, "1234567890128", "[20]1A", 0, "1234567890128" },
+        /*  9*/ { BARCODE_EANX_CC, -1, -1, "1234567890128+12", "[20]12", 0, "1234567890128+12" },
+        /* 10*/ { BARCODE_EANX_CC, -1, BARCODE_RAW_TEXT, "1234567890128+12", "[20]12", 0, "1234567890128+12" },
+        /* 11*/ { BARCODE_DBAR_OMN_CC, -1, -1, "1234567890123", "[20]12", 0, "(01)12345678901231" },
+        /* 12*/ { BARCODE_DBAR_OMN_CC, -1, BARCODE_RAW_TEXT, "1234567890123", "[20]12", 0, "0112345678901231" },
+        /* 13*/ { BARCODE_DBAR_OMN_CC, -1, -1, "12345678901231", "[20]12", 0, "(01)12345678901231" },
+        /* 14*/ { BARCODE_DBAR_OMN_CC, -1, -1, "12345678901232", "[20]12", ZINT_ERROR_INVALID_CHECK, "" },
+        /* 15*/ { BARCODE_DBAR_OMN_CC, GS1NOCHECK_MODE, -1, "12345678901232", "[20]12", ZINT_ERROR_INVALID_CHECK, "" }, /* Still checked */
+        /* 16*/ { BARCODE_DBAR_OMN_CC, -1, -1, "12345678901231", "[20]1A", ZINT_WARN_NONCOMPLIANT, "(01)12345678901231" }, /* AI (20) should be 2 nos. */
+        /* 17*/ { BARCODE_DBAR_OMN_CC, GS1NOCHECK_MODE, -1, "12345678901231", "[20]1A", 0, "(01)12345678901231" },
+        /* 18*/ { BARCODE_DBAR_LTD_CC, -1, -1, "1234567890123", "[20]12", 0, "(01)12345678901231" },
+        /* 19*/ { BARCODE_DBAR_LTD_CC, -1, BARCODE_RAW_TEXT, "1234567890123", "[20]12", 0, "0112345678901231" },
+        /* 20*/ { BARCODE_DBAR_LTD_CC, -1, -1, "12345678901231", "[20]12", 0, "(01)12345678901231" },
+        /* 21*/ { BARCODE_DBAR_LTD_CC, -1, -1, "12345678901232", "[20]12", ZINT_ERROR_INVALID_CHECK, "" },
+        /* 22*/ { BARCODE_DBAR_LTD_CC, GS1NOCHECK_MODE, -1, "12345678901232", "[20]12", ZINT_ERROR_INVALID_CHECK, "" }, /* Still checked */
+        /* 23*/ { BARCODE_DBAR_LTD_CC, -1, -1, "12345678901231", "[20]1A", ZINT_WARN_NONCOMPLIANT, "(01)12345678901231" }, /* AI (20) should be 2 nos. */
+        /* 24*/ { BARCODE_DBAR_LTD_CC, GS1NOCHECK_MODE, -1, "12345678901231", "[20]1A", 0, "(01)12345678901231" },
+        /* 25*/ { BARCODE_UPCA_CC, -1, -1, "12345678901", "[20]12", 0, "123456789012" },
+        /* 26*/ { BARCODE_UPCA_CC, -1, BARCODE_RAW_TEXT, "12345678901", "[20]12", 0, "123456789012" },
+        /* 27*/ { BARCODE_UPCA_CC, -1, -1, "123456789012", "[20]12", 0, "123456789012" },
+        /* 28*/ { BARCODE_UPCA_CC, -1, -1, "123456789013", "[20]12", ZINT_ERROR_INVALID_CHECK, "" },
+        /* 29*/ { BARCODE_UPCA_CC, GS1NOCHECK_MODE, -1, "123456789013", "[20]12", ZINT_ERROR_INVALID_CHECK, "" }, /* Still checked */
+        /* 30*/ { BARCODE_UPCA_CC, -1, -1, "123456789012", "[20]1A", ZINT_WARN_NONCOMPLIANT, "123456789012" }, /* AI (20) should be 2 nos. */
+        /* 31*/ { BARCODE_UPCA_CC, GS1NOCHECK_MODE, -1, "123456789012", "[20]1A", 0, "123456789012" },
+        /* 32*/ { BARCODE_UPCA_CC, -1, -1, "123456789012+123", "[20]12", 0, "123456789012+00123" },
+        /* 33*/ { BARCODE_UPCA_CC, -1, BARCODE_RAW_TEXT, "123456789012+123", "[20]12", 0, "123456789012+00123" },
+        /* 34*/ { BARCODE_UPCE_CC, -1, -1, "123456", "[20]12", 0, "01234565" },
+        /* 35*/ { BARCODE_UPCE_CC, -1, BARCODE_RAW_TEXT, "123456", "[20]12", 0, "01234565" },
+        /* 36*/ { BARCODE_UPCE_CC, -1, -1, "1234567", "[20]12", 0, "12345670" },
+        /* 37*/ { BARCODE_UPCE_CC, -1, -1, "12345670", "[20]12", 0, "12345670" },
+        /* 38*/ { BARCODE_UPCE_CC, -1, -1, "12345671", "[20]12", ZINT_ERROR_INVALID_CHECK, "" },
+        /* 39*/ { BARCODE_UPCE_CC, GS1NOCHECK_MODE, -1, "12345671", "[20]12", ZINT_ERROR_INVALID_CHECK, "" }, /* Still checked */
+        /* 40*/ { BARCODE_UPCE_CC, -1, -1, "12345670", "[20]12", 0, "12345670" }, /* Check digit can now be given for UPCE_CC, like UPCA_CC */
+        /* 41*/ { BARCODE_UPCE_CC, -1, -1, "1234567", "[20]1A", ZINT_WARN_NONCOMPLIANT, "12345670" }, /* AI (20) should be 2 nos. */
+        /* 42*/ { BARCODE_UPCE_CC, GS1NOCHECK_MODE, -1, "1234567", "[20]1A", 0, "12345670" },
+        /* 43*/ { BARCODE_UPCE_CC, -1, -1, "1234567+2", "[20]12", 0, "12345670+02" },
+        /* 44*/ { BARCODE_UPCE_CC, -1, BARCODE_RAW_TEXT, "1234567+2", "[20]12", 0, "12345670+02" },
+        /* 45*/ { BARCODE_DBAR_STK_CC, -1, -1, "12345678901231", "[20]12", 0, "" }, /* No HRT for stacked symbologies */
+        /* 46*/ { BARCODE_DBAR_STK_CC, -1, BARCODE_RAW_TEXT, "12345678901231", "[20]12", 0, "" },
+        /* 47*/ { BARCODE_DBAR_OMNSTK_CC, -1, -1, "12345678901231", "[20]12", 0, "" },
+        /* 48*/ { BARCODE_DBAR_OMNSTK_CC, -1, BARCODE_RAW_TEXT, "12345678901231", "[20]12", 0, "" },
     };
     const int data_size = ARRAY_SIZE(data);
     int i, length, composite_length, ret;
     struct zint_symbol *symbol = NULL;
+    int expected_length;
 
     testStartSymbol("test_hrt", &symbol);
 
@@ -3274,18 +3290,26 @@ static void test_hrt(const testCtx *const p_ctx) {
 
         if (testContinue(p_ctx, i)) continue;
 
+        if (data[i].output_options == BARCODE_RAW_TEXT) continue; /* BARCODE_RAW_TEXT temporarily disabled */
+
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
 
-        length = testUtilSetSymbol(symbol, data[i].symbology, data[i].input_mode, -1 /*eci*/, -1 /*option_1*/, -1, -1, -1 /*output_options*/, data[i].data, -1, debug);
+        length = testUtilSetSymbol(symbol, data[i].symbology, data[i].input_mode, -1 /*eci*/,
+                    -1 /*option_1*/, -1 /*option_2*/, -1 /*option_3*/, data[i].output_options,
+                    data[i].data, -1, debug);
         assert_zero(length >= 128, "i:%d length %d >= 128\n", i, length);
         strcpy(symbol->primary, data[i].data);
+
+        expected_length = (int) strlen(data[i].expected);
 
         composite_length = (int) strlen(data[i].composite);
 
         ret = ZBarcode_Encode(symbol, TCU(data[i].composite), composite_length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, data[i].ret, ret, symbol->errtxt);
 
+        assert_equal(symbol->text_length, expected_length, "i:%d text_length %d != expected_length %d\n",
+                    i, symbol->text_length, expected_length);
         assert_zero(strcmp((const char *) symbol->text, data[i].expected), "i:%d strcmp(%s, %s) != 0\n", i, symbol->text, data[i].expected);
 
         ZBarcode_Delete(symbol);
@@ -3366,8 +3390,8 @@ static void test_input(const testCtx *const p_ctx) {
         /* 49*/ { BARCODE_UPCA_CC, -1, -1, -1, -1, "123456789012", "[20]12", 0, 7, 99, "" },
         /* 50*/ { BARCODE_UPCA_CC, -1, -1, -1, -1, "123456789013", "[20]12", ZINT_ERROR_INVALID_CHECK, -1, -1, "Error 270: Invalid check digit '3', expecting '2' (linear component)" },
         /* 51*/ { BARCODE_UPCA_CC, GS1NOCHECK_MODE, -1, -1, -1, "123456789013", "[20]12", ZINT_ERROR_INVALID_CHECK, -1, -1, "Error 270: Invalid check digit '3', expecting '2' (linear component)" }, /* Linear component still checked */
-        /* 52*/ { BARCODE_UPCA_CC, -1, -1, -1, -1, "1234567890123", "[20]12", ZINT_ERROR_TOO_LONG, -1, -1, "Error 289: Input length 13 wrong (11 or 12 only) (linear component)" },
-        /* 53*/ { BARCODE_UPCA_CC, GS1NOCHECK_MODE, -1, -1, -1, "1234567890123", "[20]12", ZINT_ERROR_TOO_LONG, -1, -1, "Error 289: Input length 13 wrong (11 or 12 only) (linear component)" },
+        /* 52*/ { BARCODE_UPCA_CC, -1, -1, -1, -1, "1234567890123", "[20]12", ZINT_ERROR_TOO_LONG, -1, -1, "Error 289: Input length 13 wrong (11 or 12 characters required) (linear component)" },
+        /* 53*/ { BARCODE_UPCA_CC, GS1NOCHECK_MODE, -1, -1, -1, "1234567890123", "[20]12", ZINT_ERROR_TOO_LONG, -1, -1, "Error 289: Input length 13 wrong (11 or 12 characters required) (linear component)" },
         /* 54*/ { BARCODE_UPCA_CC, -1, -1, -1, -1, "12345678901A", "[20]12", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 284: Invalid character at position 12 in input (digits and \"+\" only) (linear component)" },
         /* 55*/ { BARCODE_UPCA_CC, GS1NOCHECK_MODE, -1, -1, -1, "12345678901A", "[20]12", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 284: Invalid character at position 12 in input (digits and \"+\" only) (linear component)" },
         /* 56*/ { BARCODE_UPCA_CC, -1, -1, -1, -1, "123456789012", "[20]1A", ZINT_WARN_NONCOMPLIANT, 7, 99, "Warning 261: AI (20) position 2: Non-numeric character 'A' (2D component)" }, /* AI (20) should be 2 nos. */
@@ -3379,8 +3403,8 @@ static void test_input(const testCtx *const p_ctx) {
         /* 62*/ { BARCODE_UPCE_CC, -1, -1, -1, -1, "12345670", "[20]12", 0, 9, 55, "" }, /* Check digit can now be given for UPCE_CC, like UPCA_CC */
         /* 63*/ { BARCODE_UPCE_CC, -1, -1, -1, -1, "12345671", "[20]12", ZINT_ERROR_INVALID_CHECK, -1, -1, "Error 274: Invalid check digit '1', expecting '0' (linear component)" },
         /* 64*/ { BARCODE_UPCE_CC, GS1NOCHECK_MODE, -1, -1, -1, "12345671", "[20]12", ZINT_ERROR_INVALID_CHECK, -1, -1, "Error 274: Invalid check digit '1', expecting '0' (linear component)" }, /* Linear component still checked */
-        /* 65*/ { BARCODE_UPCE_CC, -1, -1, -1, -1, "123456712", "[20]12", ZINT_ERROR_TOO_LONG, -1, -1, "Error 291: Input length 9 wrong (6, 7 or 8 only) (linear component)" },
-        /* 66*/ { BARCODE_UPCE_CC, GS1NOCHECK_MODE, -1, -1, -1, "123456712", "[20]12", ZINT_ERROR_TOO_LONG, -1, -1, "Error 291: Input length 9 wrong (6, 7 or 8 only) (linear component)" },
+        /* 65*/ { BARCODE_UPCE_CC, -1, -1, -1, -1, "123456712", "[20]12", ZINT_ERROR_TOO_LONG, -1, -1, "Error 291: Input length 9 wrong (6, 7 or 8 characters required) (linear component)" },
+        /* 66*/ { BARCODE_UPCE_CC, GS1NOCHECK_MODE, -1, -1, -1, "123456712", "[20]12", ZINT_ERROR_TOO_LONG, -1, -1, "Error 291: Input length 9 wrong (6, 7 or 8 characters required) (linear component)" },
         /* 67*/ { BARCODE_UPCE_CC, -1, -1, -1, -1, "1234567A", "[20]12", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 284: Invalid character at position 8 in input (digits and \"+\" only) (linear component)" },
         /* 68*/ { BARCODE_UPCE_CC, GS1NOCHECK_MODE, -1, -1, -1, "1234567A", "[20]12", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 284: Invalid character at position 8 in input (digits and \"+\" only) (linear component)" },
         /* 69*/ { BARCODE_UPCE_CC, -1, -1, -1, -1, "1234567", "[20]1A", ZINT_WARN_NONCOMPLIANT, 9, 55, "Warning 261: AI (20) position 2: Non-numeric character 'A' (2D component)" }, /* AI (20) should be 2 nos. */

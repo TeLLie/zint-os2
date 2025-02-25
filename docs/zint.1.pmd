@@ -1,4 +1,4 @@
-% ZINT(1) Version 2.14.0
+% ZINT(1) Version 2.15.0
 %
 % February 2025
 
@@ -520,9 +520,10 @@ Paintbrush (`PCX`), Portable Network Format (`PNG`), Scalable Vector Graphic (`S
                         1      (1 visible check digit)
                         2      (no check digits)
         Code 39         1 or 2 (add visible or hidden check digit)
-        Code 93         1      (hide the default check characters)
+        Code 93         1      (show the default check characters)
         EXCODE39        1 or 2 (add visible or hidden check digit)
         LOGMARS         1 or 2 (add visible or hidden check digit)
+        UK Plessey      1      (show the default check characters)
         MSI Plessey     0 to 6 (none to various visible options)
                         1, 2   (mod-10, mod-10 + mod-10)
                         3, 4   (mod-11 IBM, mod-11 IBM + mod-10)
@@ -561,6 +562,9 @@ Paintbrush (`PCX`), Portable Network Format (`PNG`), Scalable Vector Graphic (`S
 `0`
 :   Success (including when given informational options `-h` | `--help`, `-e` | `--ecinos`, `-t` | `--types`, `-v` |
     `--version`).
+
+`-1`
+:    Human Readable Text was outputted as raw text (`ZINT_WARN_HRT_RAW_TEXT`)
 
 `1`
 :    Human Readable Text was truncated (maximum 199 bytes) (`ZINT_WARN_HRT_TRUNCATED`)
@@ -606,6 +610,9 @@ Paintbrush (`PCX`), Portable Network Format (`PNG`), Scalable Vector Graphic (`S
 
 `15`
 :    Error counterpart of warning if `--werror` given (`ZINT_ERROR_HRT_TRUNCATED`)
+
+`16`
+:    Error counterpart of warning if `--werror` given (`ZINT_ERROR_HRT_RAW_TEXT`)
 
 # EXAMPLES
 
