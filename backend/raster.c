@@ -1,7 +1,7 @@
 /* raster.c - Handles output to raster files */
 /*
     libzint - the open source barcode library
-    Copyright (C) 2009-2024 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2009-2025 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -115,6 +115,9 @@ static int buffer_plot(struct zint_symbol *symbol, const unsigned char *pixelbuf
     if (!(symbol->bitmap = (unsigned char *) raster_malloc(bm_bitmap_size, 0 /*prev_size*/))) {
         return errtxt(ZINT_ERROR_MEMORY, symbol, 661, "Insufficient memory for bitmap buffer");
     }
+#ifdef ZINT_SANITIZEM /* Suppress clang -fsanitize=memory false positive */
+    memset(symbol->bitmap, 0, bm_bitmap_size);
+#endif
 
     if (plot_alpha) {
         const size_t alpha_size = (size_t) symbol->bitmap_width * symbol->bitmap_height;
@@ -178,10 +181,13 @@ static int save_raster_image_to_file(struct zint_symbol *symbol, const int image
     }
 
     if (rotate_angle) {
-        if (!(rotated_pixbuf = (unsigned char *) raster_malloc((size_t) image_width * image_height,
-                                                                0 /*prev_size*/))) {
+        size_t image_size = (size_t) image_width * image_height;
+        if (!(rotated_pixbuf = (unsigned char *) raster_malloc((size_t) image_size, 0 /*prev_size*/))) {
             return errtxt(ZINT_ERROR_MEMORY, symbol, 650, "Insufficient memory for pixel buffer");
         }
+#ifdef ZINT_SANITIZEM /* Suppress clang -fsanitize=memory false positive */
+        memset(rotated_pixbuf, DEFAULT_PAPER, image_size);
+#endif
     }
 
     /* Rotate image before plotting */
@@ -929,7 +935,7 @@ static void to_iso8859_1(const unsigned char source[], unsigned char preprocesse
                 break;
             default:
                 /* Process ASCII (< 80h), all other unicode points are ignored */
-                if (source[i] < 128) {
+                if (z_isascii(source[i])) {
                     preprocessed[j] = source[i];
                     j++;
                 }
@@ -941,7 +947,7 @@ static void to_iso8859_1(const unsigned char source[], unsigned char preprocesse
 }
 
 static int plot_raster_default(struct zint_symbol *symbol, const int rotate_angle, const int file_type) {
-    int error_number;
+    int error_number, warn_number = 0;
     int main_width;
     int comp_xoffset = 0;
     unsigned char addon[6];
@@ -999,7 +1005,10 @@ static int plot_raster_default(struct zint_symbol *symbol, const int rotate_angl
         upceanflag = out_process_upcean(symbol, comp_xoffset, &main_width, addon, &addon_len, &addon_gap);
     }
 
-    hide_text = ((!symbol->show_hrt) || (ustrlen(symbol->text) == 0) || scaler < 1.0f);
+    hide_text = !symbol->show_hrt || symbol->text_length == 0 || scaler < 1.0f;
+    if (!hide_text && (symbol->output_options & BARCODE_RAW_TEXT)) {
+        warn_number = errtxt(ZINT_WARN_HRT_RAW_TEXT, symbol, 665, "HRT outputted as raw text");
+    }
 
     out_set_whitespace_offsets(symbol, hide_text, comp_xoffset, &xoffset, &yoffset, &roffset, &boffset,
         NULL /*qz_right*/, si, &xoffset_si, &yoffset_si, &roffset_si, &boffset_si, &qz_right_si);
@@ -1401,7 +1410,7 @@ static int plot_raster_default(struct zint_symbol *symbol, const int rotate_angl
             free(pixelbuf);
         }
     }
-    return error_number;
+    return error_number ? error_number : warn_number;
 }
 
 INTERNAL int plot_raster(struct zint_symbol *symbol, int rotate_angle, int file_type) {

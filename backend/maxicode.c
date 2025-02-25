@@ -593,8 +593,8 @@ INTERNAL int maxicode(struct zint_symbol *symbol, struct zint_seg segs[], const 
             if (lp == 0) {
                 return errtxt(ZINT_ERROR_INVALID_DATA, symbol, 548, "Primary Message empty");
             }
-            return errtxtf(ZINT_ERROR_INVALID_DATA, symbol, 551, "Primary Message length %d wrong (7 to 15 only)",
-                            lp);
+            return errtxtf(ZINT_ERROR_INVALID_DATA, symbol, 551,
+                            "Primary Message length %d wrong (7 to 15 characters required)", lp);
         }
         postcode_len = lp - 6;
 
@@ -623,7 +623,7 @@ INTERNAL int maxicode(struct zint_symbol *symbol, struct zint_seg segs[], const 
             if (countrycode == 840 && postcode_len == 5) {
                 /* Annex B, section B.1, paragraph 4.a, "In the case of country code 840, if the "+4" is unknown,
                    then fill with zeroes" (adapted from OkaiBarcode, stricter interpretation, props Daniel Gredler) */
-                memcpy(postcode + 5, "0000", 5); /* Include NUL char */
+                memcpy(postcode + 5, "0000", 5); /* Include terminating NUL */
                 postcode_len = 9;
             }
             mx_do_primary_2(codewords, postcode, postcode_len, countrycode, service);

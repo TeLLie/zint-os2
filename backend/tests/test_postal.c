@@ -52,8 +52,8 @@ static void test_large(const testCtx *const p_ctx) {
         /*  0*/ { BARCODE_FLAT, "1", 128, 0, 1, 1152, "" },
         /*  1*/ { BARCODE_FLAT, "1", 129, ZINT_ERROR_TOO_LONG, -1, -1, "Error 494: Input length 129 too long (maximum 128)" },
         /*  2*/ { BARCODE_POSTNET, "1", 11, 0, 2, 123, "" },
-        /*  3*/ { BARCODE_POSTNET, "1", 12, ZINT_WARN_NONCOMPLIANT, 2, 133, "Warning 479: Input length 12 is not standard (5, 9 or 11)" },
-        /*  4*/ { BARCODE_POSTNET, "1", 38, ZINT_WARN_NONCOMPLIANT, 2, 393, "Warning 479: Input length 38 is not standard (5, 9 or 11)" },
+        /*  3*/ { BARCODE_POSTNET, "1", 12, ZINT_WARN_NONCOMPLIANT, 2, 133, "Warning 479: Input length 12 is not standard (should be 5, 9 or 11 digits)" },
+        /*  4*/ { BARCODE_POSTNET, "1", 38, ZINT_WARN_NONCOMPLIANT, 2, 393, "Warning 479: Input length 38 is not standard (should be 5, 9 or 11 digits)" },
         /*  5*/ { BARCODE_POSTNET, "1", 39, ZINT_ERROR_TOO_LONG, -1, -1, "Error 480: Input length 39 too long (maximum 38)" },
         /*  6*/ { BARCODE_FIM, "D", 1, 0, 1, 17, "" },
         /*  7*/ { BARCODE_FIM, "D", 2, ZINT_ERROR_TOO_LONG, -1, -1, "Error 486: Input length 2 too long (maximum 1)" },
@@ -70,8 +70,8 @@ static void test_large(const testCtx *const p_ctx) {
         /* 18*/ { BARCODE_KOREAPOST, "1", 6, 0, 1, 162, "" },
         /* 19*/ { BARCODE_KOREAPOST, "1", 7, ZINT_ERROR_TOO_LONG, -1, -1, "Error 484: Input length 7 too long (maximum 6)" },
         /* 20*/ { BARCODE_PLANET, "1", 13, 0, 2, 143, "" },
-        /* 21*/ { BARCODE_PLANET, "1", 14, ZINT_WARN_NONCOMPLIANT, 2, 153, "Warning 478: Input length 14 is not standard (11 or 13)" },
-        /* 22*/ { BARCODE_PLANET, "1", 38, ZINT_WARN_NONCOMPLIANT, 2, 393, "Warning 478: Input length 38 is not standard (11 or 13)" },
+        /* 21*/ { BARCODE_PLANET, "1", 14, ZINT_WARN_NONCOMPLIANT, 2, 153, "Warning 478: Input length 14 is not standard (should be 11 or 13 digits)" },
+        /* 22*/ { BARCODE_PLANET, "1", 38, ZINT_WARN_NONCOMPLIANT, 2, 393, "Warning 478: Input length 38 is not standard (should be 11 or 13 digits)" },
         /* 23*/ { BARCODE_PLANET, "1", 39, ZINT_ERROR_TOO_LONG, -1, -1, "Error 482: Input length 39 too long (maximum 38)" },
         /* 24*/ { BARCODE_KIX, "1", 18, 0, 3, 143, "" },
         /* 25*/ { BARCODE_KIX, "1", 19, ZINT_ERROR_TOO_LONG, -1, -1, "Error 490: Input length 19 too long (maximum 18)" },
@@ -82,7 +82,7 @@ static void test_large(const testCtx *const p_ctx) {
     int i, length, ret;
     struct zint_symbol *symbol = NULL;
 
-    char data_buf[4096];
+    char data_buf[4096] = {0}; /* Suppress clang -fsanitize=memory false positive */
 
     testStartSymbol("test_large", &symbol);
 
@@ -214,6 +214,76 @@ static void test_japanpost(const testCtx *const p_ctx) {
     testFinish();
 }
 
+static void test_hrt(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
+
+    struct item {
+        int symbology;
+        int option_2;
+        int output_options;
+        const char *data;
+
+        const char *expected;
+    };
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
+    static const struct item data[] = {
+        /*  0*/ { BARCODE_FLAT, -1, -1, "12345", "" }, /* None */
+        /*  1*/ { BARCODE_FLAT, -1, BARCODE_RAW_TEXT, "12345", "12345" },
+        /*  2*/ { BARCODE_POSTNET, -1, -1, "12345", "" }, /* None */
+        /*  3*/ { BARCODE_POSTNET, -1, BARCODE_RAW_TEXT, "12345", "123455" },
+        /*  4*/ { BARCODE_FIM, -1, -1, "e", "" }, /* None */
+        /*  5*/ { BARCODE_FIM, -1, BARCODE_RAW_TEXT, "e", "E" },
+        /*  6*/ { BARCODE_CEPNET, -1, -1, "12345678", "" }, /* None */
+        /*  7*/ { BARCODE_CEPNET, -1, BARCODE_RAW_TEXT, "12345678", "123456784" },
+        /*  8*/ { BARCODE_RM4SCC, -1, -1, "BX11LT1A", "" }, /* None*/
+        /*  9*/ { BARCODE_RM4SCC, -1, BARCODE_RAW_TEXT, "BX11LT1A", "BX11LT1AI" },
+        /* 10*/ { BARCODE_JAPANPOST, -1, -1, "1234", "" }, /* None*/
+        /* 11*/ { BARCODE_JAPANPOST, -1, BARCODE_RAW_TEXT, "1234", "1234" }, /* Note check char not included */
+        /* 12*/ { BARCODE_JAPANPOST, -1, BARCODE_RAW_TEXT, "123456-AB", "123456-AB" }, /* Ditto */
+        /* 13*/ { BARCODE_KOREAPOST, -1, -1, "123456", "1234569" },
+        /* 14*/ { BARCODE_KOREAPOST, -1, BARCODE_RAW_TEXT, "123456", "1234569" }, /* No difference */
+        /* 15*/ { BARCODE_PLANET, -1, -1, "12345678901", "" }, /* None */
+        /* 16*/ { BARCODE_PLANET, -1, BARCODE_RAW_TEXT, "12345678901", "123456789014" },
+        /* 17*/ { BARCODE_KIX, -1, -1, "0123456789ABCDEFGH", "" }, /* None */
+        /* 18*/ { BARCODE_KIX, -1, BARCODE_RAW_TEXT, "0123456789ABCDEFGH", "0123456789ABCDEFGH" },
+        /* 19*/ { BARCODE_DAFT, -1, -1, "DAFT", "" }, /* None */
+        /* 20*/ { BARCODE_DAFT, -1, BARCODE_RAW_TEXT, "DAFT", "DAFT" },
+    };
+    const int data_size = ARRAY_SIZE(data);
+    int i, length, ret;
+    struct zint_symbol *symbol = NULL;
+    int expected_length;
+
+    testStartSymbol("test_hrt", &symbol);
+
+    for (i = 0; i < data_size; i++) {
+
+        if (testContinue(p_ctx, i)) continue;
+
+        if (data[i].output_options == BARCODE_RAW_TEXT) continue; /* BARCODE_RAW_TEXT temporarily disabled */
+
+        symbol = ZBarcode_Create();
+        assert_nonnull(symbol, "Symbol not created\n");
+
+        length = testUtilSetSymbol(symbol, data[i].symbology, -1 /*input_mode*/, -1 /*eci*/,
+                    -1 /*option_1*/, data[i].option_2, -1 /*option_3*/, data[i].output_options,
+                    data[i].data, -1, debug);
+        expected_length = (int) strlen(data[i].expected);
+
+        ret = ZBarcode_Encode(symbol, TCU(data[i].data), length);
+        assert_zero(ret, "i:%d ZBarcode_Encode ret %d != 0 %s\n", i, ret, symbol->errtxt);
+
+        assert_equal(symbol->text_length, expected_length, "i:%d text_length %d != expected_length %d\n",
+                    i, symbol->text_length, expected_length);
+        assert_zero(strcmp((char *) symbol->text, data[i].expected), "i:%d strcmp(%s, %s) != 0\n",
+                    i, symbol->text, data[i].expected);
+
+        ZBarcode_Delete(symbol);
+    }
+
+    testFinish();
+}
+
 static void test_input(const testCtx *const p_ctx) {
     int debug = p_ctx->debug;
 
@@ -237,10 +307,10 @@ static void test_input(const testCtx *const p_ctx) {
         /*  2*/ { BARCODE_POSTNET, -1, 0, "12345", 0, 2, 63, 12, "", 1, "" },
         /*  3*/ { BARCODE_POSTNET, -1, 0, "123457689", 0, 2, 103, 12, "", 1, "" },
         /*  4*/ { BARCODE_POSTNET, -1, 0, "12345768901", 0, 2, 123, 12, "", 1, "" },
-        /*  5*/ { BARCODE_POSTNET, -1, 0, "0", ZINT_WARN_NONCOMPLIANT, 2, 23, 12, "Warning 479: Input length 1 is not standard (5, 9 or 11)", 0, "BWIPP requires standard lengths" },
-        /*  6*/ { BARCODE_POSTNET, -1, 0, "1234", ZINT_WARN_NONCOMPLIANT, 2, 53, 12, "Warning 479: Input length 4 is not standard (5, 9 or 11)", 0, "BWIPP requires standard lengths" },
-        /*  7*/ { BARCODE_POSTNET, -1, 0, "123456", ZINT_WARN_NONCOMPLIANT, 2, 73, 12, "Warning 479: Input length 6 is not standard (5, 9 or 11)", 0, "BWIPP requires standard lengths" },
-        /*  8*/ { BARCODE_POSTNET, -1, 0, "123456789012", ZINT_WARN_NONCOMPLIANT, 2, 133, 12, "Warning 479: Input length 12 is not standard (5, 9 or 11)", 0, "BWIPP requires standard lengths" },
+        /*  5*/ { BARCODE_POSTNET, -1, 0, "0", ZINT_WARN_NONCOMPLIANT, 2, 23, 12, "Warning 479: Input length 1 is not standard (should be 5, 9 or 11 digits)", 0, "BWIPP requires standard lengths" },
+        /*  6*/ { BARCODE_POSTNET, -1, 0, "1234", ZINT_WARN_NONCOMPLIANT, 2, 53, 12, "Warning 479: Input length 4 is not standard (should be 5, 9 or 11 digits)", 0, "BWIPP requires standard lengths" },
+        /*  7*/ { BARCODE_POSTNET, -1, 0, "123456", ZINT_WARN_NONCOMPLIANT, 2, 73, 12, "Warning 479: Input length 6 is not standard (should be 5, 9 or 11 digits)", 0, "BWIPP requires standard lengths" },
+        /*  8*/ { BARCODE_POSTNET, -1, 0, "123456789012", ZINT_WARN_NONCOMPLIANT, 2, 133, 12, "Warning 479: Input length 12 is not standard (should be 5, 9 or 11 digits)", 0, "BWIPP requires standard lengths" },
         /*  9*/ { BARCODE_POSTNET, -1, 0, "1234A", ZINT_ERROR_INVALID_DATA, -1, -1, -1, "Error 481: Invalid character at position 5 in input (digits only)", 1, "" },
         /* 10*/ { BARCODE_POSTNET, -1, 0.9, "12345", 0, 2, 63, 1, "", 1, "" },
         /* 11*/ { BARCODE_FIM, -1, 0, "a", 0, 1, 17, 50, "", 1, "" },
@@ -265,10 +335,10 @@ static void test_input(const testCtx *const p_ctx) {
         /* 30*/ { BARCODE_KOREAPOST, -1, 0, "A", ZINT_ERROR_INVALID_DATA, -1, -1, -1, "Error 485: Invalid character at position 1 in input (digits only)", 1, "" },
         /* 31*/ { BARCODE_PLANET, -1, 0, "12345678901", 0, 2, 123, 12, "", 1, "" },
         /* 32*/ { BARCODE_PLANET, -1, 0, "1234567890123", 0, 2, 143, 12, "", 1, "" },
-        /* 33*/ { BARCODE_PLANET, -1, 0, "0", ZINT_WARN_NONCOMPLIANT, 2, 23, 12, "Warning 478: Input length 1 is not standard (11 or 13)", 0, "BWIPP requires standard lengths" },
-        /* 34*/ { BARCODE_PLANET, -1, 0, "1234567890", ZINT_WARN_NONCOMPLIANT, 2, 113, 12, "Warning 478: Input length 10 is not standard (11 or 13)", 0, "BWIPP requires standard lengths" },
-        /* 35*/ { BARCODE_PLANET, -1, 0, "123456789012", ZINT_WARN_NONCOMPLIANT, 2, 133, 12, "Warning 478: Input length 12 is not standard (11 or 13)", 0, "BWIPP requires standard lengths" },
-        /* 36*/ { BARCODE_PLANET, -1, 0, "12345678901234", ZINT_WARN_NONCOMPLIANT, 2, 153, 12, "Warning 478: Input length 14 is not standard (11 or 13)", 0, "BWIPP requires standard lengths" },
+        /* 33*/ { BARCODE_PLANET, -1, 0, "0", ZINT_WARN_NONCOMPLIANT, 2, 23, 12, "Warning 478: Input length 1 is not standard (should be 11 or 13 digits)", 0, "BWIPP requires standard lengths" },
+        /* 34*/ { BARCODE_PLANET, -1, 0, "1234567890", ZINT_WARN_NONCOMPLIANT, 2, 113, 12, "Warning 478: Input length 10 is not standard (should be 11 or 13 digits)", 0, "BWIPP requires standard lengths" },
+        /* 35*/ { BARCODE_PLANET, -1, 0, "123456789012", ZINT_WARN_NONCOMPLIANT, 2, 133, 12, "Warning 478: Input length 12 is not standard (should be 11 or 13 digits)", 0, "BWIPP requires standard lengths" },
+        /* 36*/ { BARCODE_PLANET, -1, 0, "12345678901234", ZINT_WARN_NONCOMPLIANT, 2, 153, 12, "Warning 478: Input length 14 is not standard (should be 11 or 13 digits)", 0, "BWIPP requires standard lengths" },
         /* 37*/ { BARCODE_PLANET, -1, 0, "1234567890A", ZINT_ERROR_INVALID_DATA, -1, -1, -1, "Error 483: Invalid character at position 11 in input (digits only)", 1, "" },
         /* 38*/ { BARCODE_KIX, -1, 0, "0123456789ABCDEFGH", 0, 3, 143, 8, "", 1, "" },
         /* 39*/ { BARCODE_KIX, -1, 0, "a", 0, 3, 7, 8, "", 1, "" }, /* Converts to upper */
@@ -641,6 +711,7 @@ int main(int argc, char *argv[]) {
         { "test_large", test_large },
         { "test_koreapost", test_koreapost },
         { "test_japanpost", test_japanpost },
+        { "test_hrt", test_hrt },
         { "test_input", test_input },
         { "test_encode", test_encode },
         { "test_perf", test_perf },

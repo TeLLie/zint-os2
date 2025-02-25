@@ -1,7 +1,7 @@
 /*  vector.c - Creates vector image objects */
 /*
     libzint - the open source barcode library
-    Copyright (C) 2018-2024 Robin Stuart <rstuart114@gmail.com>
+    Copyright (C) 2018-2025 Robin Stuart <rstuart114@gmail.com>
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
@@ -48,6 +48,9 @@ static int vector_add_rect(struct zint_symbol *symbol, const float x, const floa
         errtxt(0, symbol, 691, "Insufficient memory for vector rectangle");
         return 0;
     }
+#ifdef ZINT_SANITIZEM /* Suppress clang -fsanitize=memory false positive */
+    memset(rect, 0, sizeof(struct zint_vector_rect));
+#endif
 
     rect->next = NULL;
     rect->x = x;
@@ -73,6 +76,9 @@ static int vector_add_hexagon(struct zint_symbol *symbol, const float x, const f
     if (!(hexagon = (struct zint_vector_hexagon *) malloc(sizeof(struct zint_vector_hexagon)))) {
         return errtxt(0, symbol, 692, "Insufficient memory for vector hexagon");
     }
+#ifdef ZINT_SANITIZEM /* Suppress clang -fsanitize=memory false positive */
+    memset(hexagon, 0, sizeof(struct zint_vector_hexagon));
+#endif
     hexagon->next = NULL;
     hexagon->x = x;
     hexagon->y = y;
@@ -96,6 +102,9 @@ static int vector_add_circle(struct zint_symbol *symbol, const float x, const fl
     if (!(circle = (struct zint_vector_circle *) malloc(sizeof(struct zint_vector_circle)))) {
         return errtxt(0, symbol, 693, "Insufficient memory for vector circle");
     }
+#ifdef ZINT_SANITIZEM /* Suppress clang -fsanitize=memory false positive */
+    memset(circle, 0, sizeof(struct zint_vector_circle));
+#endif
     circle->next = NULL;
     circle->x = x;
     circle->y = y;
@@ -121,6 +130,9 @@ static int vector_add_string(struct zint_symbol *symbol, const unsigned char *te
     if (!(string = (struct zint_vector_string *) malloc(sizeof(struct zint_vector_string)))) {
         return errtxt(0, symbol, 694, "Insufficient memory for vector string");
     }
+#ifdef ZINT_SANITIZEM /* Suppress clang -fsanitize=memory false positive */
+    memset(string, 0, sizeof(struct zint_vector_string));
+#endif
     string->next = NULL;
     string->x = x;
     string->y = y;
@@ -133,6 +145,9 @@ static int vector_add_string(struct zint_symbol *symbol, const unsigned char *te
         free(string);
         return errtxt(0, symbol, 695, "Insufficient memory for vector string text");
     }
+#ifdef ZINT_SANITIZEM /* Suppress clang -fsanitize=memory false positive */
+    memset(string->text, 0, string->length + 1);
+#endif
     memcpy(string->text, text, string->length);
     string->text[string->length] = '\0';
 
@@ -373,7 +388,7 @@ static void vector_reduce_rectangles(struct zint_symbol *symbol) {
 }
 
 INTERNAL int plot_vector(struct zint_symbol *symbol, int rotate_angle, int file_type) {
-    int error_number;
+    int error_number, warn_number = 0;
     int main_width;
     int comp_xoffset = 0;
     int comp_roffset = 0;
@@ -444,6 +459,9 @@ INTERNAL int plot_vector(struct zint_symbol *symbol, int rotate_angle, int file_
     if (!(vector = symbol->vector = (struct zint_vector *) malloc(sizeof(struct zint_vector)))) {
         return errtxt(ZINT_ERROR_MEMORY, symbol, 696, "Insufficient memory for vector header");
     }
+#ifdef ZINT_SANITIZEM /* Suppress clang -fsanitize=memory false positive */
+    memset(vector, 0, sizeof(struct zint_vector));
+#endif
     vector->rectangles = NULL;
     vector->hexagons = NULL;
     vector->circles = NULL;
@@ -467,7 +485,10 @@ INTERNAL int plot_vector(struct zint_symbol *symbol, int rotate_angle, int file_
         main_width -= comp_xoffset + comp_roffset;
     }
 
-    hide_text = ((!symbol->show_hrt) || (ustrlen(symbol->text) == 0));
+    hide_text = !symbol->show_hrt || symbol->text_length == 0;
+    if (!hide_text && (symbol->output_options & BARCODE_RAW_TEXT)) {
+        warn_number = errtxt(ZINT_WARN_HRT_RAW_TEXT, symbol, 698, "HRT outputted as raw text");
+    }
 
     out_set_whitespace_offsets(symbol, hide_text, comp_xoffset, &xoffset, &yoffset, &roffset, &boffset, &qz_right,
         0 /*scaler*/, NULL, NULL, NULL, NULL, NULL);
@@ -877,7 +898,7 @@ INTERNAL int plot_vector(struct zint_symbol *symbol, int rotate_angle, int file_
             if (text_yposn < 0.0f) {
                 text_yposn = 0.0f;
             }
-            addon_len = (int) ustrlen(symbol->text);
+            addon_len = symbol->text_length;
             textwidth = addon_len * 8.5f;
             if (!vector_add_string(symbol, symbol->text, addon_len, text_xposn, text_yposn, font_height,
                     textwidth, 0 /*centre align*/, &last_string)) return ZINT_ERROR_MEMORY;
@@ -1020,7 +1041,7 @@ INTERNAL int plot_vector(struct zint_symbol *symbol, int rotate_angle, int file_
         /* case OUT_BUFFER: No more work needed */
     }
 
-    return error_number;
+    return error_number ? error_number : warn_number;
 }
 
 /* vim: set ts=4 sw=4 et : */

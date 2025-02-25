@@ -31,7 +31,7 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 
 /*
- * Version: 2.14.0 (see "zintconfig.h")
+ * Version: 2.15.0 (see "zintconfig.h")
  *
  * For documentation, see "../docs/manual.txt" or "../docs/manual.html" or online at
  * https://zint.org.uk/manual/
@@ -123,6 +123,7 @@ extern "C" {
         int warn_level;     /* Affects error/warning value returned by Zint API (see WARN_XXX below) */
         int debug;          /* Debugging flags */
         unsigned char text[256]; /* Human Readable Text (HRT) (if any), UTF-8, NUL-terminated (output only) */
+        int text_length;    /* Length of text in bytes (output only) */
         int rows;           /* Number of rows used by the symbol (output only) */
         int width;          /* Width of the generated symbol (output only) */
         unsigned char encoded_data[200][144]; /* Encoded data (output only). Allows for rows of 1152 modules */
