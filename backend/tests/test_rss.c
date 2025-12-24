@@ -116,6 +116,10 @@ static void test_binary_div_modulo_divisor(const testCtx *const p_ctx) {
         /* 68*/ { BARCODE_DBAR_LTD_CC, "1999999999999", 100, 30, 6, 79, "0100001000000101010100000101011010110100100101010000101110001101011110010100000" },
         /* 69*/ { BARCODE_DBAR_LTD, "1651257071912", 100, 30, 1, 79, "0100000111100011110101010101010111010100100101010101010101111110111111110100000" },
         /* 70*/ { BARCODE_DBAR_LTD_CC, "0987144605916", 100, 30, 6, 79, "0101010101010011111000011111011010110100100101010101010100111110000111110100000" },
+        /* 71*/ { BARCODE_DBAR_OMN, "08801234560009", 100, 30, 1, 96, "010000100001010001011100000000010110011001101100100001001001100101111111100011000010011010111101" },
+        /* 72*/ { BARCODE_DBAR_OMN, "0880000000000", 100, 30, 1, 96, "010000100001010001000111110000010111000101100110101101100110000101100000000111000010110111100101" },
+        /* 73*/ { BARCODE_DBAR_OMN, "02001234567893", 100, 30, 1, 96, "010100001000000101000100000000010100110100111100101111011100010101111111000001001001110111000101" },
+        /* 74*/ { BARCODE_DBAR_OMN, "01969232328964", 100, 30, 1, 96, "010100001000000101000111000000010110010111011110100111100100010101111110000011011101110111000101" },
     };
     const int data_size = ARRAY_SIZE(data);
     int i, length, ret;
@@ -127,10 +131,11 @@ static void test_binary_div_modulo_divisor(const testCtx *const p_ctx) {
     char cmp_buf[1024];
     char cmp_msg[1024];
 
-    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
-    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
+    /* Only do BWIPP/ZXing-C++ tests if asked, too slow otherwise */
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript();
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder();
 
-    testStartSymbol("test_binary_div_modulo_divisor", &symbol);
+    testStartSymbol(p_ctx->func_name, &symbol);
 
     for (i = 0; i < data_size; i++) {
 
@@ -178,12 +183,14 @@ static void test_binary_div_modulo_divisor(const testCtx *const p_ctx) {
                 int cmp_len, ret_len;
                 char modules_dump[8192 + 1];
                 assert_notequal(testUtilModulesDump(symbol, modules_dump, sizeof(modules_dump)), -1, "i:%d testUtilModulesDump == -1\n", i);
-                ret = testUtilZXingCPP(i, symbol, data[i].data, length, modules_dump, cmp_buf, sizeof(cmp_buf), &cmp_len);
+                ret = testUtilZXingCPP(i, symbol, data[i].data, length, modules_dump, 1 /*zxingcpp_cmp*/, cmp_buf, sizeof(cmp_buf), &cmp_len);
                 assert_zero(ret, "i:%d %s testUtilZXingCPP ret %d != 0\n", i, testUtilBarcodeName(symbol->symbology), ret);
 
-                ret = testUtilZXingCPPCmp(symbol, cmp_msg, cmp_buf, cmp_len, data[i].data, length, NULL /*primary*/, escaped, &ret_len);
+                ret = testUtilZXingCPPCmp(symbol, cmp_msg, cmp_buf, cmp_len, data[i].data, length, NULL /*primary*/,
+                            escaped, &ret_len);
                 assert_zero(ret, "i:%d %s testUtilZXingCPPCmp %d != 0 %s\n  actual: %.*s\nexpected: %.*s\n",
-                               i, testUtilBarcodeName(symbol->symbology), ret, cmp_msg, cmp_len, cmp_buf, ret_len, escaped);
+                            i, testUtilBarcodeName(symbol->symbology), ret, cmp_msg, cmp_len, cmp_buf, ret_len,
+                            escaped);
             }
         }
 
@@ -869,10 +876,11 @@ static void test_examples(const testCtx *const p_ctx) {
     char cmp_buf[16384];
     char cmp_msg[1024];
 
-    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
-    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder(); /* Only do ZXing-C++ test if asked, too slow otherwise */
+    /* Only do BWIPP/ZXing-C++ tests if asked, too slow otherwise */
+    int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript();
+    int do_zxingcpp = (debug & ZINT_DEBUG_TEST_ZXINGCPP) && testUtilHaveZXingCPPDecoder();
 
-    testStartSymbol("test_examples", &symbol);
+    testStartSymbol(p_ctx->func_name, &symbol);
 
     for (i = 0; i < data_size; i++) {
 
@@ -918,12 +926,14 @@ static void test_examples(const testCtx *const p_ctx) {
                 int cmp_len, ret_len;
                 char modules_dump[8192 + 1];
                 assert_notequal(testUtilModulesDump(symbol, modules_dump, sizeof(modules_dump)), -1, "i:%d testUtilModulesDump == -1\n", i);
-                ret = testUtilZXingCPP(i, symbol, data[i].data, length, modules_dump, cmp_buf, sizeof(cmp_buf), &cmp_len);
+                ret = testUtilZXingCPP(i, symbol, data[i].data, length, modules_dump, 1 /*zxingcpp_cmp*/, cmp_buf, sizeof(cmp_buf), &cmp_len);
                 assert_zero(ret, "i:%d %s testUtilZXingCPP ret %d != 0\n", i, testUtilBarcodeName(symbol->symbology), ret);
 
-                ret = testUtilZXingCPPCmp(symbol, cmp_msg, cmp_buf, cmp_len, data[i].data, length, NULL /*primary*/, escaped, &ret_len);
+                ret = testUtilZXingCPPCmp(symbol, cmp_msg, cmp_buf, cmp_len, data[i].data, length, NULL /*primary*/,
+                            escaped, &ret_len);
                 assert_zero(ret, "i:%d %s testUtilZXingCPPCmp %d != 0 %s\n  actual: %.*s\nexpected: %.*s\n",
-                               i, testUtilBarcodeName(symbol->symbology), ret, cmp_msg, cmp_len, cmp_buf, ret_len, escaped);
+                            i, testUtilBarcodeName(symbol->symbology), ret, cmp_msg, cmp_len, cmp_buf, ret_len,
+                            escaped);
             }
         }
 
@@ -1199,7 +1209,7 @@ static void test_general_field(const testCtx *const p_ctx) {
     int i, length, ret;
     struct zint_symbol *symbol = NULL;
 
-    testStartSymbol("test_general_field", &symbol);
+    testStartSymbol(p_ctx->func_name, &symbol);
 
     for (i = 0; i < data_size; i++) {
 
@@ -1265,7 +1275,7 @@ static void test_binary_buffer_size(const testCtx *const p_ctx) {
     int i, length, ret;
     struct zint_symbol *symbol = NULL;
 
-    testStartSymbol("test_binary_buffer_size", &symbol);
+    testStartSymbol(p_ctx->func_name, &symbol);
 
     for (i = 0; i < data_size; i++) {
 
@@ -1306,40 +1316,39 @@ static void test_hrt(const testCtx *const p_ctx) {
 
         int ret;
         const char *expected;
+        const char *expected_content;
     };
     /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
     static const struct item data[] = {
-        /*  0*/ { BARCODE_DBAR_OMN, -1, "1234567890123", 0, "(01)12345678901231" },
-        /*  1*/ { BARCODE_DBAR_OMN, BARCODE_RAW_TEXT, "1234567890123", 0, "0112345678901231" },
-        /*  2*/ { BARCODE_DBAR_OMN, -1, "12345678901231", 0, "(01)12345678901231" },
-        /*  3*/ { BARCODE_DBAR_OMN, BARCODE_RAW_TEXT, "12345678901231", 0, "0112345678901231" },
-        /*  4*/ { BARCODE_DBAR_OMN, -1, "1000000000009", 0, "(01)10000000000090" },
-        /*  5*/ { BARCODE_DBAR_OMN, BARCODE_RAW_TEXT, "1000000000009", 0, "0110000000000090" },
-        /*  6*/ { BARCODE_DBAR_LTD, -1, "1341056790138", 0, "(01)13410567901384" },
-        /*  7*/ { BARCODE_DBAR_LTD, BARCODE_RAW_TEXT, "1341056790138", 0, "0113410567901384" },
-        /*  8*/ { BARCODE_DBAR_LTD, -1, "13410567901384", 0, "(01)13410567901384" },
-        /*  9*/ { BARCODE_DBAR_LTD, BARCODE_RAW_TEXT, "13410567901384", 0, "0113410567901384" },
-        /* 10*/ { BARCODE_DBAR_EXP, -1, "[01]12345678901231", 0, "(01)12345678901231" }, /* See test_hrt() in "test_gs1.c" for full HRT tests */
-        /* 11*/ { BARCODE_DBAR_EXP, BARCODE_RAW_TEXT, "[01]12345678901231", 0, "0112345678901231" },
-        /* 12*/ { BARCODE_DBAR_STK, -1, "12345678901231", 0, "" }, /* No HRT for stacked */
-        /* 13*/ { BARCODE_DBAR_STK, BARCODE_RAW_TEXT, "12345678901231", 0, "" },
-        /* 14*/ { BARCODE_DBAR_OMNSTK, -1, "10000000000090", 0, "" },
-        /* 15*/ { BARCODE_DBAR_OMNSTK, BARCODE_RAW_TEXT, "10000000000090", 0, "" },
-        /* 16*/ { BARCODE_DBAR_EXPSTK, -1, "[01]12345678901231", 0, "" },
-        /* 17*/ { BARCODE_DBAR_EXPSTK, BARCODE_RAW_TEXT, "[01]12345678901231", 0, "" },
+        /*  0*/ { BARCODE_DBAR_OMN, -1, "1234567890123", 0, "(01)12345678901231", "" },
+        /*  1*/ { BARCODE_DBAR_OMN, BARCODE_CONTENT_SEGS, "1234567890123", 0, "(01)12345678901231", "0112345678901231" },
+        /*  2*/ { BARCODE_DBAR_OMN, -1, "12345678901231", 0, "(01)12345678901231", "" },
+        /*  3*/ { BARCODE_DBAR_OMN, BARCODE_CONTENT_SEGS, "12345678901231", 0, "(01)12345678901231", "0112345678901231" },
+        /*  4*/ { BARCODE_DBAR_OMN, -1, "1000000000009", 0, "(01)10000000000090", "" },
+        /*  5*/ { BARCODE_DBAR_OMN, BARCODE_CONTENT_SEGS, "1000000000009", 0, "(01)10000000000090", "0110000000000090" },
+        /*  6*/ { BARCODE_DBAR_LTD, -1, "1341056790138", 0, "(01)13410567901384", "" },
+        /*  7*/ { BARCODE_DBAR_LTD, BARCODE_CONTENT_SEGS, "1341056790138", 0, "(01)13410567901384", "0113410567901384" },
+        /*  8*/ { BARCODE_DBAR_LTD, -1, "13410567901384", 0, "(01)13410567901384", "" },
+        /*  9*/ { BARCODE_DBAR_LTD, BARCODE_CONTENT_SEGS, "13410567901384", 0, "(01)13410567901384", "0113410567901384" },
+        /* 10*/ { BARCODE_DBAR_EXP, -1, "[01]12345678901231", 0, "(01)12345678901231", "" }, /* See test_hrt() in "test_gs1.c" for full HRT tests */
+        /* 11*/ { BARCODE_DBAR_EXP, BARCODE_CONTENT_SEGS, "[01]12345678901231", 0, "(01)12345678901231", "0112345678901231" },
+        /* 12*/ { BARCODE_DBAR_STK, -1, "12345678901231", 0, "", "" }, /* No HRT for stacked */
+        /* 13*/ { BARCODE_DBAR_STK, BARCODE_CONTENT_SEGS, "12345678901231", 0, "", "0112345678901231" }, /* But have content segs */
+        /* 14*/ { BARCODE_DBAR_OMNSTK, -1, "10000000000090", 0, "", "" },
+        /* 15*/ { BARCODE_DBAR_OMNSTK, BARCODE_CONTENT_SEGS, "10000000000090", 0, "", "0110000000000090" },
+        /* 16*/ { BARCODE_DBAR_EXPSTK, -1, "[01]12345678901231", 0, "", "" },
+        /* 17*/ { BARCODE_DBAR_EXPSTK, BARCODE_CONTENT_SEGS, "[01]12345678901231", 0, "", "0112345678901231" },
     };
     const int data_size = ARRAY_SIZE(data);
     int i, length, ret;
     struct zint_symbol *symbol = NULL;
-    int expected_length;
+    int expected_length, expected_content_length;
 
-    testStartSymbol("test_hrt", &symbol);
+    testStartSymbol(p_ctx->func_name, &symbol);
 
     for (i = 0; i < data_size; i++) {
 
         if (testContinue(p_ctx, i)) continue;
-
-        if (data[i].output_options == BARCODE_RAW_TEXT) continue; /* BARCODE_RAW_TEXT temporarily disabled */
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -1348,6 +1357,7 @@ static void test_hrt(const testCtx *const p_ctx) {
                     -1 /*option_1*/, -1 /*option_2*/, -1 /*option_3*/, data[i].output_options,
                     data[i].data, -1, debug);
         expected_length = (int) strlen(data[i].expected);
+        expected_content_length = (int) strlen(data[i].expected_content);
 
         ret = ZBarcode_Encode(symbol, TCU(data[i].data), length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, data[i].ret, ret, symbol->errtxt);
@@ -1356,6 +1366,19 @@ static void test_hrt(const testCtx *const p_ctx) {
                     i, symbol->text_length, expected_length);
         assert_zero(strcmp((const char *) symbol->text, data[i].expected), "i:%d strcmp(%s, %s) != 0\n",
                     i, symbol->text, data[i].expected);
+        if (symbol->output_options & BARCODE_CONTENT_SEGS) {
+            assert_nonnull(symbol->content_segs, "i:%d content_segs NULL\n", i);
+            assert_nonnull(symbol->content_segs[0].source, "i:%d content_segs[0].source NULL\n", i);
+            assert_equal(symbol->content_segs[0].length, expected_content_length,
+                        "i:%d content_segs[0].length %d != expected_content_length %d\n",
+                        i, symbol->content_segs[0].length, expected_content_length);
+            assert_zero(memcmp(symbol->content_segs[0].source, data[i].expected_content, expected_content_length),
+                        "i:%d memcmp(%.*s, %s, %d) != 0\n",
+                        i, symbol->content_segs[0].length, symbol->content_segs[0].source, data[i].expected_content,
+                        expected_content_length);
+        } else {
+            assert_null(symbol->content_segs, "i:%d content_segs not NULL\n", i);
+        }
 
         ZBarcode_Delete(symbol);
     }
@@ -1376,126 +1399,164 @@ static void test_input(const testCtx *const p_ctx) {
         int expected_rows;
         int expected_width;
         const char *expected_errtxt;
+        int expected_option_2;
+        int expected_option_3;
     };
     /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
     static const struct item data[] = {
-        /*  0*/ { BARCODE_DBAR_OMN, -1, -1, -1, "1234567890123", 0, 1, 96, "" },
-        /*  1*/ { BARCODE_DBAR_OMN, -1, -1, -1, "123456789012A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 381: Invalid character at position 13 in input (digits only)" },
-        /*  2*/ { BARCODE_DBAR_OMN, GS1NOCHECK_MODE, -1, -1, "123456789012A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 381: Invalid character at position 13 in input (digits only)" },
-        /*  3*/ { BARCODE_DBAR_OMN, -1, -1, -1, "12345678901234", ZINT_ERROR_INVALID_CHECK, -1, -1, "Error 388: Invalid check digit '4', expecting '1'" },
-        /*  4*/ { BARCODE_DBAR_OMN, GS1NOCHECK_MODE, -1, -1, "12345678901234", ZINT_ERROR_INVALID_CHECK, -1, -1, "Error 388: Invalid check digit '4', expecting '1'" }, /* Still checked */
-        /*  5*/ { BARCODE_DBAR_OMN, -1, -1, -1, "123456789012315", ZINT_ERROR_TOO_LONG, -1, -1, "Error 380: Input length 15 too long (maximum 14)" },
-        /*  6*/ { BARCODE_DBAR_OMN, GS1NOCHECK_MODE, -1, -1, "123456789012315", ZINT_ERROR_TOO_LONG, -1, -1, "Error 380: Input length 15 too long (maximum 14)" },
-        /*  7*/ { BARCODE_DBAR_LTD, -1, -1, -1, "1234567890123", 0, 1, 79, "" },
-        /*  8*/ { BARCODE_DBAR_LTD, -1, -1, -1, "123456789012A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 383: Invalid character at position 13 in input (digits only)" },
-        /*  9*/ { BARCODE_DBAR_LTD, GS1NOCHECK_MODE, -1, -1, "123456789012A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 383: Invalid character at position 13 in input (digits only)" },
-        /* 10*/ { BARCODE_DBAR_LTD, -1, -1, -1, "12345678901235", ZINT_ERROR_INVALID_CHECK, -1, -1, "Error 389: Invalid check digit '5', expecting '1'" },
-        /* 11*/ { BARCODE_DBAR_LTD, GS1NOCHECK_MODE, -1, -1, "12345678901235", ZINT_ERROR_INVALID_CHECK, -1, -1, "Error 389: Invalid check digit '5', expecting '1'" }, /* Still checked */
-        /* 12*/ { BARCODE_DBAR_LTD, -1, -1, -1, "123456789012315", ZINT_ERROR_TOO_LONG, -1, -1, "Error 382: Input length 15 too long (maximum 14)" },
-        /* 13*/ { BARCODE_DBAR_LTD, GS1NOCHECK_MODE, -1, -1, "123456789012315", ZINT_ERROR_TOO_LONG, -1, -1, "Error 382: Input length 15 too long (maximum 14)" },
-        /* 14*/ { BARCODE_DBAR_LTD, -1, -1, -1, "2234567890123", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 384: Input value out of range (0 to 1999999999999)" },
-        /* 15*/ { BARCODE_DBAR_LTD, GS1NOCHECK_MODE, -1, -1, "2234567890123", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 384: Input value out of range (0 to 1999999999999)" },
-        /* 16*/ { BARCODE_DBAR_LTD, -1, -1, -1, "22345678901238", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 384: Input value out of range (0 to 1999999999999)" },
-        /* 17*/ { BARCODE_DBAR_LTD, GS1NOCHECK_MODE, -1, -1, "22345678901238", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 384: Input value out of range (0 to 1999999999999)" },
-        /* 18*/ { BARCODE_DBAR_EXP, -1, -1, -1, "[01]12345678901234", ZINT_WARN_NONCOMPLIANT, 1, 134, "Warning 261: AI (01) position 14: Bad checksum '4', expected '1'" },
-        /* 19*/ { BARCODE_DBAR_EXP, GS1NOCHECK_MODE, -1, -1, "[01]12345678901234", 0, 1, 134, "" },
-        /* 20*/ { BARCODE_DBAR_EXP, -1, -1, -1, "[01]12345678901231", 0, 1, 134, "" },
-        /* 21*/ { BARCODE_DBAR_EXP, -1, -1, -1, "[01]1234567890123A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 385: Invalid character in Compressed Field data (digits only)" },
-        /* 22*/ { BARCODE_DBAR_EXP, GS1NOCHECK_MODE, -1, -1, "[01]1234567890123A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 385: Invalid character in Compressed Field data (digits only)" },
-        /* 23*/ { BARCODE_DBAR_EXP, -1, -1, -1, "[01]123456789012315", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 259: Invalid data length for AI (01)" },
-        /* 24*/ { BARCODE_DBAR_EXP, GS1NOCHECK_MODE, -1, -1, "[01]123456789012315", 0, 1, 151, "" },
-        /* 25*/ { BARCODE_DBAR_EXP, -1, -1, -1, "[01]12345678901234", ZINT_WARN_NONCOMPLIANT, 1, 134, "Warning 261: AI (01) position 14: Bad checksum '4', expected '1'" },
-        /* 26*/ { BARCODE_DBAR_EXP, GS1NOCHECK_MODE, -1, -1, "[01]12345678901234", 0, 1, 134, "" },
-        /* 27*/ { BARCODE_DBAR_EXP, -1, -1, -1, "[01]12345678901231[91]!\"%&'()*+,-./:;<=>?_ ", ZINT_WARN_NONCOMPLIANT, 1, 526, "Warning 261: AI (91) position 21: Invalid CSET 82 character ' '" }, /* ISOIEC punc */
-        /* 28*/ { BARCODE_DBAR_EXP, GS1NOCHECK_MODE, -1, -1, "[01]12345678901231[91]!\"%&'()*+,-./:;<=>?_ ", 0, 1, 526, "" },
-        /* 29*/ { BARCODE_DBAR_EXP, -1, -1, -1, "[01]12345678901231[91]!\"%&'()*+,-./:;<=>?_", 0, 1, 494, "" }, /* ISOIEC punc less space */
-        /* 30*/ { BARCODE_DBAR_EXP, GS1NOCHECK_MODE, -1, -1, "[01]12345678901231[91]!\"%&'()*+,-./:;<=>?_", 0, 1, 494, "" },
-        /* 31*/ { BARCODE_DBAR_STK, -1, -1, -1, "1234567890123", 0, 3, 50, "" },
-        /* 32*/ { BARCODE_DBAR_STK, GS1NOCHECK_MODE, -1, -1, "123456789012A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 381: Invalid character at position 13 in input (digits only)" },
-        /* 33*/ { BARCODE_DBAR_STK, -1, -1, -1, "123456789012A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 381: Invalid character at position 13 in input (digits only)" },
-        /* 34*/ { BARCODE_DBAR_STK, GS1NOCHECK_MODE, -1, -1, "123456789012A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 381: Invalid character at position 13 in input (digits only)" },
-        /* 35*/ { BARCODE_DBAR_STK, -1, -1, -1, "12345678901235", ZINT_ERROR_INVALID_CHECK, -1, -1, "Error 388: Invalid check digit '5', expecting '1'" },
-        /* 36*/ { BARCODE_DBAR_STK, GS1NOCHECK_MODE, -1, -1, "12345678901235", ZINT_ERROR_INVALID_CHECK, -1, -1, "Error 388: Invalid check digit '5', expecting '1'" }, /* Still checked */
-        /* 37*/ { BARCODE_DBAR_STK, -1, -1, -1, "123456789012315", ZINT_ERROR_TOO_LONG, -1, -1, "Error 380: Input length 15 too long (maximum 14)" },
-        /* 38*/ { BARCODE_DBAR_STK, GS1NOCHECK_MODE, -1, -1, "123456789012315", ZINT_ERROR_TOO_LONG, -1, -1, "Error 380: Input length 15 too long (maximum 14)" },
-        /* 39*/ { BARCODE_DBAR_OMNSTK, -1, -1, -1, "1234567890123", 0, 5, 50, "" },
-        /* 40*/ { BARCODE_DBAR_OMNSTK, -1, -1, -1, "123456789012A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 381: Invalid character at position 13 in input (digits only)" },
-        /* 41*/ { BARCODE_DBAR_OMNSTK, GS1NOCHECK_MODE, -1, -1, "123456789012A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 381: Invalid character at position 13 in input (digits only)" },
-        /* 42*/ { BARCODE_DBAR_OMNSTK, -1, -1, -1, "12345678901236", ZINT_ERROR_INVALID_CHECK, -1, -1, "Error 388: Invalid check digit '6', expecting '1'" },
-        /* 43*/ { BARCODE_DBAR_OMNSTK, GS1NOCHECK_MODE, -1, -1, "12345678901236", ZINT_ERROR_INVALID_CHECK, -1, -1, "Error 388: Invalid check digit '6', expecting '1'" }, /* Still checked */
-        /* 44*/ { BARCODE_DBAR_OMNSTK, -1, -1, -1, "123456789012315", ZINT_ERROR_TOO_LONG, -1, -1, "Error 380: Input length 15 too long (maximum 14)" },
-        /* 45*/ { BARCODE_DBAR_OMNSTK, GS1NOCHECK_MODE, -1, -1, "123456789012315", ZINT_ERROR_TOO_LONG, -1, -1, "Error 380: Input length 15 too long (maximum 14)" },
-        /* 46*/ { BARCODE_DBAR_EXPSTK, -1, -1, -1, "[01]12345678901234", ZINT_WARN_NONCOMPLIANT, 5, 102, "Warning 261: AI (01) position 14: Bad checksum '4', expected '1'" },
-        /* 47*/ { BARCODE_DBAR_EXPSTK, GS1NOCHECK_MODE, -1, -1, "[01]12345678901234", 0, 5, 102, "" },
-        /* 48*/ { BARCODE_DBAR_EXPSTK, -1, -1, -1, "[01]12345678901231", 0, 5, 102, "" },
-        /* 49*/ { BARCODE_DBAR_EXPSTK, -1, -1, -1, "[01]1234567890123A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 385: Invalid character in Compressed Field data (digits only)" },
-        /* 50*/ { BARCODE_DBAR_EXPSTK, GS1NOCHECK_MODE, -1, -1, "[01]1234567890123A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 385: Invalid character in Compressed Field data (digits only)" },
-        /* 51*/ { BARCODE_DBAR_EXPSTK, -1, -1, -1, "[01]123456789012315", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 259: Invalid data length for AI (01)" },
-        /* 52*/ { BARCODE_DBAR_EXPSTK, GS1NOCHECK_MODE, -1, -1, "[01]123456789012315", 0, 5, 102, "" },
-        /* 53*/ { BARCODE_DBAR_EXPSTK, -1, 12, -1, "[01]12345678901231", 0, 5, 102, "" }, /* Cols > 11 ignored */
-        /* 54*/ { BARCODE_DBAR_EXPSTK, -1, -1, 12, "[01]12345678901231", 0, 5, 102, "" }, /* Rows > 11 ignored */
-        /* 55*/ { BARCODE_DBAR_EXPSTK, -1, 1, -1, "[01]12345678901231", 0, 9, 53, "" },
-        /* 56*/ { BARCODE_DBAR_EXPSTK, -1, 2, -1, "[01]12345678901231", 0, 5, 102, "" },
-        /* 57*/ { BARCODE_DBAR_EXPSTK, -1, 3, -1, "[01]12345678901231", 0, 1, 134, "" },
-        /* 58*/ { BARCODE_DBAR_EXPSTK, -1, 4, -1, "[01]12345678901231", 0, 1, 134, "" },
-        /* 59*/ { BARCODE_DBAR_EXPSTK, -1, -1, 2, "[01]12345678901231", 0, 5, 102, "" },
-        /* 60*/ { BARCODE_DBAR_EXPSTK, -1, -1, 3, "[01]12345678901231", 0, 5, 102, "" },
-        /* 61*/ { BARCODE_DBAR_EXPSTK, -1, -1, -1, "[8110]106141416543213500110000310123196000", 0, 13, 102, "" },
-        /* 62*/ { BARCODE_DBAR_EXPSTK, -1, 1, -1, "[8110]106141416543213500110000310123196000", 0, 25, 53, "" },
-        /* 63*/ { BARCODE_DBAR_EXPSTK, -1, 2, -1, "[8110]106141416543213500110000310123196000", 0, 13, 102, "" },
-        /* 64*/ { BARCODE_DBAR_EXPSTK, -1, 3, -1, "[8110]106141416543213500110000310123196000", 0, 9, 151, "" },
-        /* 65*/ { BARCODE_DBAR_EXPSTK, -1, 4, -1, "[8110]106141416543213500110000310123196000", 0, 5, 200, "" },
-        /* 66*/ { BARCODE_DBAR_EXPSTK, -1, 5, -1, "[8110]106141416543213500110000310123196000", 0, 5, 249, "" },
-        /* 67*/ { BARCODE_DBAR_EXPSTK, -1, -1, 2, "[8110]106141416543213500110000310123196000", 0, 5, 200, "" },
-        /* 68*/ { BARCODE_DBAR_EXPSTK, -1, -1, 3, "[8110]106141416543213500110000310123196000", 0, 9, 151, "" },
-        /* 69*/ { BARCODE_DBAR_EXPSTK, -1, -1, 4, "[8110]106141416543213500110000310123196000", 0, 13, 102, "" },
-        /* 70*/ { BARCODE_DBAR_EXPSTK, -1, -1, 5, "[8110]106141416543213500110000310123196000", 0, 13, 102, "" },
-        /* 71*/ { BARCODE_DBAR_EXPSTK, -1, -1, -1, "[91]123456789012345678901", 0, 9, 102, "" },
-        /* 72*/ { BARCODE_DBAR_EXPSTK, -1, 1, -1, "[91]123456789012345678901", 0, 17, 53, "" },
-        /* 73*/ { BARCODE_DBAR_EXPSTK, -1, 2, -1, "[91]123456789012345678901", 0, 9, 102, "" },
-        /* 74*/ { BARCODE_DBAR_EXPSTK, -1, 3, -1, "[91]123456789012345678901", 0, 5, 151, "" },
-        /* 75*/ { BARCODE_DBAR_EXPSTK, -1, 4, -1, "[91]123456789012345678901", 0, 5, 200, "" },
-        /* 76*/ { BARCODE_DBAR_EXPSTK, -1, -1, 2, "[91]123456789012345678901", 0, 5, 151, "" },
-        /* 77*/ { BARCODE_DBAR_EXPSTK, -1, -1, 3, "[91]123456789012345678901", 0, 9, 102, "" },
-        /* 78*/ { BARCODE_DBAR_EXPSTK, -1, -1, 4, "[91]123456789012345678901", 0, 9, 102, "" },
-        /* 79*/ { BARCODE_DBAR_EXPSTK, -1, -1, -1, "[91]123456789012345678901", 0, 9, 102, "" },
-        /* 80*/ { BARCODE_DBAR_EXPSTK, -1, -1, -1, "[91]1234567890123456789012345678901234567890123456789", 0, 17, 102, "" },
-        /* 81*/ { BARCODE_DBAR_EXPSTK, -1, 1, -1, "[91]1234567890123456789012345678901234567890123456789", 0, 33, 53, "" },
-        /* 82*/ { BARCODE_DBAR_EXPSTK, -1, 2, -1, "[91]1234567890123456789012345678901234567890123456789", 0, 17, 102, "" },
-        /* 83*/ { BARCODE_DBAR_EXPSTK, -1, 3, -1, "[91]1234567890123456789012345678901234567890123456789", 0, 9, 151, "" },
-        /* 84*/ { BARCODE_DBAR_EXPSTK, -1, 4, -1, "[91]1234567890123456789012345678901234567890123456789", 0, 9, 200, "" },
-        /* 85*/ { BARCODE_DBAR_EXPSTK, -1, 4, -1, "[91]1234567890123456789012345678901234567890123456789", 0, 9, 200, "" },
-        /* 86*/ { BARCODE_DBAR_EXPSTK, -1, 5, -1, "[91]1234567890123456789012345678901234567890123456789", 0, 5, 249, "" },
-        /* 87*/ { BARCODE_DBAR_EXPSTK, -1, 6, -1, "[91]1234567890123456789012345678901234567890123456789", 0, 5, 298, "" },
-        /* 88*/ { BARCODE_DBAR_EXPSTK, -1, 7, -1, "[91]1234567890123456789012345678901234567890123456789", 0, 5, 347, "" },
-        /* 89*/ { BARCODE_DBAR_EXPSTK, -1, 8, -1, "[91]1234567890123456789012345678901234567890123456789", 0, 5, 396, "" },
-        /* 90*/ { BARCODE_DBAR_EXPSTK, -1, 9, -1, "[91]1234567890123456789012345678901234567890123456789", 0, 1, 428, "" },
-        /* 91*/ { BARCODE_DBAR_EXPSTK, -1, -1, 2, "[91]1234567890123456789012345678901234567890123456789", 0, 5, 249, "" },
-        /* 92*/ { BARCODE_DBAR_EXPSTK, -1, -1, 3, "[91]1234567890123456789012345678901234567890123456789", 0, 9, 151, "" },
-        /* 93*/ { BARCODE_DBAR_EXPSTK, -1, -1, 4, "[91]1234567890123456789012345678901234567890123456789", 0, 9, 151, "" },
-        /* 94*/ { BARCODE_DBAR_EXPSTK, -1, -1, 5, "[91]1234567890123456789012345678901234567890123456789", 0, 17, 102, "" },
-        /* 95*/ { BARCODE_DBAR_EXPSTK, -1, -1, 6, "[91]1234567890123456789012345678901234567890123456789", 0, 17, 102, "" },
-        /* 96*/ { BARCODE_DBAR_EXPSTK, -1, -1, -1, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 21, 102, "" },
-        /* 97*/ { BARCODE_DBAR_EXPSTK, -1, 1, -1, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 41, 53, "" },
-        /* 98*/ { BARCODE_DBAR_EXPSTK, -1, 2, -1, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 21, 102, "" },
-        /* 99*/ { BARCODE_DBAR_EXPSTK, -1, 3, -1, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 13, 151, "" },
-        /*100*/ { BARCODE_DBAR_EXPSTK, -1, 4, -1, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 9, 200, "" },
-        /*101*/ { BARCODE_DBAR_EXPSTK, -1, 5, -1, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 9, 249, "" },
-        /*102*/ { BARCODE_DBAR_EXPSTK, -1, 6, -1, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 5, 298, "" },
-        /*103*/ { BARCODE_DBAR_EXPSTK, -1, 7, -1, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 5, 347, "" },
-        /*104*/ { BARCODE_DBAR_EXPSTK, -1, -1, 1, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 21, 102, "" },
-        /*105*/ { BARCODE_DBAR_EXPSTK, -1, -1, 2, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 5, 298, "" },
-        /*106*/ { BARCODE_DBAR_EXPSTK, -1, -1, 3, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 9, 200, "" },
-        /*107*/ { BARCODE_DBAR_EXPSTK, -1, -1, 4, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 13, 151, "" },
-        /*108*/ { BARCODE_DBAR_EXPSTK, -1, -1, 5, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 13, 151, "" },
-        /*109*/ { BARCODE_DBAR_EXPSTK, -1, -1, 6, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 21, 102, "" },
-        /*110*/ { BARCODE_DBAR_EXPSTK, -1, -1, 7, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 21, 102, "" },
+        /*  0*/ { BARCODE_DBAR_OMN, -1, -1, -1, "1234567890123", 0, 1, 96, "", 0, 0 },
+        /*  1*/ { BARCODE_DBAR_OMN, -1, -1, -1, "123456789012A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 381: Invalid character at position 13 in input (digits only)", 0, 0 },
+        /*  2*/ { BARCODE_DBAR_OMN, GS1NOCHECK_MODE, -1, -1, "123456789012A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 381: Invalid character at position 13 in input (digits only)", 0, 0 },
+        /*  3*/ { BARCODE_DBAR_OMN, -1, -1, -1, "12345678901234", ZINT_ERROR_INVALID_CHECK, -1, -1, "Error 388: Invalid check digit '4', expecting '1'", 0, 0 },
+        /*  4*/ { BARCODE_DBAR_OMN, GS1NOCHECK_MODE, -1, -1, "12345678901234", ZINT_ERROR_INVALID_CHECK, -1, -1, "Error 388: Invalid check digit '4', expecting '1'", 0, 0 }, /* Still checked */
+        /*  5*/ { BARCODE_DBAR_OMN, -1, -1, -1, "123456789012315", ZINT_ERROR_TOO_LONG, -1, -1, "Error 380: Input length 15 too long (maximum 14)", 0, 0 },
+        /*  6*/ { BARCODE_DBAR_OMN, GS1NOCHECK_MODE, -1, -1, "123456789012315", ZINT_ERROR_TOO_LONG, -1, -1, "Error 380: Input length 15 too long (maximum 14)", 0, 0 },
+        /*  7*/ { BARCODE_DBAR_OMN, -1, -1, -1, "01345678901235", 0, 1, 96, "", 0, 0 },
+        /*  8*/ { BARCODE_DBAR_OMN, -1, -1, -1, "0134567890123", 0, 1, 96, "", 0, 0 },
+        /*  9*/ { BARCODE_DBAR_OMN, -1, -1, -1, "0112345678901231", 0, 1, 96, "", 0, 0 }, /* Allow '01' prefix if check digit given */
+        /* 10*/ { BARCODE_DBAR_OMN, -1, -1, -1, "011234567890123", 0, 1, 96, "", 0, 0 }, /* Or not */
+        /* 11*/ { BARCODE_DBAR_OMN, -1, -1, -1, "[01]12345678901231", 0, 1, 96, "", 0, 0 }, /* Allow '[01]' prefix if check digit given */
+        /* 12*/ { BARCODE_DBAR_OMN, -1, -1, -1, "[01]1234567890123", 0, 1, 96, "", 0, 0 }, /* Or not */
+        /* 13*/ { BARCODE_DBAR_OMN, -1, -1, -1, "(01)12345678901231", 0, 1, 96, "", 0, 0 }, /* Allow '(01)' prefix if check digit given */
+        /* 14*/ { BARCODE_DBAR_OMN, -1, -1, -1, "(01)1234567890123", 0, 1, 96, "", 0, 0 }, /* Or not */
+        /* 15*/ { BARCODE_DBAR_OMN, -1, -1, -1, "[01)12345678901231", ZINT_ERROR_TOO_LONG, -1, -1, "Error 380: Input length 18 too long (maximum 14)", 0, 0 },
+        /* 16*/ { BARCODE_DBAR_LTD, -1, -1, -1, "1234567890123", 0, 1, 79, "", 0, 0 },
+        /* 17*/ { BARCODE_DBAR_LTD, -1, -1, -1, "123456789012A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 383: Invalid character at position 13 in input (digits only)", 0, 0 },
+        /* 18*/ { BARCODE_DBAR_LTD, GS1NOCHECK_MODE, -1, -1, "123456789012A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 383: Invalid character at position 13 in input (digits only)", 0, 0 },
+        /* 19*/ { BARCODE_DBAR_LTD, -1, -1, -1, "12345678901235", ZINT_ERROR_INVALID_CHECK, -1, -1, "Error 389: Invalid check digit '5', expecting '1'", 0, 0 },
+        /* 20*/ { BARCODE_DBAR_LTD, GS1NOCHECK_MODE, -1, -1, "12345678901235", ZINT_ERROR_INVALID_CHECK, -1, -1, "Error 389: Invalid check digit '5', expecting '1'", 0, 0 }, /* Still checked */
+        /* 21*/ { BARCODE_DBAR_LTD, -1, -1, -1, "123456789012315", ZINT_ERROR_TOO_LONG, -1, -1, "Error 382: Input length 15 too long (maximum 14)", 0, 0 },
+        /* 22*/ { BARCODE_DBAR_LTD, GS1NOCHECK_MODE, -1, -1, "123456789012315", ZINT_ERROR_TOO_LONG, -1, -1, "Error 382: Input length 15 too long (maximum 14)", 0, 0 },
+        /* 23*/ { BARCODE_DBAR_LTD, -1, -1, -1, "2234567890123", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 384: Input value out of range (0 to 1999999999999)", 0, 0 },
+        /* 24*/ { BARCODE_DBAR_LTD, GS1NOCHECK_MODE, -1, -1, "2234567890123", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 384: Input value out of range (0 to 1999999999999)", 0, 0 },
+        /* 25*/ { BARCODE_DBAR_LTD, -1, -1, -1, "22345678901238", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 384: Input value out of range (0 to 1999999999999)", 0, 0 },
+        /* 26*/ { BARCODE_DBAR_LTD, -1, -1, -1, "01345678901235", 0, 1, 79, "", 0, 0 },
+        /* 27*/ { BARCODE_DBAR_LTD, -1, -1, -1, "0134567890123", 0, 1, 79, "", 0, 0 },
+        /* 28*/ { BARCODE_DBAR_LTD, -1, -1, -1, "0112345678901231", 0, 1, 79, "", 0, 0 }, /* Allow '01' prefix if check digit given */
+        /* 29*/ { BARCODE_DBAR_LTD, -1, -1, -1, "011234567890123", 0, 1, 79, "", 0, 0 }, /* Or not */
+        /* 30*/ { BARCODE_DBAR_LTD, -1, -1, -1, "[01]12345678901231", 0, 1, 79, "", 0, 0 }, /* Allow '[01]' prefix if check digit given */
+        /* 31*/ { BARCODE_DBAR_LTD, -1, -1, -1, "[01]1234567890123", 0, 1, 79, "", 0, 0 }, /* Or not */
+        /* 32*/ { BARCODE_DBAR_LTD, -1, -1, -1, "(01)12345678901231", 0, 1, 79, "", 0, 0 }, /* Allow '(01)' prefix if check digit given */
+        /* 33*/ { BARCODE_DBAR_LTD, -1, -1, -1, "(01)1234567890123", 0, 1, 79, "", 0, 0 }, /* Or not */
+        /* 34*/ { BARCODE_DBAR_LTD, -1, -1, -1, "[01)12345678901231", ZINT_ERROR_TOO_LONG, -1, -1, "Error 382: Input length 18 too long (maximum 14)", 0, 0 },
+        /* 35*/ { BARCODE_DBAR_LTD, -1, -1, -1, "[10]12345678901231", ZINT_ERROR_TOO_LONG, -1, -1, "Error 382: Input length 18 too long (maximum 14)", 0, 0 },
+        /* 36*/ { BARCODE_DBAR_LTD, GS1NOCHECK_MODE, -1, -1, "22345678901238", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 384: Input value out of range (0 to 1999999999999)", 0, 0 },
+        /* 37*/ { BARCODE_DBAR_EXP, -1, -1, -1, "[01]12345678901234", ZINT_WARN_NONCOMPLIANT, 1, 134, "Warning 261: AI (01) position 14: Bad checksum '4', expected '1'", 0, 0 },
+        /* 38*/ { BARCODE_DBAR_EXP, GS1NOCHECK_MODE, -1, -1, "[01]12345678901234", 0, 1, 134, "", 0, 0 },
+        /* 39*/ { BARCODE_DBAR_EXP, -1, -1, -1, "[01]12345678901231", 0, 1, 134, "", 0, 0 },
+        /* 40*/ { BARCODE_DBAR_EXP, -1, -1, -1, "[01]1234567890123A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 385: Invalid character in Compressed Field data (digits only)", 0, 0 },
+        /* 41*/ { BARCODE_DBAR_EXP, GS1NOCHECK_MODE, -1, -1, "[01]1234567890123A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 385: Invalid character in Compressed Field data (digits only)", 0, 0 },
+        /* 42*/ { BARCODE_DBAR_EXP, -1, -1, -1, "[01]123456789012315", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 259: Invalid data length for AI (01)", 0, 0 },
+        /* 43*/ { BARCODE_DBAR_EXP, GS1NOCHECK_MODE, -1, -1, "[01]123456789012315", 0, 1, 151, "", 0, 0 },
+        /* 44*/ { BARCODE_DBAR_EXP, -1, -1, -1, "[01]12345678901234", ZINT_WARN_NONCOMPLIANT, 1, 134, "Warning 261: AI (01) position 14: Bad checksum '4', expected '1'", 0, 0 },
+        /* 45*/ { BARCODE_DBAR_EXP, GS1NOCHECK_MODE, -1, -1, "[01]12345678901234", 0, 1, 134, "", 0, 0 },
+        /* 46*/ { BARCODE_DBAR_EXP, -1, -1, -1, "[01]12345678901231[91]!\"%&'()*+,-./:;<=>?_ ", ZINT_WARN_NONCOMPLIANT, 1, 526, "Warning 261: AI (91) position 21: Invalid CSET 82 character ' '", 0, 0 }, /* ISOIEC punc */
+        /* 47*/ { BARCODE_DBAR_EXP, GS1NOCHECK_MODE, -1, -1, "[01]12345678901231[91]!\"%&'()*+,-./:;<=>?_ ", 0, 1, 526, "", 0, 0 },
+        /* 48*/ { BARCODE_DBAR_EXP, -1, -1, -1, "[01]12345678901231[91]!\"%&'()*+,-./:;<=>?_", 0, 1, 494, "", 0, 0 }, /* ISOIEC punc less space */
+        /* 49*/ { BARCODE_DBAR_EXP, GS1NOCHECK_MODE, -1, -1, "[01]12345678901231[91]!\"%&'()*+,-./:;<=>?_", 0, 1, 494, "", 0, 0 },
+        /* 50*/ { BARCODE_DBAR_STK, -1, -1, -1, "1234567890123", 0, 3, 50, "", 0, 0 },
+        /* 51*/ { BARCODE_DBAR_STK, GS1NOCHECK_MODE, -1, -1, "123456789012A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 381: Invalid character at position 13 in input (digits only)", 0, 0 },
+        /* 52*/ { BARCODE_DBAR_STK, -1, -1, -1, "123456789012A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 381: Invalid character at position 13 in input (digits only)", 0, 0 },
+        /* 53*/ { BARCODE_DBAR_STK, GS1NOCHECK_MODE, -1, -1, "123456789012A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 381: Invalid character at position 13 in input (digits only)", 0, 0 },
+        /* 54*/ { BARCODE_DBAR_STK, -1, -1, -1, "12345678901235", ZINT_ERROR_INVALID_CHECK, -1, -1, "Error 388: Invalid check digit '5', expecting '1'", 0, 0 },
+        /* 55*/ { BARCODE_DBAR_STK, GS1NOCHECK_MODE, -1, -1, "12345678901235", ZINT_ERROR_INVALID_CHECK, -1, -1, "Error 388: Invalid check digit '5', expecting '1'", 0, 0 }, /* Still checked */
+        /* 56*/ { BARCODE_DBAR_STK, -1, -1, -1, "123456789012315", ZINT_ERROR_TOO_LONG, -1, -1, "Error 380: Input length 15 too long (maximum 14)", 0, 0 },
+        /* 57*/ { BARCODE_DBAR_STK, GS1NOCHECK_MODE, -1, -1, "123456789012315", ZINT_ERROR_TOO_LONG, -1, -1, "Error 380: Input length 15 too long (maximum 14)", 0, 0 },
+        /* 58*/ { BARCODE_DBAR_STK, -1, -1, -1, "01345678901235", 0, 3, 50, "", 0, 0 },
+        /* 59*/ { BARCODE_DBAR_STK, -1, -1, -1, "0134567890123", 0, 3, 50, "", 0, 0 },
+        /* 60*/ { BARCODE_DBAR_STK, -1, -1, -1, "0112345678901231", 0, 3, 50, "", 0, 0 }, /* Allow '01' prefix if check digit given */
+        /* 61*/ { BARCODE_DBAR_STK, -1, -1, -1, "011234567890123", 0, 3, 50, "", 0, 0 }, /* Or not */
+        /* 62*/ { BARCODE_DBAR_STK, -1, -1, -1, "[01]12345678901231", 0, 3, 50, "", 0, 0 }, /* Allow '[01]' prefix if check digit given */
+        /* 63*/ { BARCODE_DBAR_STK, -1, -1, -1, "[01]1234567890123", 0, 3, 50, "", 0, 0 }, /* Or not */
+        /* 64*/ { BARCODE_DBAR_STK, -1, -1, -1, "(01)12345678901231", 0, 3, 50, "", 0, 0 }, /* Allow '(01)' prefix if check digit given */
+        /* 65*/ { BARCODE_DBAR_STK, -1, -1, -1, "(01)1234567890123", 0, 3, 50, "", 0, 0 }, /* Or not */
+        /* 66*/ { BARCODE_DBAR_OMNSTK, -1, -1, -1, "1234567890123", 0, 5, 50, "", 0, 0 },
+        /* 67*/ { BARCODE_DBAR_OMNSTK, -1, -1, -1, "123456789012A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 381: Invalid character at position 13 in input (digits only)", 0, 0 },
+        /* 68*/ { BARCODE_DBAR_OMNSTK, GS1NOCHECK_MODE, -1, -1, "123456789012A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 381: Invalid character at position 13 in input (digits only)", 0, 0 },
+        /* 69*/ { BARCODE_DBAR_OMNSTK, -1, -1, -1, "12345678901236", ZINT_ERROR_INVALID_CHECK, -1, -1, "Error 388: Invalid check digit '6', expecting '1'", 0, 0 },
+        /* 70*/ { BARCODE_DBAR_OMNSTK, GS1NOCHECK_MODE, -1, -1, "12345678901236", ZINT_ERROR_INVALID_CHECK, -1, -1, "Error 388: Invalid check digit '6', expecting '1'", 0, 0 }, /* Still checked */
+        /* 71*/ { BARCODE_DBAR_OMNSTK, -1, -1, -1, "123456789012315", ZINT_ERROR_TOO_LONG, -1, -1, "Error 380: Input length 15 too long (maximum 14)", 0, 0 },
+        /* 72*/ { BARCODE_DBAR_OMNSTK, GS1NOCHECK_MODE, -1, -1, "123456789012315", ZINT_ERROR_TOO_LONG, -1, -1, "Error 380: Input length 15 too long (maximum 14)", 0, 0 },
+        /* 73*/ { BARCODE_DBAR_OMNSTK, -1, -1, -1, "01345678901235", 0, 5, 50, "", 0, 0 },
+        /* 74*/ { BARCODE_DBAR_OMNSTK, -1, -1, -1, "0134567890123", 0, 5, 50, "", 0, 0 },
+        /* 75*/ { BARCODE_DBAR_OMNSTK, -1, -1, -1, "0112345678901231", 0, 5, 50, "", 0, 0 }, /* Allow '01' prefix if check digit given */
+        /* 76*/ { BARCODE_DBAR_OMNSTK, -1, -1, -1, "011234567890123", 0, 5, 50, "", 0, 0 }, /* Or not */
+        /* 77*/ { BARCODE_DBAR_OMNSTK, -1, -1, -1, "[01]12345678901231", 0, 5, 50, "", 0, 0 }, /* Allow '[01]' prefix if check digit given */
+        /* 78*/ { BARCODE_DBAR_OMNSTK, -1, -1, -1, "[01]1234567890123", 0, 5, 50, "", 0, 0 }, /* Or not */
+        /* 79*/ { BARCODE_DBAR_OMNSTK, -1, -1, -1, "(01)12345678901231", 0, 5, 50, "", 0, 0 }, /* Allow '(01)' prefix if check digit given */
+        /* 80*/ { BARCODE_DBAR_OMNSTK, -1, -1, -1, "(01)1234567890123", 0, 5, 50, "", 0, 0 }, /* Or not */
+        /* 81*/ { BARCODE_DBAR_OMNSTK, -1, -1, -1, "(00)12345678901231", ZINT_ERROR_TOO_LONG, -1, -1, "Error 380: Input length 18 too long (maximum 14)", 0, 0 },
+        /* 82*/ { BARCODE_DBAR_EXPSTK, -1, -1, -1, "[01]12345678901234", ZINT_WARN_NONCOMPLIANT, 5, 102, "Warning 261: AI (01) position 14: Bad checksum '4', expected '1'", 2, 0 },
+        /* 83*/ { BARCODE_DBAR_EXPSTK, GS1NOCHECK_MODE, -1, -1, "[01]12345678901234", 0, 5, 102, "", 2, 0 },
+        /* 84*/ { BARCODE_DBAR_EXPSTK, -1, -1, -1, "[01]12345678901231", 0, 5, 102, "", 2, 0 },
+        /* 85*/ { BARCODE_DBAR_EXPSTK, -1, -1, -1, "[01]1234567890123A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 385: Invalid character in Compressed Field data (digits only)", 0, 0 },
+        /* 86*/ { BARCODE_DBAR_EXPSTK, GS1NOCHECK_MODE, -1, -1, "[01]1234567890123A", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 385: Invalid character in Compressed Field data (digits only)", 0, 0 },
+        /* 87*/ { BARCODE_DBAR_EXPSTK, -1, -1, -1, "[01]123456789012315", ZINT_ERROR_INVALID_DATA, -1, -1, "Error 259: Invalid data length for AI (01)", 0, 0 },
+        /* 88*/ { BARCODE_DBAR_EXPSTK, GS1NOCHECK_MODE, -1, -1, "[01]123456789012315", 0, 5, 102, "", 2, 0 },
+        /* 89*/ { BARCODE_DBAR_EXPSTK, -1, 12, -1, "[01]12345678901231", 0, 5, 102, "", 2, 0 }, /* Cols > 11 ignored */
+        /* 90*/ { BARCODE_DBAR_EXPSTK, -1, -1, 12, "[01]12345678901231", 0, 5, 102, "", 2, 0 }, /* Rows > 11 ignored */
+        /* 91*/ { BARCODE_DBAR_EXPSTK, -1, 1, -1, "[01]12345678901231", 0, 9, 53, "", 1, 0 },
+        /* 92*/ { BARCODE_DBAR_EXPSTK, -1, 2, -1, "[01]12345678901231", 0, 5, 102, "", 2, 0 },
+        /* 93*/ { BARCODE_DBAR_EXPSTK, -1, 3, -1, "[01]12345678901231", 0, 1, 134, "", 3, 0 },
+        /* 94*/ { BARCODE_DBAR_EXPSTK, -1, 4, -1, "[01]12345678901231", 0, 1, 134, "", 4, 0 },
+        /* 95*/ { BARCODE_DBAR_EXPSTK, -1, -1, 2, "[01]12345678901231", 0, 5, 102, "", 2, 2 },
+        /* 96*/ { BARCODE_DBAR_EXPSTK, -1, -1, 3, "[01]12345678901231", 0, 5, 102, "", 2, 3 },
+        /* 97*/ { BARCODE_DBAR_EXPSTK, -1, -1, -1, "[8110]106141416543213500110000310123196000", 0, 13, 102, "", 2, 0 },
+        /* 98*/ { BARCODE_DBAR_EXPSTK, -1, 1, -1, "[8110]106141416543213500110000310123196000", 0, 25, 53, "", 1, 0 },
+        /* 99*/ { BARCODE_DBAR_EXPSTK, -1, 2, -1, "[8110]106141416543213500110000310123196000", 0, 13, 102, "", 2, 0 },
+        /*100*/ { BARCODE_DBAR_EXPSTK, -1, 3, -1, "[8110]106141416543213500110000310123196000", 0, 9, 151, "", 3, 0 },
+        /*101*/ { BARCODE_DBAR_EXPSTK, -1, 4, -1, "[8110]106141416543213500110000310123196000", 0, 5, 200, "", 4, 0 },
+        /*102*/ { BARCODE_DBAR_EXPSTK, -1, 5, -1, "[8110]106141416543213500110000310123196000", 0, 5, 249, "", 5, 0 },
+        /*103*/ { BARCODE_DBAR_EXPSTK, -1, -1, 2, "[8110]106141416543213500110000310123196000", 0, 5, 200, "", 4, 2 },
+        /*104*/ { BARCODE_DBAR_EXPSTK, -1, -1, 3, "[8110]106141416543213500110000310123196000", 0, 9, 151, "", 3, 3 },
+        /*105*/ { BARCODE_DBAR_EXPSTK, -1, -1, 4, "[8110]106141416543213500110000310123196000", 0, 13, 102, "", 2, 4 },
+        /*106*/ { BARCODE_DBAR_EXPSTK, -1, -1, 5, "[8110]106141416543213500110000310123196000", 0, 13, 102, "", 2, 5 },
+        /*107*/ { BARCODE_DBAR_EXPSTK, -1, -1, -1, "[91]123456789012345678901", 0, 9, 102, "", 2, 0 },
+        /*108*/ { BARCODE_DBAR_EXPSTK, -1, 1, -1, "[91]123456789012345678901", 0, 17, 53, "", 1, 0 },
+        /*109*/ { BARCODE_DBAR_EXPSTK, -1, 2, -1, "[91]123456789012345678901", 0, 9, 102, "", 2, 0 },
+        /*110*/ { BARCODE_DBAR_EXPSTK, -1, 3, -1, "[91]123456789012345678901", 0, 5, 151, "", 3, 0 },
+        /*111*/ { BARCODE_DBAR_EXPSTK, -1, 4, -1, "[91]123456789012345678901", 0, 5, 200, "", 4, 0 },
+        /*112*/ { BARCODE_DBAR_EXPSTK, -1, -1, 2, "[91]123456789012345678901", 0, 5, 151, "", 3, 2 },
+        /*113*/ { BARCODE_DBAR_EXPSTK, -1, -1, 3, "[91]123456789012345678901", 0, 9, 102, "", 2, 3 },
+        /*114*/ { BARCODE_DBAR_EXPSTK, -1, -1, 4, "[91]123456789012345678901", 0, 9, 102, "", 2, 4 },
+        /*115*/ { BARCODE_DBAR_EXPSTK, -1, -1, -1, "[91]123456789012345678901", 0, 9, 102, "", 2, 0 },
+        /*116*/ { BARCODE_DBAR_EXPSTK, -1, -1, -1, "[91]1234567890123456789012345678901234567890123456789", 0, 17, 102, "", 2, 0 },
+        /*117*/ { BARCODE_DBAR_EXPSTK, -1, 1, -1, "[91]1234567890123456789012345678901234567890123456789", 0, 33, 53, "", 1, 0 },
+        /*118*/ { BARCODE_DBAR_EXPSTK, -1, 2, -1, "[91]1234567890123456789012345678901234567890123456789", 0, 17, 102, "", 2, 0 },
+        /*119*/ { BARCODE_DBAR_EXPSTK, -1, 3, -1, "[91]1234567890123456789012345678901234567890123456789", 0, 9, 151, "", 3, 0 },
+        /*120*/ { BARCODE_DBAR_EXPSTK, -1, 4, -1, "[91]1234567890123456789012345678901234567890123456789", 0, 9, 200, "", 4, 0 },
+        /*121*/ { BARCODE_DBAR_EXPSTK, -1, 4, -1, "[91]1234567890123456789012345678901234567890123456789", 0, 9, 200, "", 4, 0 },
+        /*122*/ { BARCODE_DBAR_EXPSTK, -1, 5, -1, "[91]1234567890123456789012345678901234567890123456789", 0, 5, 249, "", 5, 0 },
+        /*123*/ { BARCODE_DBAR_EXPSTK, -1, 6, -1, "[91]1234567890123456789012345678901234567890123456789", 0, 5, 298, "", 6, 0 },
+        /*124*/ { BARCODE_DBAR_EXPSTK, -1, 7, -1, "[91]1234567890123456789012345678901234567890123456789", 0, 5, 347, "", 7, 0 },
+        /*125*/ { BARCODE_DBAR_EXPSTK, -1, 8, -1, "[91]1234567890123456789012345678901234567890123456789", 0, 5, 396, "", 8, 0 },
+        /*126*/ { BARCODE_DBAR_EXPSTK, -1, 9, -1, "[91]1234567890123456789012345678901234567890123456789", 0, 1, 428, "", 9, 0 },
+        /*127*/ { BARCODE_DBAR_EXPSTK, -1, -1, 2, "[91]1234567890123456789012345678901234567890123456789", 0, 5, 249, "", 5, 2 },
+        /*128*/ { BARCODE_DBAR_EXPSTK, -1, -1, 3, "[91]1234567890123456789012345678901234567890123456789", 0, 9, 151, "", 3, 3 },
+        /*129*/ { BARCODE_DBAR_EXPSTK, -1, -1, 4, "[91]1234567890123456789012345678901234567890123456789", 0, 9, 151, "", 3, 4 },
+        /*130*/ { BARCODE_DBAR_EXPSTK, -1, -1, 5, "[91]1234567890123456789012345678901234567890123456789", 0, 17, 102, "", 2, 5 },
+        /*131*/ { BARCODE_DBAR_EXPSTK, -1, -1, 6, "[91]1234567890123456789012345678901234567890123456789", 0, 17, 102, "", 2, 6 },
+        /*132*/ { BARCODE_DBAR_EXPSTK, -1, -1, -1, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 21, 102, "", 2, 0 },
+        /*133*/ { BARCODE_DBAR_EXPSTK, -1, 1, -1, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 41, 53, "", 1, 0 },
+        /*134*/ { BARCODE_DBAR_EXPSTK, -1, 2, -1, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 21, 102, "", 2, 0 },
+        /*135*/ { BARCODE_DBAR_EXPSTK, -1, 3, -1, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 13, 151, "", 3, 0 },
+        /*136*/ { BARCODE_DBAR_EXPSTK, -1, 4, -1, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 9, 200, "", 4, 0 },
+        /*137*/ { BARCODE_DBAR_EXPSTK, -1, 5, -1, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 9, 249, "", 5, 0 },
+        /*138*/ { BARCODE_DBAR_EXPSTK, -1, 6, -1, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 5, 298, "", 6, 0 },
+        /*139*/ { BARCODE_DBAR_EXPSTK, -1, 7, -1, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 5, 347, "", 7, 0 },
+        /*140*/ { BARCODE_DBAR_EXPSTK, -1, -1, 1, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 21, 102, "", 2, 0 },
+        /*141*/ { BARCODE_DBAR_EXPSTK, -1, -1, 2, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 5, 298, "", 6, 2 },
+        /*142*/ { BARCODE_DBAR_EXPSTK, -1, -1, 3, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 9, 200, "", 4, 3 },
+        /*143*/ { BARCODE_DBAR_EXPSTK, -1, -1, 4, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 13, 151, "", 3, 4 },
+        /*144*/ { BARCODE_DBAR_EXPSTK, -1, -1, 5, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 13, 151, "", 3, 5 },
+        /*145*/ { BARCODE_DBAR_EXPSTK, -1, -1, 6, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 21, 102, "", 2, 6 },
+        /*146*/ { BARCODE_DBAR_EXPSTK, -1, -1, 7, "[91]12345678901234567890123456789012345678901234567890123456789012", 0, 21, 102, "", 2, 7 },
     };
     const int data_size = ARRAY_SIZE(data);
     int i, length, ret;
     struct zint_symbol *symbol = NULL;
 
-    testStartSymbol("test_input", &symbol);
+    testStartSymbol(p_ctx->func_name, &symbol);
 
     for (i = 0; i < data_size; i++) {
 
@@ -1504,15 +1565,26 @@ static void test_input(const testCtx *const p_ctx) {
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
 
-        length = testUtilSetSymbol(symbol, data[i].symbology, data[i].input_mode, -1 /*eci*/, -1 /*option_1*/, data[i].option_2, data[i].option_3, -1 /*output_options*/, data[i].data, -1, debug);
+        length = testUtilSetSymbol(symbol, data[i].symbology, data[i].input_mode, -1 /*eci*/,
+                                    -1 /*option_1*/, data[i].option_2, data[i].option_3, -1 /*output_options*/,
+                                    data[i].data, -1, debug);
 
         ret = ZBarcode_Encode(symbol, TCU(data[i].data), length);
         assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
-        assert_zero(strcmp(symbol->errtxt, data[i].expected_errtxt), "i:%d strcmp(%s, %s) != 0\n", i, symbol->errtxt, data[i].expected_errtxt);
+        assert_zero(strcmp(symbol->errtxt, data[i].expected_errtxt), "i:%d strcmp(%s, %s) != 0\n",
+                    i, symbol->errtxt, data[i].expected_errtxt);
 
         if (ret < ZINT_ERROR) {
-            assert_equal(symbol->rows, data[i].expected_rows, "i:%d symbol->rows %d != %d (symbol->width %d)\n", i, symbol->rows, data[i].expected_rows, symbol->width);
-            assert_equal(symbol->width, data[i].expected_width, "i:%d symbol->width %d != %d\n", i, symbol->width, data[i].expected_width);
+            assert_equal(symbol->rows, data[i].expected_rows, "i:%d symbol->rows %d != %d (symbol->width %d)\n",
+                        i, symbol->rows, data[i].expected_rows, symbol->width);
+            assert_equal(symbol->width, data[i].expected_width, "i:%d symbol->width %d != %d\n",
+                        i, symbol->width, data[i].expected_width);
+            assert_equal(symbol->option_2, data[i].expected_option_2,
+                        "i:%d symbol->option_2 %d != %d (symbol->option_2 %d) (option 3 %d)\n",
+                        i, symbol->option_2, data[i].expected_option_2, symbol->option_2, symbol->option_3);
+            assert_equal(symbol->option_3, data[i].expected_option_3,
+                        "i:%d symbol->option_3 %d != %d (symbol->option_3 %d)\n",
+                        i, symbol->option_3, data[i].expected_option_3, symbol->option_3);
         }
 
         ZBarcode_Delete(symbol);

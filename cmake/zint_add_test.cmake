@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2024 Robin Stuart <rstuart114@gmail.com>
+# Copyright (C) 2021-2025 Robin Stuart <rstuart114@gmail.com>
 # Adapted from qrencode/tests/CMakeLists.txt
 # Copyright (C) 2006-2017 Kentaro Fukuchi <kentaro@fukuchi.org>
 # vim: set ts=4 sw=4 et :
@@ -12,9 +12,11 @@ macro(zint_add_test test_name test_command)
             target_compile_definitions(${test_command} PRIVATE ZINT_NO_PNG)
         endif()
         add_test(${test_name} ${test_command})
+
         if(MSVC)
+            string(REPLACE ";" "\\;" env_path "$ENV{PATH}")
             set_tests_properties(${test_name} PROPERTIES ENVIRONMENT
-                "CMAKE_CURRENT_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR};PATH=${CMAKE_BINARY_DIR}/backend/${CMAKE_BUILD_TYPE}\;${CMAKE_BINARY_DIR}/frontend/${CMAKE_BUILD_TYPE}\;$ENV{PATH}")
+                    "CMAKE_CURRENT_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR};PATH=${CMAKE_BINARY_DIR}/backend/${CMAKE_BUILD_TYPE}\;${CMAKE_BINARY_DIR}/frontend/${CMAKE_BUILD_TYPE}\;${env_path}")
         else()
             set_tests_properties(${test_name} PROPERTIES ENVIRONMENT
                 "CMAKE_CURRENT_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR};LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}/backend;PATH=${CMAKE_BINARY_DIR}/frontend:$ENV{PATH}")
@@ -28,8 +30,9 @@ macro(zint_add_test test_name test_command)
         endif()
         add_test(${test_name}-static ${test_command}-static)
         if(MSVC)
+            string(REPLACE ";" "\\;" env_path "$ENV{PATH}")
             set_tests_properties(${test_name}-static PROPERTIES ENVIRONMENT
-                "CMAKE_CURRENT_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR};PATH=${CMAKE_BINARY_DIR}/backend/${CMAKE_BUILD_TYPE}\;${CMAKE_BINARY_DIR}/frontend/${CMAKE_BUILD_TYPE}\;$ENV{PATH}")
+                "CMAKE_CURRENT_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR};PATH=${CMAKE_BINARY_DIR}/backend/${CMAKE_BUILD_TYPE}\;${CMAKE_BINARY_DIR}/frontend/${CMAKE_BUILD_TYPE}\;${env_path}")
         else()
             set_tests_properties(${test_name}-static PROPERTIES ENVIRONMENT
                 "CMAKE_CURRENT_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR};LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}/backend;PATH=${CMAKE_BINARY_DIR}/frontend:$ENV{PATH}")

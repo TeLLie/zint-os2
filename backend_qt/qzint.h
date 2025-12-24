@@ -65,7 +65,7 @@ public:
     int inputMode() const; // `symbol->input_mode`
     void setInputMode(int input_mode);
 
-    /* Note text/eci and segs are mutally exclusive */
+    /* Note text/eci and segs are mutually exclusive */
 
     /* Input data (segment 0 text) */
     QString text() const;
@@ -208,6 +208,10 @@ public:
     bool gs1NoCheck() const; // `symbol->input_mode | GS1NOCHECK_MODE`
     void setGS1NoCheck(bool gs1NoCheck);
 
+    /* Use GS1 Syntax Engine to validate GS1 data */
+    bool gs1SyntaxEngine() const; // `symbol->input_mode | GS1SYNTAXENGINE_MODE`
+    void setGS1SyntaxEngine(bool gs1SyntaxEngine);
+
     /* Reader Initialisation (Programming) */
     bool readerInit() const; // `symbol->output_options | READER_INIT`
     void setReaderInit(bool readerInit);
@@ -235,6 +239,9 @@ public:
     float encodedHeight() const; // Read-only, in X-dimensions
     float vectorWidth() const; // Read-only, scaled width
     float vectorHeight() const; // Read-only, scaled height
+    int encodedOption1() const; // Read-only, encoded `option_1`
+    int encodedOption2() const; // Read-only, encoded `option_2`
+    int encodedOption3() const; // Read-only, encoded `option_3`
 
 
     /* Legacy property getters/setters */
@@ -265,6 +272,7 @@ public:
     bool hasMask(int symbology = 0) const;
     bool supportsStructApp(int symbology = 0) const;
     bool hasCompliantHeight(int symbology = 0) const;
+    bool isBindable(int symbology = 0) const;
 
     /* Whether takes GS1 AI-delimited data */
     bool takesGS1AIData(int symbology = 0) const;
@@ -312,6 +320,9 @@ public:
 
     /* Whether Zint library "libzint" built with PNG support or not */
     static bool noPng(); // `ZBarcode_NoPng()`
+
+    /* Whether Zint library "libzint" built with GS1 Syntax Engine support or not */
+    static bool haveGS1SyntaxEngine(); // `ZBarcode_HaveGS1SyntaxEngine()`
 
     /* Version of Zint library "libzint" linked to */
     static int getVersion(); // `ZBarcode_Version()`
@@ -387,6 +398,7 @@ private:
     int m_eci;
     bool m_gs1parens;
     bool m_gs1nocheck;
+    bool m_gs1syntaxengine;
     bool m_reader_init;
     bool m_guard_whitespace;
     bool m_embed_vector_font;
@@ -397,6 +409,9 @@ private:
     float m_encodedHeight;
     float m_vectorWidth;
     float m_vectorHeight;
+    int m_encodedOption1;
+    int m_encodedOption2;
+    int m_encodedOption3;
     QString m_lastError;
     int m_error;
 

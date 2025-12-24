@@ -84,7 +84,7 @@ static void test_large(const testCtx *const p_ctx) {
 
     char data_buf[4096] = {0}; /* Suppress clang -fsanitize=memory false positive */
 
-    testStartSymbol("test_large", &symbol);
+    testStartSymbol(p_ctx->func_name, &symbol);
 
     for (i = 0; i < data_size; i++) {
 
@@ -132,7 +132,7 @@ static void test_koreapost(const testCtx *const p_ctx) {
     int i, length, ret;
     struct zint_symbol *symbol = NULL;
 
-    testStartSymbol("test_koreapost", &symbol);
+    testStartSymbol(p_ctx->func_name, &symbol);
 
     for (i = 0; i < data_size; i++) {
 
@@ -185,7 +185,7 @@ static void test_japanpost(const testCtx *const p_ctx) {
     int i, length, ret;
     struct zint_symbol *symbol = NULL;
 
-    testStartSymbol("test_japanpost", &symbol);
+    testStartSymbol(p_ctx->func_name, &symbol);
 
     for (i = 0; i < data_size; i++) {
 
@@ -224,43 +224,42 @@ static void test_hrt(const testCtx *const p_ctx) {
         const char *data;
 
         const char *expected;
+        const char *expected_content;
     };
     /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
     static const struct item data[] = {
-        /*  0*/ { BARCODE_FLAT, -1, -1, "12345", "" }, /* None */
-        /*  1*/ { BARCODE_FLAT, -1, BARCODE_RAW_TEXT, "12345", "12345" },
-        /*  2*/ { BARCODE_POSTNET, -1, -1, "12345", "" }, /* None */
-        /*  3*/ { BARCODE_POSTNET, -1, BARCODE_RAW_TEXT, "12345", "123455" },
-        /*  4*/ { BARCODE_FIM, -1, -1, "e", "" }, /* None */
-        /*  5*/ { BARCODE_FIM, -1, BARCODE_RAW_TEXT, "e", "E" },
-        /*  6*/ { BARCODE_CEPNET, -1, -1, "12345678", "" }, /* None */
-        /*  7*/ { BARCODE_CEPNET, -1, BARCODE_RAW_TEXT, "12345678", "123456784" },
-        /*  8*/ { BARCODE_RM4SCC, -1, -1, "BX11LT1A", "" }, /* None*/
-        /*  9*/ { BARCODE_RM4SCC, -1, BARCODE_RAW_TEXT, "BX11LT1A", "BX11LT1AI" },
-        /* 10*/ { BARCODE_JAPANPOST, -1, -1, "1234", "" }, /* None*/
-        /* 11*/ { BARCODE_JAPANPOST, -1, BARCODE_RAW_TEXT, "1234", "1234" }, /* Note check char not included */
-        /* 12*/ { BARCODE_JAPANPOST, -1, BARCODE_RAW_TEXT, "123456-AB", "123456-AB" }, /* Ditto */
-        /* 13*/ { BARCODE_KOREAPOST, -1, -1, "123456", "1234569" },
-        /* 14*/ { BARCODE_KOREAPOST, -1, BARCODE_RAW_TEXT, "123456", "1234569" }, /* No difference */
-        /* 15*/ { BARCODE_PLANET, -1, -1, "12345678901", "" }, /* None */
-        /* 16*/ { BARCODE_PLANET, -1, BARCODE_RAW_TEXT, "12345678901", "123456789014" },
-        /* 17*/ { BARCODE_KIX, -1, -1, "0123456789ABCDEFGH", "" }, /* None */
-        /* 18*/ { BARCODE_KIX, -1, BARCODE_RAW_TEXT, "0123456789ABCDEFGH", "0123456789ABCDEFGH" },
-        /* 19*/ { BARCODE_DAFT, -1, -1, "DAFT", "" }, /* None */
-        /* 20*/ { BARCODE_DAFT, -1, BARCODE_RAW_TEXT, "DAFT", "DAFT" },
+        /*  0*/ { BARCODE_FLAT, -1, -1, "12345", "", "" }, /* None */
+        /*  1*/ { BARCODE_FLAT, -1, BARCODE_CONTENT_SEGS, "12345", "", "12345" },
+        /*  2*/ { BARCODE_POSTNET, -1, -1, "12345", "", "" }, /* None */
+        /*  3*/ { BARCODE_POSTNET, -1, BARCODE_CONTENT_SEGS, "12345", "", "123455" },
+        /*  4*/ { BARCODE_FIM, -1, -1, "e", "", "" }, /* None */
+        /*  5*/ { BARCODE_FIM, -1, BARCODE_CONTENT_SEGS, "e", "", "E" },
+        /*  6*/ { BARCODE_CEPNET, -1, -1, "12345678", "", "" }, /* None */
+        /*  7*/ { BARCODE_CEPNET, -1, BARCODE_CONTENT_SEGS, "12345678", "", "123456784" },
+        /*  8*/ { BARCODE_RM4SCC, -1, -1, "BX11LT1A", "", "" }, /* None*/
+        /*  9*/ { BARCODE_RM4SCC, -1, BARCODE_CONTENT_SEGS, "BX11LT1A", "", "BX11LT1AI" },
+        /* 10*/ { BARCODE_JAPANPOST, -1, -1, "1234", "", "" }, /* None*/
+        /* 11*/ { BARCODE_JAPANPOST, -1, BARCODE_CONTENT_SEGS, "1234", "", "1234" }, /* Note check char not included */
+        /* 12*/ { BARCODE_JAPANPOST, -1, BARCODE_CONTENT_SEGS, "123456-AB", "", "123456-AB" }, /* Ditto */
+        /* 13*/ { BARCODE_KOREAPOST, -1, -1, "123456", "1234569", "" },
+        /* 14*/ { BARCODE_KOREAPOST, -1, BARCODE_CONTENT_SEGS, "123456", "1234569", "1234569" }, /* No difference */
+        /* 15*/ { BARCODE_PLANET, -1, -1, "12345678901", "", "" }, /* None */
+        /* 16*/ { BARCODE_PLANET, -1, BARCODE_CONTENT_SEGS, "12345678901", "", "123456789014" },
+        /* 17*/ { BARCODE_KIX, -1, -1, "0123456789ABCDEFGH", "", "" }, /* None */
+        /* 18*/ { BARCODE_KIX, -1, BARCODE_CONTENT_SEGS, "0123456789ABCDEFGH", "", "0123456789ABCDEFGH" },
+        /* 19*/ { BARCODE_DAFT, -1, -1, "DAFT", "", "" }, /* None */
+        /* 20*/ { BARCODE_DAFT, -1, BARCODE_CONTENT_SEGS, "DAFT", "", "DAFT" },
     };
     const int data_size = ARRAY_SIZE(data);
     int i, length, ret;
     struct zint_symbol *symbol = NULL;
-    int expected_length;
+    int expected_length, expected_content_length;
 
-    testStartSymbol("test_hrt", &symbol);
+    testStartSymbol(p_ctx->func_name, &symbol);
 
     for (i = 0; i < data_size; i++) {
 
         if (testContinue(p_ctx, i)) continue;
-
-        if (data[i].output_options == BARCODE_RAW_TEXT) continue; /* BARCODE_RAW_TEXT temporarily disabled */
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -269,6 +268,7 @@ static void test_hrt(const testCtx *const p_ctx) {
                     -1 /*option_1*/, data[i].option_2, -1 /*option_3*/, data[i].output_options,
                     data[i].data, -1, debug);
         expected_length = (int) strlen(data[i].expected);
+        expected_content_length = (int) strlen(data[i].expected_content);
 
         ret = ZBarcode_Encode(symbol, TCU(data[i].data), length);
         assert_zero(ret, "i:%d ZBarcode_Encode ret %d != 0 %s\n", i, ret, symbol->errtxt);
@@ -277,6 +277,19 @@ static void test_hrt(const testCtx *const p_ctx) {
                     i, symbol->text_length, expected_length);
         assert_zero(strcmp((char *) symbol->text, data[i].expected), "i:%d strcmp(%s, %s) != 0\n",
                     i, symbol->text, data[i].expected);
+        if (symbol->output_options & BARCODE_CONTENT_SEGS) {
+            assert_nonnull(symbol->content_segs, "i:%d content_segs NULL\n", i);
+            assert_nonnull(symbol->content_segs[0].source, "i:%d content_segs[0].source NULL\n", i);
+            assert_equal(symbol->content_segs[0].length, expected_content_length,
+                        "i:%d content_segs[0].length %d != expected_content_length %d\n",
+                        i, symbol->content_segs[0].length, expected_content_length);
+            assert_zero(memcmp(symbol->content_segs[0].source, data[i].expected_content, expected_content_length),
+                        "i:%d memcmp(%.*s, %s, %d) != 0\n",
+                        i, symbol->content_segs[0].length, symbol->content_segs[0].source, data[i].expected_content,
+                        expected_content_length);
+        } else {
+            assert_null(symbol->content_segs, "i:%d content_segs not NULL\n", i);
+        }
 
         ZBarcode_Delete(symbol);
     }
@@ -359,7 +372,7 @@ static void test_input(const testCtx *const p_ctx) {
 
     int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
 
-    testStartSymbol("test_input", &symbol);
+    testStartSymbol(p_ctx->func_name, &symbol);
 
     for (i = 0; i < data_size; i++) {
 
@@ -557,7 +570,7 @@ static void test_encode(const testCtx *const p_ctx) {
 
     int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
 
-    testStartSymbol("test_encode", &symbol);
+    testStartSymbol(p_ctx->func_name, &symbol);
 
     for (i = 0; i < data_size; i++) {
 
@@ -604,107 +617,6 @@ static void test_encode(const testCtx *const p_ctx) {
     testFinish();
 }
 
-#include <time.h>
-
-#define TEST_PERF_ITER_MILLES   10
-#define TEST_PERF_ITERATIONS    (TEST_PERF_ITER_MILLES * 1000)
-#define TEST_PERF_TIME(arg) ((arg) * 1000.0 / CLOCKS_PER_SEC)
-
-/* Not a real test, just performance indicator */
-static void test_perf(const testCtx *const p_ctx) {
-    int debug = p_ctx->debug;
-
-    struct item {
-        int symbology;
-        int option_2;
-        const char *data;
-        int ret;
-
-        int expected_rows;
-        int expected_width;
-        const char *comment;
-    };
-    static const struct item data[] = {
-        /*  0*/ { BARCODE_POSTNET, -1, "12345678901", 0, 2, 123, "POSTNET 11" },
-        /*  1*/ { BARCODE_PLANET, -1, "1234567890123", 0, 2, 143, "PLANET 13" },
-        /*  2*/ { BARCODE_KOREAPOST, -1, "123456", 0, 1, 167, "KOREAPOST 6" },
-    };
-    const int data_size = ARRAY_SIZE(data);
-    int i, length, ret;
-    struct zint_symbol *symbol;
-
-    clock_t start;
-    clock_t total_create = 0, total_encode = 0, total_buffer = 0, total_buf_inter = 0, total_print = 0;
-    clock_t diff_create, diff_encode, diff_buffer, diff_buf_inter, diff_print;
-    int comment_max = 0;
-
-    if (!(debug & ZINT_DEBUG_TEST_PERFORMANCE)) { /* -d 256 */
-        return;
-    }
-
-    for (i = 0; i < data_size; i++) if ((int) strlen(data[i].comment) > comment_max) comment_max = (int) strlen(data[i].comment);
-
-    printf("Iterations %d\n", TEST_PERF_ITERATIONS);
-
-    for (i = 0; i < data_size; i++) {
-        int j;
-
-        if (testContinue(p_ctx, i)) continue;
-
-        diff_create = diff_encode = diff_buffer = diff_buf_inter = diff_print = 0;
-
-        for (j = 0; j < TEST_PERF_ITERATIONS; j++) {
-            start = clock();
-            symbol = ZBarcode_Create();
-            diff_create += clock() - start;
-            assert_nonnull(symbol, "Symbol not created\n");
-
-            length = testUtilSetSymbol(symbol, data[i].symbology, DATA_MODE, -1 /*eci*/, -1 /*option_1*/, data[i].option_2, -1, -1 /*output_options*/, data[i].data, -1, debug);
-
-            start = clock();
-            ret = ZBarcode_Encode(symbol, TCU(data[i].data), length);
-            diff_encode += clock() - start;
-            assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
-
-            assert_equal(symbol->rows, data[i].expected_rows, "i:%d symbol->rows %d != %d (%s)\n", i, symbol->rows, data[i].expected_rows, data[i].data);
-            assert_equal(symbol->width, data[i].expected_width, "i:%d symbol->width %d != %d (%s)\n", i, symbol->width, data[i].expected_width, data[i].data);
-
-            start = clock();
-            ret = ZBarcode_Buffer(symbol, 0 /*rotate_angle*/);
-            diff_buffer += clock() - start;
-            assert_zero(ret, "i:%d ZBarcode_Buffer ret %d != 0 (%s)\n", i, ret, symbol->errtxt);
-
-            symbol->output_options |= OUT_BUFFER_INTERMEDIATE;
-            start = clock();
-            ret = ZBarcode_Buffer(symbol, 0 /*rotate_angle*/);
-            diff_buf_inter += clock() - start;
-            assert_zero(ret, "i:%d ZBarcode_Buffer OUT_BUFFER_INTERMEDIATE ret %d != 0 (%s)\n", i, ret, symbol->errtxt);
-            symbol->output_options &= ~OUT_BUFFER_INTERMEDIATE; /* Undo */
-
-            start = clock();
-            ret = ZBarcode_Print(symbol, 0 /*rotate_angle*/);
-            diff_print += clock() - start;
-            assert_zero(ret, "i:%d ZBarcode_Print ret %d != 0 (%s)\n", i, ret, symbol->errtxt);
-            assert_zero(testUtilRemove(symbol->outfile), "i:%d testUtilRemove(%s) != 0\n", i, symbol->outfile);
-
-            ZBarcode_Delete(symbol);
-        }
-
-        printf("%*s: encode % 8gms, buffer % 8gms, buf_inter % 8gms, print % 8gms, create % 8gms\n", comment_max, data[i].comment,
-                TEST_PERF_TIME(diff_encode), TEST_PERF_TIME(diff_buffer), TEST_PERF_TIME(diff_buf_inter), TEST_PERF_TIME(diff_print), TEST_PERF_TIME(diff_create));
-
-        total_create += diff_create;
-        total_encode += diff_encode;
-        total_buffer += diff_buffer;
-        total_buf_inter += diff_buf_inter;
-        total_print += diff_print;
-    }
-    if (p_ctx->index == -1) {
-        printf("%*s: encode % 8gms, buffer % 8gms, buf_inter % 8gms, print % 8gms, create % 8gms\n", comment_max, "totals",
-                TEST_PERF_TIME(total_encode), TEST_PERF_TIME(total_buffer), TEST_PERF_TIME(total_buf_inter), TEST_PERF_TIME(total_print), TEST_PERF_TIME(total_create));
-    }
-}
-
 int main(int argc, char *argv[]) {
 
     testFunction funcs[] = { /* name, func */
@@ -714,7 +626,6 @@ int main(int argc, char *argv[]) {
         { "test_hrt", test_hrt },
         { "test_input", test_input },
         { "test_encode", test_encode },
-        { "test_perf", test_perf },
     };
 
     testRun(argc, argv, funcs, ARRAY_SIZE(funcs));

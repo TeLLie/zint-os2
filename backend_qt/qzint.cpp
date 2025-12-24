@@ -22,7 +22,9 @@
 #endif
 #endif
 
-//#include <QDebug>
+#if 0
+#include <QDebug>
+#endif
 #include <QFontDatabase>
 #include <QFontMetrics>
 /* The following include is necessary to compile with Qt 5.15 on Windows; Qt 5.7 did not require it */
@@ -197,13 +199,14 @@ namespace Zint {
             m_compliant_height(false),
             m_rotate_angle(0),
             m_eci(0),
-            m_gs1parens(false), m_gs1nocheck(false),
+            m_gs1parens(false), m_gs1nocheck(false), m_gs1syntaxengine(false),
             m_reader_init(false),
             m_guard_whitespace(false),
             m_embed_vector_font(false),
             m_warn_level(WARN_DEFAULT), m_debug(false),
             m_encodedWidth(0), m_encodedRows(0), m_encodedHeight(0.0f),
             m_vectorWidth(0.0f), m_vectorHeight(0.0f),
+            m_encodedOption1(-1), m_encodedOption2(0), m_encodedOption3(0),
             m_error(0),
             target_size_horiz(0), target_size_vert(0) // Legacy
     {
@@ -275,6 +278,9 @@ namespace Zint {
         if (m_gs1nocheck) {
             m_zintSymbol->input_mode |= GS1NOCHECK_MODE;
         }
+        if (m_gs1syntaxengine) {
+            m_zintSymbol->input_mode |= GS1SYNTAXENGINE_MODE;
+        }
         m_zintSymbol->eci = m_eci;
         m_zintSymbol->dpmm = m_dpmm;
         m_zintSymbol->dot_size = m_dot_size;
@@ -315,10 +321,16 @@ namespace Zint {
             m_encodedHeight = m_zintSymbol->height;
             m_vectorWidth = m_zintSymbol->vector->width;
             m_vectorHeight = m_zintSymbol->vector->height;
+            m_encodedOption1 = m_zintSymbol->option_1;
+            m_encodedOption2 = m_zintSymbol->option_2;
+            m_encodedOption3 = m_zintSymbol->option_3;
             emit encoded();
         } else {
             m_encodedWidth = m_encodedRows = 0;
             m_encodedHeight = m_vectorWidth = m_vectorHeight = 0.0f;
+            m_encodedOption1 = -1;
+            m_encodedOption2 = 0;
+            m_encodedOption3 = 0;
             emit errored();
         }
     }
@@ -729,6 +741,15 @@ namespace Zint {
         m_gs1nocheck = gs1NoCheck;
     }
 
+    /* Use GS1 Syntax Engine to validate GS1 data */
+    bool QZint::gs1SyntaxEngine() const {
+        return m_gs1syntaxengine;
+    }
+
+    void QZint::setGS1SyntaxEngine(bool gs1SyntaxEngine) {
+        m_gs1syntaxengine = gs1SyntaxEngine;
+    }
+
     /* Reader Initialisation (Programming) */
     bool QZint::readerInit() const {
         return m_reader_init;
@@ -796,6 +817,18 @@ namespace Zint {
 
     float QZint::vectorHeight() const { // Read-only, scaled height
         return m_vectorHeight;
+    }
+
+    int QZint::encodedOption1() const { // Read-only, encoded `option_1`
+        return m_encodedOption1;
+    }
+
+    int QZint::encodedOption2() const { // Read-only, encoded `option_2`
+        return m_encodedOption2;
+    }
+
+    int QZint::encodedOption3() const { // Read-only, encoded `option_3`
+        return m_encodedOption3;
     }
 
     /* Legacy property getters/setters */
@@ -873,6 +906,10 @@ namespace Zint {
         return ZBarcode_Cap(symbology ? symbology : m_symbol, ZINT_CAP_COMPLIANT_HEIGHT);
     }
 
+    bool QZint::isBindable(int symbology) const {
+        return ZBarcode_Cap(symbology ? symbology : m_symbol, ZINT_CAP_BINDABLE);
+    }
+
     /* Whether takes GS1 AI-delimited data */
     bool QZint::takesGS1AIData(int symbology) const {
         if (symbology == 0) {
@@ -885,7 +922,8 @@ namespace Zint {
                 return true;
                 break;
             default:
-                return symbology >= BARCODE_EANX_CC && symbology <= BARCODE_DBAR_EXPSTK_CC;
+                return (symbology >= BARCODE_EANX_CC && symbology <= BARCODE_DBAR_EXPSTK_CC)
+						|| symbology == BARCODE_EAN8_CC || symbology == BARCODE_EAN13_CC;
                 break;
         }
     }
@@ -1207,6 +1245,11 @@ namespace Zint {
         return ZBarcode_NoPng() == 1;
     }
 
+    /* Whether Zint library "libzint" built with PNG support or not */
+    bool QZint::haveGS1SyntaxEngine() {
+        return ZBarcode_HaveGS1SyntaxEngine() == 1;
+    }
+
     /* Version of Zint library "libzint" linked to */
     int QZint::getVersion() {
         return ZBarcode_Version();
@@ -1319,9 +1362,16 @@ namespace Zint {
         arg_bool(cmd, "--fullmultibyte", supportsFullMultibyte() && (option3() & 0xFF) == ZINT_FULL_MULTIBYTE);
 
         if (supportsGS1()) {
-            arg_bool(cmd, "--gs1", (inputMode() & 0x07) == GS1_MODE);
-            arg_bool(cmd, "--gs1parens", gs1Parens() || (inputMode() & GS1PARENS_MODE));
-            arg_bool(cmd, "--gs1nocheck", gs1NoCheck() || (inputMode() & GS1NOCHECK_MODE));
+            bool gs1_implied = false;
+            if (gs1Parens() || (inputMode() & GS1PARENS_MODE)) {
+                arg_bool(cmd, "--gs1parens", (gs1_implied = true));
+            }
+            if (gs1NoCheck() || (inputMode() & GS1NOCHECK_MODE)) {
+                arg_bool(cmd, "--gs1nocheck", (gs1_implied = true));
+            } else if (gs1SyntaxEngine() || (inputMode() & GS1SYNTAXENGINE_MODE)) {
+                arg_bool(cmd, "--gs1strict", (gs1_implied = true));
+            }
+            arg_bool(cmd, "--gs1", (inputMode() & 0x07) == GS1_MODE && !gs1_implied);
             arg_bool(cmd, "--gssep", gsSep());
         }
 
