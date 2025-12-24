@@ -1,10 +1,10 @@
 win32 {
-	TEMPLATE = vclib
-	CONFIG += staticlib debug-and-release
+    TEMPLATE = vclib
+    CONFIG += staticlib debug-and-release
 }
 
 TARGET = QtZint2
-VERSION = 2.15.0
+VERSION = 2.16.0
 
 QMAKE_CFLAGS += /TP /wd4018 /wd4244 /wd4305
 QMAKE_CXXFLAGS += /TP /wd4018 /wd4244 /wd4305

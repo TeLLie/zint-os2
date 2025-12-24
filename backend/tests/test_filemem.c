@@ -39,7 +39,7 @@
 #include "../common.h"
 #include "../filemem.h"
 
-static void test_svg(const testCtx *const p_ctx) {
+static void test_file(const testCtx *const p_ctx) {
     int debug = p_ctx->debug;
 
     struct item {
@@ -68,12 +68,15 @@ static void test_svg(const testCtx *const p_ctx) {
                     " </g>\n"
                     "</svg>\n"
                 },
+        /*  1*/ { BARCODE_TELEPEN, BARCODE_MEMORY_FILE, "out.txt", "ABCD", -1, 0,
+                    "AA B8 BB B8 E3 B8 AE EA EB B8 AE AA E2 AA\n"
+                },
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
     struct zint_symbol *symbol = NULL;
 
-    testStartSymbol("test_svg", &symbol);
+    testStartSymbol(p_ctx->func_name, &symbol);
 
     for (i = 0; i < data_size; i++) {
 
@@ -82,7 +85,9 @@ static void test_svg(const testCtx *const p_ctx) {
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
 
-        length = testUtilSetSymbol(symbol, data[i].symbology, -1 /*input_mode*/, -1 /*eci*/, -1 /*option_1*/, -1, -1, data[i].output_options, data[i].data, data[i].length, debug);
+        length = testUtilSetSymbol(symbol, data[i].symbology, -1 /*input_mode*/, -1 /*eci*/,
+                                    -1 /*option_1*/, -1 /*option_2*/, -1 /*option_3*/, data[i].output_options,
+                                    data[i].data, data[i].length, debug);
         strcpy(symbol->outfile, data[i].outfile);
 
         ret = ZBarcode_Encode_and_Print(symbol, TCU(data[i].data), length, 0);
@@ -94,10 +99,12 @@ static void test_svg(const testCtx *const p_ctx) {
 
             assert_nonnull(symbol->memfile, "i:%d memfile NULL (%s)\n", i, symbol->errtxt);
 
-            assert_equal(symbol->memfile_size, expected_size, "i:%d memfile_size %d != %d (%s)\n",
-                            i, symbol->memfile_size, expected_size, symbol->errtxt);
+            assert_equal(symbol->memfile_size, expected_size, "i:%d memfile_size %d != %d (\"%.*s\", \"%s\") (%s)\n",
+                            i, symbol->memfile_size, expected_size, symbol->memfile_size, symbol->memfile,
+                            data[i].expected, symbol->errtxt);
             ret = memcmp(symbol->memfile, data[i].expected, expected_size);
-            assert_zero(ret, "i:%d memcmp() %d != 0\n", i, ret);
+            assert_zero(ret, "i:%d memcmp(\"%.*s\", \"%s\") %d != 0 (%s)\n",
+                            i, symbol->memfile_size, symbol->memfile, data[i].expected, ret, symbol->errtxt);
         } else {
             assert_null(symbol->memfile, "i:%d memfile != NULL (%s)\n", i, symbol->errtxt);
             assert_zero(symbol->memfile_size, "i:%d memfile_size != 0 (%s)\n", i, symbol->errtxt);
@@ -154,7 +161,7 @@ static void test_putsf(const testCtx *const p_ctx) {
     char buf[512] = {0}; /* Suppress clang-16/17 run-time exception MemorySanitizer: use-of-uninitialized-value */
 #endif
 
-    testStart("test_putsf");
+    testStart(p_ctx->func_name);
 
     for (j = 0; j < 2; j++) { /* 1st `memfile`, then file */
 #ifdef ZINT_TEST_NO_FMEMOPEN
@@ -176,7 +183,8 @@ static void test_putsf(const testCtx *const p_ctx) {
             } else {
                 symbol->output_options |= BARCODE_MEMORY_FILE;
             }
-            assert_nonzero(fm_open(fmp, symbol, "w"), "i:%d: fm_open fail (%d, %s)\n", i, fmp->err, strerror(fmp->err));
+            assert_nonzero(zint_fm_open(fmp, symbol, "w"), "i:%d: zint_fm_open fail (%d, %s)\n",
+                        i, fmp->err, strerror(fmp->err));
             if (j == 1) {
 #ifndef ZINT_TEST_NO_FMEMOPEN
                 /* Hack in `fmemopen()` fp */
@@ -194,9 +202,9 @@ static void test_putsf(const testCtx *const p_ctx) {
                 }
             }
 
-            fm_putsf(data[i].prefix, data[i].dp, data[i].arg, fmp);
+            zint_fm_putsf(data[i].prefix, data[i].dp, data[i].arg, fmp);
 
-            assert_nonzero(fm_close(fmp, symbol), "i:%d: fm_close fail (%d, %s)\n", i, fmp->err, strerror(fmp->err));
+            assert_nonzero(zint_fm_close(fmp, symbol), "i:%d: zint_fm_close fail (%d, %s)\n", i, fmp->err, strerror(fmp->err));
 
             if (locale) {
                 assert_nonnull(setlocale(LC_ALL, locale), "i:%d: setlocale(%s) restore fail (%d, %s)\n",
@@ -212,7 +220,8 @@ static void test_putsf(const testCtx *const p_ctx) {
                 assert_equal(symbol->memfile_size, expected_size, "i:%d: memfile_size %d != expected_size %d\n",
                             i, symbol->memfile_size, expected_size);
                 assert_nonnull(symbol->memfile, "i:%d memfile NULL\n", i);
-                assert_zero(memcmp(symbol->memfile, data[i].expected, expected_size), "i:%d: memcmp(%.*s, %.*s) != 0\n",
+                assert_zero(memcmp(symbol->memfile, data[i].expected, expected_size),
+                            "i:%d: memcmp(%.*s, %.*s) != 0\n",
                             i, symbol->memfile_size, symbol->memfile, expected_size, data[i].expected);
             }
 
@@ -247,7 +256,7 @@ static void test_printf(const testCtx *const p_ctx) {
 
     (void)debug;
 
-    testStart("test_printf");
+    testStart(p_ctx->func_name);
 
     for (j = 0; j < 2; j++) { /* 1st memfile, then file */
         ZBarcode_Reset(symbol);
@@ -259,14 +268,14 @@ static void test_printf(const testCtx *const p_ctx) {
         } else {
             symbol->output_options |= BARCODE_MEMORY_FILE;
         }
-        ret = fm_open(fmp, symbol, "wb");
-        assert_equal(ret, 1, "fm_open ret %d != 1\n", ret);
+        ret = zint_fm_open(fmp, symbol, "wb");
+        assert_equal(ret, 1, "zint_fm_open ret %d != 1\n", ret);
 
-        ret = fm_printf(fmp, fmt1, "gosh", 123, "gee");
-        assert_equal(ret, 1, "fm_printf ret %d != 1\n", ret);
+        ret = zint_fm_printf(fmp, fmt1, "gosh", 123, "gee");
+        assert_equal(ret, 1, "zint_fm_printf ret %d != 1\n", ret);
 
-        ret = fm_close(fmp, symbol);
-        assert_equal(ret, 1, "fm_close ret %d != 1\n", ret);
+        ret = zint_fm_close(fmp, symbol);
+        assert_equal(ret, 1, "zint_fm_close ret %d != 1\n", ret);
 
         expected_size = (int) strlen(expected);
 
@@ -297,14 +306,14 @@ static void test_printf(const testCtx *const p_ctx) {
         } else {
             symbol->output_options |= BARCODE_MEMORY_FILE;
         }
-        ret = fm_open(fmp, symbol, "w");
-        assert_equal(ret, 1, "fm_open ret %d != 1\n", ret);
+        ret = zint_fm_open(fmp, symbol, "w");
+        assert_equal(ret, 1, "zint_fm_open ret %d != 1\n", ret);
 
-        ret = fm_printf(fmp, fmt1, "gosh", 123, "gee");
-        assert_equal(ret, 1, "fm_printf ret %d != 1\n", ret);
+        ret = zint_fm_printf(fmp, fmt1, "gosh", 123, "gee");
+        assert_equal(ret, 1, "zint_fm_printf ret %d != 1\n", ret);
 
-        ret = fm_close(fmp, symbol);
-        assert_equal(ret, 1, "fm_close ret %d != 1\n", ret);
+        ret = zint_fm_close(fmp, symbol);
+        assert_equal(ret, 1, "zint_fm_close ret %d != 1\n", ret);
 
         expected_size = (int) strlen(expected);
 
@@ -344,7 +353,7 @@ static void test_seek(const testCtx *const p_ctx) {
 
     (void)debug;
 
-    testStart("test_seek");
+    testStart(p_ctx->func_name);
 
     for (j = 0; j < 2; j++) { /* 1st memfile, then file */
         ZBarcode_Reset(symbol);
@@ -354,63 +363,63 @@ static void test_seek(const testCtx *const p_ctx) {
         } else {
             symbol->output_options |= BARCODE_MEMORY_FILE;
         }
-        ret = fm_open(fmp, symbol, "wb");
-        assert_equal(ret, 1, "j:%d fm_open ret %d != 1\n", j, ret);
+        ret = zint_fm_open(fmp, symbol, "wb");
+        assert_equal(ret, 1, "j:%d zint_fm_open ret %d != 1\n", j, ret);
 
-        ret = fm_puts("1234567890", fmp);
-        assert_equal(ret, 1, "j:%d fm_puts ret %d != 1\n", j, ret);
+        ret = zint_fm_puts("1234567890", fmp);
+        assert_equal(ret, 1, "j:%d zint_fm_puts ret %d != 1\n", j, ret);
         if (j != 1) {
             assert_nonnull(fmp->mem, "mem NULL (%d: %s)\n", fmp->err, strerror(fmp->err));
             assert_equal(fmp->mempos, 10, "mempos %d != 10\n", (int) fmp->mempos);
             assert_zero(memcmp(fmp->mem, "1234567890", fmp->mempos), "memcmp fail\n");
         }
 
-        ret = fm_seek(fmp, -10, SEEK_CUR);
-        assert_equal(ret, 1, "j:%d fm_seek ret %d != 1 (%d: %s)\n", j, ret, fmp->err, strerror(fmp->err));
-        ret = fm_error(fmp);
-        assert_zero(ret, "j:%d fm_error ret %d != 0\n", j, ret);
-        ret = (int) fm_tell(fmp);
-        assert_zero(ret, "j:%d fm_tell ret %d != 0\n", j, ret);
+        ret = zint_fm_seek(fmp, -10, SEEK_CUR);
+        assert_equal(ret, 1, "j:%d zint_fm_seek ret %d != 1 (%d: %s)\n", j, ret, fmp->err, strerror(fmp->err));
+        ret = zint_fm_error(fmp);
+        assert_zero(ret, "j:%d zint_fm_error ret %d != 0\n", j, ret);
+        ret = (int) zint_fm_tell(fmp);
+        assert_zero(ret, "j:%d zint_fm_tell ret %d != 0\n", j, ret);
 
-        ret = fm_seek(fmp, 0, SEEK_END);
-        assert_equal(ret, 1, "j:%d fm_seek ret %d != 1\n", j, ret);
-        ret = fm_error(fmp);
-        assert_zero(ret, "j:%d fm_error ret %d != 0\n", j, ret);
-        ret = (int) fm_tell(fmp);
-        assert_equal(ret, 10, "j:%d fm_tell ret %d != 10\n", j, ret);
+        ret = zint_fm_seek(fmp, 0, SEEK_END);
+        assert_equal(ret, 1, "j:%d zint_fm_seek ret %d != 1\n", j, ret);
+        ret = zint_fm_error(fmp);
+        assert_zero(ret, "j:%d zint_fm_error ret %d != 0\n", j, ret);
+        ret = (int) zint_fm_tell(fmp);
+        assert_equal(ret, 10, "j:%d zint_fm_tell ret %d != 10\n", j, ret);
 
-        ret = fm_seek(fmp, -1, SEEK_SET);
-        assert_zero(ret, "j:%d fm_seek ret %d != 1\n", j, ret);
+        ret = zint_fm_seek(fmp, -1, SEEK_SET);
+        assert_zero(ret, "j:%d zint_fm_seek ret %d != 1\n", j, ret);
         assert_equal(fmp->err, EINVAL, "j:%d fmp->err %d (%s) != EINVAL\n", j, fmp->err, strerror(fmp->err));
 
-        ret = fm_close(fmp, symbol);
-        assert_zero(ret, "j:%d fm_close ret %d != 0\n", j, ret);
+        ret = zint_fm_close(fmp, symbol);
+        assert_zero(ret, "j:%d zint_fm_close ret %d != 0\n", j, ret);
         assert_equal(fmp->err, EINVAL, "j:%d fmp->err %d (%s) != EINVAL\n", j, fmp->err, strerror(fmp->err));
 
         if (j == 1) {
             assert_zero(testUtilRemove(symbol->outfile), "testUtilRemove(%s) != 0\n", symbol->outfile);
         }
 
-        ret = fm_open(fmp, symbol, "wb");
-        assert_equal(ret, 1, "j:%d fm_open ret %d != 1\n", j, ret);
+        ret = zint_fm_open(fmp, symbol, "wb");
+        assert_equal(ret, 1, "j:%d zint_fm_open ret %d != 1\n", j, ret);
 
-        ret = fm_seek(fmp, LONG_MAX, SEEK_CUR);
+        ret = zint_fm_seek(fmp, LONG_MAX, SEEK_CUR);
         if (j == 1) { /* May work on some file systems */
             if (ret == 0) {
                 assert_equal(fmp->err, EINVAL, "j:%d fmp->err %d (%s) != EINVAL\n", j, fmp->err, strerror(fmp->err));
             }
         } else {
-            assert_zero(ret, "j:%d fm_seek ret %d != 0\n", j, ret);
+            assert_zero(ret, "j:%d zint_fm_seek ret %d != 0\n", j, ret);
             assert_equal(fmp->err, EINVAL, "j:%d fmp->err %d (%s) != EINVAL\n", j, fmp->err, strerror(fmp->err));
         }
 
-        ret = fm_close(fmp, symbol);
+        ret = zint_fm_close(fmp, symbol);
         if (j == 1) { /* See above */
             if (ret == 0) {
                 assert_equal(fmp->err, EINVAL, "j:%d fmp->err %d (%s) != EINVAL\n", j, fmp->err, strerror(fmp->err));
             }
         } else {
-            assert_zero(ret, "j:%d fm_close ret %d != 0\n", j, ret);
+            assert_zero(ret, "j:%d zint_fm_close ret %d != 0\n", j, ret);
             assert_equal(fmp->err, EINVAL, "j:%d fmp->err %d (%s) != EINVAL\n", j, fmp->err, strerror(fmp->err));
         }
 
@@ -434,7 +443,7 @@ static void test_large(const testCtx *const p_ctx) {
 
     (void)debug;
 
-    testStart("test_large");
+    testStart(p_ctx->func_name);
 
     symbol = ZBarcode_Create();
     assert_nonnull(symbol, "Symbol not created\n");
@@ -463,7 +472,7 @@ static void test_large(const testCtx *const p_ctx) {
 int main(int argc, char *argv[]) {
 
     testFunction funcs[] = { /* name, func */
-        { "test_svg", test_svg },
+        { "test_file", test_file },
         { "test_putsf", test_putsf },
         { "test_printf", test_printf },
         { "test_seek", test_seek },

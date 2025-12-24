@@ -8,8 +8,8 @@ CONFIG += staticlib
 #CONFIG += dll
 
 macx{
-	CONFIG -= dll
-	CONFIG += lib_bundle
+    CONFIG -= dll
+    CONFIG += lib_bundle
 }
 
 TARGET = QtZint
@@ -17,12 +17,13 @@ TARGET = QtZint
 INCLUDEPATH += ../backend
 
 #EDIT THIS !!!!
-DEFINES += ZINT_VERSION="\\\"2.15.0\\\""
+DEFINES += ZINT_VERSION="\\\"2.16.0\\\""
 
-!contains(DEFINES, ZINT_NO_PNG) {
-    INCLUDEPATH += ../../lpng
-    INCLUDEPATH += ../../zlib
-}
+INCLUDEPATH += ../../lpng
+INCLUDEPATH += ../../zlib
+
+DEFINES += ZINT_HAVE_GS1SE
+INCLUDEPATH += ../../gs1-syntax-engine/src/c-lib
 
 HEADERS +=  ../backend/aztec.h \
             ../backend/big5.h \
@@ -126,7 +127,7 @@ SOURCES += ../backend/2of5.c \
            ../backend/dllversion.c \
            qzint.cpp
 
-VERSION = 2.15.0
+VERSION = 2.16.0
 
 #DESTDIR = .
 

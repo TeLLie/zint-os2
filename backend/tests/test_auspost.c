@@ -67,7 +67,7 @@ static void test_large(const testCtx *const p_ctx) {
 
     char data_buf[64];
 
-    testStartSymbol("test_large", &symbol);
+    testStartSymbol(p_ctx->func_name, &symbol);
 
     for (i = 0; i < data_size; i++) {
 
@@ -104,46 +104,45 @@ static void test_hrt(const testCtx *const p_ctx) {
         const char *data;
 
         const char *expected;
+        const char *expected_content;
     };
     /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
     static const struct item data[] = {
-        /*  0*/ { BARCODE_AUSPOST, -1, "12345678", "" }, /* None */
-        /*  1*/ { BARCODE_AUSPOST, BARCODE_RAW_TEXT, "12345678", "1112345678" },
-        /*  2*/ { BARCODE_AUSPOST, -1, "1234567890123", "" }, /* None */
-        /*  3*/ { BARCODE_AUSPOST, BARCODE_RAW_TEXT, "1234567890123", "591234567890123" },
-        /*  4*/ { BARCODE_AUSPOST, -1, "1234567890123456", "" }, /* None */
-        /*  5*/ { BARCODE_AUSPOST, BARCODE_RAW_TEXT, "1234567890123456", "591234567890123456" },
-        /*  6*/ { BARCODE_AUSPOST, -1, "123456789012345678", "" }, /* None */
-        /*  7*/ { BARCODE_AUSPOST, BARCODE_RAW_TEXT, "123456789012345678", "62123456789012345678" },
-        /*  8*/ { BARCODE_AUSPOST, -1, "12345678901234567890123", "" }, /* None */
-        /*  9*/ { BARCODE_AUSPOST, BARCODE_RAW_TEXT, "12345678901234567890123", "6212345678901234567890123" },
-        /* 10*/ { BARCODE_AUSREPLY, -1, "1234567", "" }, /* None */
-        /* 11*/ { BARCODE_AUSREPLY, BARCODE_RAW_TEXT, "1234567", "4501234567" },
-        /* 12*/ { BARCODE_AUSREPLY, -1, "12345678", "" }, /* None */
-        /* 13*/ { BARCODE_AUSREPLY, BARCODE_RAW_TEXT, "12345678", "4512345678" },
-        /* 14*/ { BARCODE_AUSROUTE, -1, "123456", "" }, /* None */
-        /* 15*/ { BARCODE_AUSROUTE, BARCODE_RAW_TEXT, "123456", "8700123456" },
-        /* 16*/ { BARCODE_AUSROUTE, -1, "12345678", "" }, /* None */
-        /* 17*/ { BARCODE_AUSROUTE, BARCODE_RAW_TEXT, "12345678", "8712345678" },
-        /* 18*/ { BARCODE_AUSROUTE, -1, "12345", "" }, /* None */
-        /* 19*/ { BARCODE_AUSROUTE, BARCODE_RAW_TEXT, "12345", "8700012345" },
-        /* 20*/ { BARCODE_AUSREDIRECT, -1, "12345678", "" }, /* None */
-        /* 21*/ { BARCODE_AUSREDIRECT, BARCODE_RAW_TEXT, "12345678", "9212345678" },
-        /* 22*/ { BARCODE_AUSREDIRECT, -1, "1234", "" }, /* None */
-        /* 23*/ { BARCODE_AUSREDIRECT, BARCODE_RAW_TEXT, "1234", "9200001234" },
+        /*  0*/ { BARCODE_AUSPOST, -1, "12345678", "", "" }, /* None */
+        /*  1*/ { BARCODE_AUSPOST, BARCODE_CONTENT_SEGS, "12345678", "", "1112345678" },
+        /*  2*/ { BARCODE_AUSPOST, -1, "1234567890123", "", "" }, /* None */
+        /*  3*/ { BARCODE_AUSPOST, BARCODE_CONTENT_SEGS, "1234567890123", "", "591234567890123" },
+        /*  4*/ { BARCODE_AUSPOST, -1, "1234567890123456", "", "" }, /* None */
+        /*  5*/ { BARCODE_AUSPOST, BARCODE_CONTENT_SEGS, "1234567890123456", "", "591234567890123456" },
+        /*  6*/ { BARCODE_AUSPOST, -1, "123456789012345678", "", "" }, /* None */
+        /*  7*/ { BARCODE_AUSPOST, BARCODE_CONTENT_SEGS, "123456789012345678", "", "62123456789012345678" },
+        /*  8*/ { BARCODE_AUSPOST, -1, "12345678901234567890123", "", "" }, /* None */
+        /*  9*/ { BARCODE_AUSPOST, BARCODE_CONTENT_SEGS, "12345678901234567890123", "", "6212345678901234567890123" },
+        /* 10*/ { BARCODE_AUSREPLY, -1, "1234567", "", "" }, /* None */
+        /* 11*/ { BARCODE_AUSREPLY, BARCODE_CONTENT_SEGS, "1234567", "", "4501234567" },
+        /* 12*/ { BARCODE_AUSREPLY, -1, "12345678", "", "" }, /* None */
+        /* 13*/ { BARCODE_AUSREPLY, BARCODE_CONTENT_SEGS, "12345678", "", "4512345678" },
+        /* 14*/ { BARCODE_AUSROUTE, -1, "123456", "", "" }, /* None */
+        /* 15*/ { BARCODE_AUSROUTE, BARCODE_CONTENT_SEGS, "123456", "", "8700123456" },
+        /* 16*/ { BARCODE_AUSROUTE, -1, "12345678", "", "" }, /* None */
+        /* 17*/ { BARCODE_AUSROUTE, BARCODE_CONTENT_SEGS, "12345678", "", "8712345678" },
+        /* 18*/ { BARCODE_AUSROUTE, -1, "12345", "", "" }, /* None */
+        /* 19*/ { BARCODE_AUSROUTE, BARCODE_CONTENT_SEGS, "12345", "", "8700012345" },
+        /* 20*/ { BARCODE_AUSREDIRECT, -1, "12345678", "", "" }, /* None */
+        /* 21*/ { BARCODE_AUSREDIRECT, BARCODE_CONTENT_SEGS, "12345678", "", "9212345678" },
+        /* 22*/ { BARCODE_AUSREDIRECT, -1, "1234", "", "" }, /* None */
+        /* 23*/ { BARCODE_AUSREDIRECT, BARCODE_CONTENT_SEGS, "1234", "", "9200001234" },
     };
     const int data_size = ARRAY_SIZE(data);
     int i, length, ret;
     struct zint_symbol *symbol = NULL;
-    int expected_length;
+    int expected_length, expected_content_length;
 
-    testStartSymbol("test_hrt", &symbol);
+    testStartSymbol(p_ctx->func_name, &symbol);
 
     for (i = 0; i < data_size; i++) {
 
         if (testContinue(p_ctx, i)) continue;
-
-        if (data[i].output_options == BARCODE_RAW_TEXT) continue; /* BARCODE_RAW_TEXT temporarily disabled */
 
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
@@ -152,6 +151,7 @@ static void test_hrt(const testCtx *const p_ctx) {
                     -1 /*option_1*/, -1 /*option_2*/, -1 /*option_3*/, data[i].output_options,
                     data[i].data, -1, debug);
         expected_length = (int) strlen(data[i].expected);
+        expected_content_length = (int) strlen(data[i].expected_content);
 
         ret = ZBarcode_Encode(symbol, TCU(data[i].data), length);
         assert_zero(ret, "i:%d ZBarcode_Encode ret %d != 0 %s\n", i, ret, symbol->errtxt);
@@ -160,6 +160,19 @@ static void test_hrt(const testCtx *const p_ctx) {
                     i, symbol->text_length, expected_length);
         assert_zero(strcmp((char *) symbol->text, data[i].expected), "i:%d strcmp(%s, %s) != 0\n",
                     i, symbol->text, data[i].expected);
+        if (symbol->output_options & BARCODE_CONTENT_SEGS) {
+            assert_nonnull(symbol->content_segs, "i:%d content_segs NULL\n", i);
+            assert_nonnull(symbol->content_segs[0].source, "i:%d content_segs[0].source NULL\n", i);
+            assert_equal(symbol->content_segs[0].length, expected_content_length,
+                        "i:%d content_segs[0].length %d != expected_content_length %d\n",
+                        i, symbol->content_segs[0].length, expected_content_length);
+            assert_zero(memcmp(symbol->content_segs[0].source, data[i].expected_content, expected_content_length),
+                        "i:%d memcmp(%.*s, %s, %d) != 0\n",
+                        i, symbol->content_segs[0].length, symbol->content_segs[0].source, data[i].expected_content,
+                        expected_content_length);
+        } else {
+            assert_null(symbol->content_segs, "i:%d content_segs not NULL\n", i);
+        }
 
         ZBarcode_Delete(symbol);
     }
@@ -211,7 +224,7 @@ static void test_input(const testCtx *const p_ctx) {
 
     int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
 
-    testStartSymbol("test_input", &symbol);
+    testStartSymbol(p_ctx->func_name, &symbol);
 
     for (i = 0; i < data_size; i++) {
 
@@ -354,7 +367,7 @@ static void test_encode(const testCtx *const p_ctx) {
 
     int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
 
-    testStartSymbol("test_encode", &symbol);
+    testStartSymbol(p_ctx->func_name, &symbol);
 
     for (i = 0; i < data_size; i++) {
 
@@ -424,7 +437,7 @@ static void test_fuzz(const testCtx *const p_ctx) {
     int i, length, ret;
     struct zint_symbol *symbol = NULL;
 
-    testStartSymbol("test_fuzz", &symbol);
+    testStartSymbol(p_ctx->func_name, &symbol);
 
     for (i = 0; i < data_size; i++) {
 

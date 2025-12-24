@@ -70,7 +70,7 @@ static void test_to_int(const testCtx *const p_ctx) {
     const int data_size = ARRAY_SIZE(data);
     int i, length, ret;
 
-    testStart("test_to_int");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
 
@@ -78,7 +78,7 @@ static void test_to_int(const testCtx *const p_ctx) {
 
         length = data[i].length == -1 ? (int) strlen(data[i].data) : data[i].length;
 
-        ret = to_int((const unsigned char *) data[i].data, length);
+        ret = z_to_int(ZCUCP(data[i].data), length);
         assert_equal(ret, data[i].ret, "i:%d ret %d != %d\n", i, ret, data[i].ret);
     }
 
@@ -104,7 +104,7 @@ static void test_to_upper(const testCtx *const p_ctx) {
 
     unsigned char buf[512];
 
-    testStart("test_to_upper");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
 
@@ -116,8 +116,9 @@ static void test_to_upper(const testCtx *const p_ctx) {
         memcpy(buf, data[i].data, length);
         buf[length] = '\0';
 
-        to_upper(buf, length);
-        assert_zero(strcmp((const char *) buf, data[i].expected), "i:%d strcmp(%s, %s) != 0\n", i, buf, data[i].expected);
+        z_to_upper(buf, length);
+        assert_zero(strcmp((const char *) buf, data[i].expected), "i:%d strcmp(%s, %s) != 0\n",
+                    i, buf, data[i].expected);
     }
 
     testFinish();
@@ -140,7 +141,7 @@ static void test_chr_cnt(const testCtx *const p_ctx) {
     const int data_size = ARRAY_SIZE(data);
     int i, length, ret;
 
-    testStart("test_chr_cnt");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
 
@@ -148,7 +149,7 @@ static void test_chr_cnt(const testCtx *const p_ctx) {
 
         length = data[i].length == -1 ? (int) strlen(data[i].data) : data[i].length;
 
-        ret = chr_cnt((const unsigned char *) data[i].data, length, data[i].c);
+        ret = z_chr_cnt(ZCUCP(data[i].data), length, data[i].c);
         assert_equal(ret, data[i].ret, "i:%d ret %d != %d\n", i, ret, data[i].ret);
     }
 
@@ -176,13 +177,13 @@ static void test_is_chr(const testCtx *const p_ctx) {
     const int data_size = ARRAY_SIZE(data);
     int i, ret;
 
-    testStart("test_is_chr");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
 
         if (testContinue(p_ctx, i)) continue;
 
-        ret = is_chr(data[i].flg, data[i].c);
+        ret = z_is_chr(data[i].flg, data[i].c);
         assert_equal(ret, data[i].ret, "i:%d ret %d != %d\n", i, ret, data[i].ret);
     }
 
@@ -290,7 +291,7 @@ static void test_not_sane(const testCtx *const p_ctx) {
     const int data_size = ARRAY_SIZE(data);
     int i, j, length, ret;
 
-    testStart("test_not_sane");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
 
@@ -298,7 +299,7 @@ static void test_not_sane(const testCtx *const p_ctx) {
 
         length = data[i].length == -1 ? (int) strlen(data[i].data) : data[i].length;
 
-        ret = not_sane(data[i].flg, (const unsigned char *) data[i].data, length);
+        ret = z_not_sane(data[i].flg, (const unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret, "i:%d ret %d != %d\n", i, ret, data[i].ret);
 
         if (data[i].orig_test[0]) {
@@ -312,12 +313,12 @@ static void test_not_sane(const testCtx *const p_ctx) {
 
         ret = 0;
         for (j = 0; j < length; j++) {
-            if (!is_chr(data[i].flg, data[i].data[j])) {
+            if (!z_is_chr(data[i].flg, data[i].data[j])) {
                 ret = j + 1;
                 break;
             }
         }
-        assert_equal(ret, data[i].ret, "i:%d is_chr() ret %d != %d\n", i, ret, data[i].ret);
+        assert_equal(ret, data[i].ret, "i:%d z_is_chr() ret %d != %d\n", i, ret, data[i].ret);
     }
 
     testFinish();
@@ -344,7 +345,7 @@ static void test_not_sane_lookup(const testCtx *const p_ctx) {
     int test_length;
     int posns[32] = {0}; /* Suppress clang -fsanitize=memory false positive */
 
-    testStart("test_not_sane_lookup");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
 
@@ -353,13 +354,15 @@ static void test_not_sane_lookup(const testCtx *const p_ctx) {
         test_length = data[i].test_length == -1 ? (int) strlen(data[i].test_string) : data[i].test_length;
         length = data[i].length == -1 ? (int) strlen(data[i].data) : data[i].length;
 
-        ret = not_sane_lookup(data[i].test_string, test_length, (const unsigned char *) data[i].data, length, posns);
+        ret = z_not_sane_lookup(data[i].test_string, test_length, (const unsigned char *) data[i].data, length,
+                                posns);
         assert_equal(ret, data[i].ret, "i:%d ret %d != %d\n", i, ret, data[i].ret);
 
         if (ret == 0) {
             int j;
             for (j = 0; j < length; j++) {
-                assert_equal(posns[j], data[i].posns[j], "i:%d posns[%d] %d != expected posns[%d] %d\n", i, j, posns[j], j, data[i].posns[j]);
+                assert_equal(posns[j], data[i].posns[j], "i:%d posns[%d] %d != expected posns[%d] %d\n",
+                            i, j, posns[j], j, data[i].posns[j]);
             }
         }
     }
@@ -389,14 +392,14 @@ static void test_errtxt(const testCtx *const p_ctx) {
         /*  8*/ { 0, ZINT_ERROR_TOO_LONG, 9999, "Data too long", "9999: Data too long" },
         /*  9*/ { 0, ZINT_ERROR_TOO_LONG, 10000, "Data too long", "9999: Data too long" },
         /* 10*/ { 0, ZINT_ERROR_TOO_LONG, 99999, "Data too long", "9999: Data too long" },
-        /* 11*/ { 1, ZINT_ERROR_TOO_LONG, 10000, "1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234", "9999: 123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123" },
+        /* 11*/ { 1, ZINT_ERROR_TOO_LONG, 10000, "1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234", "9999: 123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123" },
     };
     const int data_size = ARRAY_SIZE(data);
     int i, ret;
     struct zint_symbol s_symbol;
     struct zint_symbol *symbol = &s_symbol;
 
-    testStart("test_errtxt");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
 
@@ -405,9 +408,10 @@ static void test_errtxt(const testCtx *const p_ctx) {
         memset(symbol, 0, sizeof(*symbol));
         if (data[i].debug_test) symbol->debug |= ZINT_DEBUG_TEST;
 
-        ret = errtxt(data[i].error_number, symbol, data[i].err_id, data[i].msg);
+        ret = z_errtxt(data[i].error_number, symbol, data[i].err_id, data[i].msg);
         assert_equal(ret, data[i].error_number, "i:%d ret %d != %d\n", i, ret, data[i].error_number);
-        assert_zero(strcmp(symbol->errtxt, data[i].expected), "i:%d strcmp(%s, %s) != 0\n", i, symbol->errtxt, data[i].expected);
+        assert_zero(strcmp(symbol->errtxt, data[i].expected), "i:%d strcmp(%s, %s) != 0\n",
+                    i, symbol->errtxt, data[i].expected);
     }
 
     testFinish();
@@ -429,14 +433,14 @@ static void test_errtxtf(const testCtx *const p_ctx) {
     };
     /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
     static const struct item data[] = {
-        /*  0*/ { 1, ZINT_ERROR_TOO_LONG, 123, "%0$d", 0, 0, NULL, 0, ZINT_ERROR_ENCODING_PROBLEM, "000: Internal error: invalid numbered format specifer" },
-        /*  1*/ { 1, ZINT_ERROR_TOO_LONG, 123, "%1d", 0, 0, NULL, 0, ZINT_ERROR_ENCODING_PROBLEM, "000: Internal error: invalid numbered format specifer" },
-        /*  2*/ { 1, ZINT_ERROR_TOO_LONG, 123, "%10$d", 0, 0, NULL, 0, ZINT_ERROR_ENCODING_PROBLEM, "000: Internal error: invalid numbered format specifer" },
-        /*  3*/ { 1, ZINT_ERROR_TOO_LONG, 123, "%10d", 0, 0, NULL, 0, ZINT_ERROR_ENCODING_PROBLEM, "000: Internal error: invalid numbered format specifer" },
-        /*  4*/ { 1, ZINT_ERROR_TOO_LONG, 123, "%00d", 0, 0, NULL, 0, ZINT_ERROR_ENCODING_PROBLEM, "000: Internal error: invalid numbered format specifer" },
-        /*  5*/ { 1, ZINT_ERROR_TOO_LONG, 123, "%000d", 0, 0, NULL, 0, ZINT_ERROR_ENCODING_PROBLEM, "000: Internal error: invalid numbered format specifer" },
-        /*  6*/ { 1, ZINT_ERROR_TOO_LONG, 123, "%001d", 0, 0, NULL, 0, ZINT_ERROR_ENCODING_PROBLEM, "000: Internal error: invalid numbered format specifer" },
-        /*  7*/ { 1, ZINT_ERROR_TOO_LONG, 123, "%0111d", 0, 0, NULL, 0, ZINT_ERROR_ENCODING_PROBLEM, "000: Internal error: invalid numbered format specifer" },
+        /*  0*/ { 1, ZINT_ERROR_TOO_LONG, 123, "%0$d", 0, 0, NULL, 0, ZINT_ERROR_ENCODING_PROBLEM, "000: Internal error: invalid numbered format specifier" },
+        /*  1*/ { 1, ZINT_ERROR_TOO_LONG, 123, "%1d", 0, 0, NULL, 0, ZINT_ERROR_ENCODING_PROBLEM, "000: Internal error: invalid numbered format specifier" },
+        /*  2*/ { 1, ZINT_ERROR_TOO_LONG, 123, "%10$d", 0, 0, NULL, 0, ZINT_ERROR_ENCODING_PROBLEM, "000: Internal error: invalid numbered format specifier" },
+        /*  3*/ { 1, ZINT_ERROR_TOO_LONG, 123, "%10d", 0, 0, NULL, 0, ZINT_ERROR_ENCODING_PROBLEM, "000: Internal error: invalid numbered format specifier" },
+        /*  4*/ { 1, ZINT_ERROR_TOO_LONG, 123, "%00d", 0, 0, NULL, 0, ZINT_ERROR_ENCODING_PROBLEM, "000: Internal error: invalid numbered format specifier" },
+        /*  5*/ { 1, ZINT_ERROR_TOO_LONG, 123, "%000d", 0, 0, NULL, 0, ZINT_ERROR_ENCODING_PROBLEM, "000: Internal error: invalid numbered format specifier" },
+        /*  6*/ { 1, ZINT_ERROR_TOO_LONG, 123, "%001d", 0, 0, NULL, 0, ZINT_ERROR_ENCODING_PROBLEM, "000: Internal error: invalid numbered format specifier" },
+        /*  7*/ { 1, ZINT_ERROR_TOO_LONG, 123, "%0111d", 0, 0, NULL, 0, ZINT_ERROR_ENCODING_PROBLEM, "000: Internal error: invalid numbered format specifier" },
         /*  8*/ { 1, ZINT_ERROR_TOO_LONG, 123, "%x", 0, 0, NULL, 0, ZINT_ERROR_ENCODING_PROBLEM, "000: Internal error: unknown format specifier ('%c','%d','%f','%g','%s' only)" },
         /*  9*/ { 1, ZINT_ERROR_TOO_LONG, 123, "%1$10d", 0, 0, NULL, 0, ZINT_ERROR_ENCODING_PROBLEM, "000: Internal error: unknown format specifier ('%c','%d','%f','%g','%s' only)" },
         /* 10*/ { 1, ZINT_ERROR_TOO_LONG, 123, "%.0s", 0, 0, NULL, 0, ZINT_ERROR_ENCODING_PROBLEM, "000: Internal error: invalid length precision" },
@@ -451,9 +455,9 @@ static void test_errtxtf(const testCtx *const p_ctx) {
         /* 19*/ { 0, ZINT_ERROR_TOO_LONG, 123, "%9$d %8$d %7$d %6$d %5$.3s %4$d %3$d %2$d %1$d", 9, 4, "5max", -1, -1, "123: 2100000009 2100000008 2100000007 2100000006 5ma 4 3333 2100000002 2100000001" },
         /* 20*/ { 0, ZINT_ERROR_TOO_LONG, 123, "%1$d %2$d %3$d %5$.*4$s %6$d %7$d %8$d %9$d", 9, 4, "45max", -1, -1, "123: 2100000001 2100000002 3333 45ma 2100000006 2100000007 2100000008 2100000009" },
         /* 21*/ { 0, ZINT_ERROR_TOO_LONG, 123, "%%%d %d %d %d %s %d %d %d %d", 9, 4, "5max", -1, -1, "123: %2100000001 2100000002 3333 4 5max 2100000006 2100000007 2100000008 2100000009" },
-        /* 22*/ { 0, ZINT_ERROR_TOO_LONG, 123, "%%%d%%%% %%d %d%%%%%09d %d%% %%%s %d %d %%%% %d%d%%", 9, 4, "5max", -1, -1, "123: %2100000001%% %d 2100000002%%000003333 4% %5max 2100000006 2100000007 %% 21000000082100000009%" },
-        /* 23*/ { 1, ZINT_ERROR_TOO_LONG, 123, "%%%d%%%% %%d %d%%%%%09d %d%% %%%s %d %d %%%% %d %d%%", 9, 4, "5max", -1, -1, "123: %2100000001%% %d 2100000002%%000003333 4% %5max 2100000006 2100000007 %% 2100000008 2100000009" }, /* Truncated */
-        /* 24*/ { 1, ZINT_ERROR_TOO_LONG, 123, "%%%d%%%% %%d %d%%%%%09d %d%% %%%s %d %d %%%% %d %d ", 9, 4, "5max", -1, -1, "123: %2100000001%% %d 2100000002%%000003333 4% %5max 2100000006 2100000007 %% 2100000008 2100000009" }, /* Truncated */
+        /* 22*/ { 0, ZINT_ERROR_TOO_LONG, 123, "%%%d%%%% %%d %d%%%%%069d %d%% %%%s %d %d %%%% %d%d%%", 9, 4, "5max", -1, -1, "123: %2100000001%% %d 2100000002%%000000000000000000000000000000000000000000000000000000000000000003333 4% %5max 2100000006 2100000007 %% 21000000082100000009%" },
+        /* 23*/ { 1, ZINT_ERROR_TOO_LONG, 123, "%%%d%%%% %%d %d%%%%%069d %d%% %%%s %d %d %%%% %d %d%%", 9, 4, "5max", -1, -1, "123: %2100000001%% %d 2100000002%%000000000000000000000000000000000000000000000000000000000000000003333 4% %5max 2100000006 2100000007 %% 2100000008 2100000009" }, /* Truncated */
+        /* 24*/ { 1, ZINT_ERROR_TOO_LONG, 123, "%%%d%%%% %%d %d%%%%%069d %d%% %%%s %d %d %%%% %d %d ", 9, 4, "5max", -1, -1, "123: %2100000001%% %d 2100000002%%000000000000000000000000000000000000000000000000000000000000000003333 4% %5max 2100000006 2100000007 %% 2100000008 2100000009" }, /* Truncated */
         /* 25*/ { 0, ZINT_ERROR_TOO_LONG, 123, "%d %011d %05d %05d %s %d %d %d %014d", 9, 4, "5max", -1, -1, "123: 2100000001 02100000002 03333 00004 5max 2100000006 2100000007 2100000008 00002100000009" },
         /* 26*/ { 0, ZINT_ERROR_TOO_LONG, 123, "", 0, 0, NULL, 0, -1, "123: " },
         /* 27*/ { 0, ZINT_ERROR_TOO_LONG, -1, "Gosh '%c' wow", 1, 1, NULL, -1, -1, "Gosh '\001' wow" },
@@ -472,52 +476,64 @@ static void test_errtxtf(const testCtx *const p_ctx) {
         /* 40*/ { 0, ZINT_ERROR_TOO_LONG, 9999, "Gosh %1$09d wow", 1, 10, NULL, -1, -1, "9999: Gosh 000000010 wow" },
         /* 41*/ { 0, ZINT_ERROR_TOO_LONG, 9999, "Gosh %1$03d wow %1$04d", 1, 10, NULL, -1, -1, "9999: Gosh 0010 wow 0010" }, /* TODO: incompat: last min field trumps but each should be respected */
         /* 42*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%f' wow", 1, -1, NULL, 3.1, -1, "123: Gosh '3.100000' wow" },
-        /* 43*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %g wow", 1, -1, NULL, 3.1, -1, "123: Gosh 3.1 wow" },
-        /* 44*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%s' wow", 1, -1, "gee", -1, -1, "123: Gosh 'gee' wow" },
-        /* 45*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.1s' wow", 1, -1, "12345678901234567890", -1, -1, "123: Gosh '1' wow" },
-        /* 46*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.9s' wow", 1, -1, "12345678901234567890", -1, -1, "123: Gosh '123456789' wow" },
-        /* 47*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.10s' wow", 1, -1, "12345678901234567890", -1, -1, "123: Gosh '1234567890' wow" },
-        /* 48*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.19s' wow", 1, -1, "12345678901234567890", -1, -1, "123: Gosh '1234567890123456789' wow" },
-        /* 49*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%1$.1s' wow", 1, -1, "12345678901234567890", -1, -1, "123: Gosh '1' wow" },
-        /* 50*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%1$.20s' wow", 1, -1, "12345678901234567890", -1, -1, "123: Gosh '12345678901234567890' wow" },
-        /* 51*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.2s' wow", 1, -1, "gee", -1, -1, "123: Gosh 'ge' wow" },
-        /* 52*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.3s' wow", 1, -1, "gee", -1, -1, "123: Gosh 'gee' wow" },
-        /* 53*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.4s' wow", 1, -1, "gee", -1, -1, "123: Gosh 'gee' wow" },
-        /* 54*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.9s' wow", 1, -1, "gee", -1, -1, "123: Gosh 'gee' wow" },
-        /* 55*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.*s' wow", 2, 0, "gee", -1, -1, "123: Gosh '' wow" },
-        /* 56*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.*s' wow", 2, 1, "gee", -1, -1, "123: Gosh 'g' wow" },
-        /* 57*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.*s' wow", 2, 2, "gee", -1, -1, "123: Gosh 'ge' wow" },
-        /* 58*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.*s' wow", 2, 3, "gee", -1, -1, "123: Gosh 'gee' wow" },
-        /* 59*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.*s' wow", 2, 4, "gee", -1, -1, "123: Gosh 'gee' wow" },
-        /* 60*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.*s' wow", 2, 999, "gee", -1, -1, "123: Gosh 'gee' wow" },
-        /* 61*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%2$.*1$s' wow", 2, 2, "gee", -1, -1, "123: Gosh 'ge' wow" },
-        /* 62*/ { 1, ZINT_ERROR_TOO_LONG, 123, "Gosh %s wow", 1, -1, "12345678901234567890123456789012345678901234567890123456789012345678901234567890123456", -1, -1, "123: Gosh 12345678901234567890123456789012345678901234567890123456789012345678901234567890123456 wo" },
-        /* 63*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%c' %g wow", 2, 'A', NULL, -12.1f, -1, "123: Gosh 'A' -12.1 wow" },
-        /* 64*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %d %s wow", 2, 123456789, "cor", -1, -1, "123: Gosh 123456789 cor wow" },
-        /* 65*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %1$d %2$s wow", 2, 123456789, "cor", -1, -1, "123: Gosh 123456789 cor wow" },
-        /* 66*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %1$d %2$.1s wow", 2, 123456789, "cor", -1, -1, "123: Gosh 123456789 c wow" },
-        /* 67*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %2$s %1$d wow", 2, 123456789, "cor", -1, -1, "123: Gosh cor 123456789 wow" },
-        /* 68*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %2$g %1$d wow", 2, 1, NULL, 2, -1, "123: Gosh 2 1 wow" },
-        /* 69*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %2$s %1$d wow second %2$s", 2, 123456789, "cor", -1, -1, "123: Gosh cor 123456789 wow second cor" },
-        /* 70*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %2$.2s %1$d wow second %2$s", 2, 123456789, "cor", -1, -1, "123: Gosh co 123456789 wow second co" }, /* TODO: incompat: last length trumps but each should be respected */
-        /* 71*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %2$.2s %1$d wow second %2$.1s", 2, 123456789, "cor", -1, -1, "123: Gosh c 123456789 wow second c" }, /* TODO: incompat: last length trumps */
-        /* 72*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %2$.1s %1$d wow second %2$.2s", 2, 123456789, "cor", -1, -1, "123: Gosh co 123456789 wow second co" }, /* TODO: incompat: last length trumps */
-        /* 73*/ { 1, ZINT_ERROR_TOO_LONG, -1, "%1$s %1$s", 1, -1, "12345678901234567890123456789012345678901234567890", -1, -1, "12345678901234567890123456789012345678901234567890 123456789012345678901234567890123456789012345678" },
-        /* 74*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %d %s %g wow", 3, 1, "cor", 3, -1, "123: Gosh 1 cor 3 wow" },
-        /* 75*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %1$d %2$s %3$g wow", 3, 1, "cor", 3, -1, "123: Gosh 1 cor 3 wow" },
-        /* 76*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %3$g %2$s %1$d wow", 3, 1, "cor", 3, -1, "123: Gosh 3 cor 1 wow" },
-        /* 77*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %3$g %1$d %2$s wow", 3, 1, "cor", 3, -1, "123: Gosh 3 1 cor wow" },
-        /* 78*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %3$g %1$d %2$s wow %2$s %1$d", 3, 1, "cor", 3, -1, "123: Gosh 3 1 cor wow cor 1" },
-        /* 79*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %2$.*1$s %3$g wow", 3, 1, "cor", 3, -1, "123: Gosh c 3 wow" },
-        /* 80*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %2$.*1$s %3$g wow %2$s blimey", 3, 1, "cor", 3, -1, "123: Gosh c 3 wow c blimey" },
-        /* 81*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %3$g %2$.*1$s wow", 3, 1, "cor", 3, -1, "123: Gosh 3 c wow" },
+        /* 43*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.2f' wow", 1, -1, NULL, 3.1, -1, "123: Gosh '3.10' wow" },
+        /* 44*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.3f' wow", 1, -1, NULL, 3.1, -1, "123: Gosh '3.100' wow" },
+        /* 45*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.3f' wow", 1, -1, NULL, 3.1234, -1, "123: Gosh '3.123' wow" },
+        /* 46*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.2f' wow", 1, -1, NULL, 3.9995, -1, "123: Gosh '4.00' wow" },
+        /* 47*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.3f' wow", 1, -1, NULL, 3.9995, -1, "123: Gosh '3.999' wow" },
+        /* 48*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%1$.3f' wow", 1, -1, NULL, 3.9995, -1, "123: Gosh '3.999' wow" },
+        /* 49*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %g wow", 1, -1, NULL, 3.1, -1, "123: Gosh 3.1 wow" },
+        /* 50*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %.1g wow", 1, -1, NULL, 3.1, -1, "123: Gosh 3 wow" },
+        /* 51*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %.2g wow", 1, -1, NULL, 3.123, -1, "123: Gosh 3.1 wow" },
+        /* 52*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %.3g wow", 1, -1, NULL, 3.123, -1, "123: Gosh 3.12 wow" },
+        /* 53*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%s' wow", 1, -1, "gee", -1, -1, "123: Gosh 'gee' wow" },
+        /* 54*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.1s' wow", 1, -1, "12345678901234567890", -1, -1, "123: Gosh '1' wow" },
+        /* 55*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.9s' wow", 1, -1, "12345678901234567890", -1, -1, "123: Gosh '123456789' wow" },
+        /* 56*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.10s' wow", 1, -1, "12345678901234567890", -1, -1, "123: Gosh '1234567890' wow" },
+        /* 57*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.19s' wow", 1, -1, "12345678901234567890", -1, -1, "123: Gosh '1234567890123456789' wow" },
+        /* 58*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%1$.1s' wow", 1, -1, "12345678901234567890", -1, -1, "123: Gosh '1' wow" },
+        /* 59*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%1$.20s' wow", 1, -1, "12345678901234567890", -1, -1, "123: Gosh '12345678901234567890' wow" },
+        /* 60*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.2s' wow", 1, -1, "gee", -1, -1, "123: Gosh 'ge' wow" },
+        /* 61*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.3s' wow", 1, -1, "gee", -1, -1, "123: Gosh 'gee' wow" },
+        /* 62*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.4s' wow", 1, -1, "gee", -1, -1, "123: Gosh 'gee' wow" },
+        /* 63*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.9s' wow", 1, -1, "gee", -1, -1, "123: Gosh 'gee' wow" },
+        /* 64*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.*s' wow", 2, 0, "gee", -1, -1, "123: Gosh '' wow" },
+        /* 65*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.*s' wow", 2, 1, "gee", -1, -1, "123: Gosh 'g' wow" },
+        /* 66*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.*s' wow", 2, 2, "gee", -1, -1, "123: Gosh 'ge' wow" },
+        /* 67*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.*s' wow", 2, 3, "gee", -1, -1, "123: Gosh 'gee' wow" },
+        /* 68*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.*s' wow", 2, 4, "gee", -1, -1, "123: Gosh 'gee' wow" },
+        /* 69*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%.*s' wow", 2, 999, "gee", -1, -1, "123: Gosh 'gee' wow" },
+        /* 70*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%2$.*1$s' wow", 2, 2, "gee", -1, -1, "123: Gosh 'ge' wow" },
+        /* 71*/ { 1, ZINT_ERROR_TOO_LONG, 123, "Gosh %s wow", 1, -1, "12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456", -1, -1, "123: Gosh 12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456 wo" },
+        /* 72*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh '%c' %g wow", 2, 'A', NULL, -12.1f, -1, "123: Gosh 'A' -12.1 wow" },
+        /* 73*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %d %s wow", 2, 123456789, "cor", -1, -1, "123: Gosh 123456789 cor wow" },
+        /* 74*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %1$d %2$s wow", 2, 123456789, "cor", -1, -1, "123: Gosh 123456789 cor wow" },
+        /* 75*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %1$d %2$.1s wow", 2, 123456789, "cor", -1, -1, "123: Gosh 123456789 c wow" },
+        /* 76*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %2$s %1$d wow", 2, 123456789, "cor", -1, -1, "123: Gosh cor 123456789 wow" },
+        /* 77*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %2$g %1$d wow", 2, 1, NULL, 2, -1, "123: Gosh 2 1 wow" },
+        /* 78*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %2$s %1$d wow second %2$s", 2, 123456789, "cor", -1, -1, "123: Gosh cor 123456789 wow second cor" },
+        /* 79*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %2$.2s %1$d wow second %2$s", 2, 123456789, "cor", -1, -1, "123: Gosh co 123456789 wow second co" }, /* TODO: incompat: last length trumps but each should be respected */
+        /* 80*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %2$.2s %1$d wow second %2$.1s", 2, 123456789, "cor", -1, -1, "123: Gosh c 123456789 wow second c" }, /* TODO: incompat: last length trumps */
+        /* 81*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %2$.1s %1$d wow second %2$.2s", 2, 123456789, "cor", -1, -1, "123: Gosh co 123456789 wow second co" }, /* TODO: incompat: last length trumps */
+        /* 82*/ { 1, ZINT_ERROR_TOO_LONG, -1, "%1$s %1$s", 1, -1, "12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890", -1, -1, "12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890 123456789012345678901234567890123456789012345678" },
+        /* 83*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %d %s %g wow", 3, 1, "cor", 3, -1, "123: Gosh 1 cor 3 wow" },
+        /* 84*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %1$d %2$s %3$g wow", 3, 1, "cor", 3, -1, "123: Gosh 1 cor 3 wow" },
+        /* 85*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %3$g %2$s %1$d wow", 3, 1, "cor", 3, -1, "123: Gosh 3 cor 1 wow" },
+        /* 86*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %3$g %1$d %2$s wow", 3, 1, "cor", 3, -1, "123: Gosh 3 1 cor wow" },
+        /* 87*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %3$g %1$d %2$s wow %2$s %1$d", 3, 1, "cor", 3, -1, "123: Gosh 3 1 cor wow cor 1" },
+        /* 88*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %2$.*1$s %3$g wow", 3, 1, "cor", 3, -1, "123: Gosh c 3 wow" },
+        /* 89*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %2$.*1$s %3$.3g wow", 3, 1, "cor", 3.1234, -1, "123: Gosh c 3.12 wow" },
+        /* 90*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %2$.*1$s %3$g wow %2$s blimey", 3, 1, "cor", 3, -1, "123: Gosh c 3 wow c blimey" },
+        /* 91*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %3$g %2$.*1$s wow", 3, 1, "cor", 3, -1, "123: Gosh 3 c wow" },
+        /* 92*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %3$.2g %2$.*1$s wow", 3, 1, "cor", 3.67, -1, "123: Gosh 3.7 c wow" },
+        /* 93*/ { 0, ZINT_ERROR_TOO_LONG, 123, "Gosh %3$.3g %2$.2s %1$04d wow", 3, 1, "cor", 3.3333, -1, "123: Gosh 3.33 co 0001 wow" },
     };
     const int data_size = ARRAY_SIZE(data);
     int i, ret;
     struct zint_symbol s_symbol;
     struct zint_symbol *symbol = &s_symbol;
 
-    testStart("test_errtxtf");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
 
@@ -527,41 +543,49 @@ static void test_errtxtf(const testCtx *const p_ctx) {
         if (data[i].debug_test) symbol->debug |= ZINT_DEBUG_TEST;
 
         if (data[i].num_args == 0) {
-            ret = errtxtf(data[i].error_number, symbol, data[i].err_id, data[i].fmt, NULL /*suppress -Wformat-security*/);
+            ret = z_errtxtf(data[i].error_number, symbol, data[i].err_id, data[i].fmt,
+                            NULL /*suppress -Wformat-security*/);
         } else if (data[i].num_args == 1) {
             if (data[i].i_arg != -1) {
-                ret = errtxtf(data[i].error_number, symbol, data[i].err_id, data[i].fmt, data[i].i_arg);
+                ret = z_errtxtf(data[i].error_number, symbol, data[i].err_id, data[i].fmt, data[i].i_arg);
             } else if (data[i].s_arg != NULL) {
-                ret = errtxtf(data[i].error_number, symbol, data[i].err_id, data[i].fmt, data[i].s_arg);
+                ret = z_errtxtf(data[i].error_number, symbol, data[i].err_id, data[i].fmt, data[i].s_arg);
             } else {
-                ret = errtxtf(data[i].error_number, symbol, data[i].err_id, data[i].fmt, data[i].f_arg);
+                ret = z_errtxtf(data[i].error_number, symbol, data[i].err_id, data[i].fmt, data[i].f_arg);
             }
         } else if (data[i].num_args == 2) {
             if (data[i].i_arg != -1) {
                 if (data[i].s_arg != NULL) {
-                    ret = errtxtf(data[i].error_number, symbol, data[i].err_id, data[i].fmt, data[i].i_arg, data[i].s_arg);
+                    ret = z_errtxtf(data[i].error_number, symbol, data[i].err_id, data[i].fmt, data[i].i_arg,
+                                    data[i].s_arg);
                 } else {
-                    ret = errtxtf(data[i].error_number, symbol, data[i].err_id, data[i].fmt, data[i].i_arg, data[i].f_arg);
+                    ret = z_errtxtf(data[i].error_number, symbol, data[i].err_id, data[i].fmt, data[i].i_arg,
+                                    data[i].f_arg);
                 }
             } else {
                 assert_nonnull(data[i].s_arg, "i:%d num_args:%d data[i].s_arg NULL", i, data[i].num_args);
-                ret = errtxtf(data[i].error_number, symbol, data[i].err_id, data[i].fmt, data[i].s_arg, data[i].f_arg);
+                ret = z_errtxtf(data[i].error_number, symbol, data[i].err_id, data[i].fmt, data[i].s_arg,
+                                data[i].f_arg);
             }
         } else if (data[i].num_args == 3) {
             assert_nonnull(data[i].s_arg, "i:%d num_args:%d data[i].s_arg NULL", i, data[i].num_args);
-            ret = errtxtf(data[i].error_number, symbol, data[i].err_id, data[i].fmt, data[i].i_arg, data[i].s_arg, data[i].f_arg);
+            ret = z_errtxtf(data[i].error_number, symbol, data[i].err_id, data[i].fmt, data[i].i_arg, data[i].s_arg,
+                            data[i].f_arg);
         } else if (data[i].num_args == 9) { /* Special case max, assuming 4th arg "%d", 5th arg "%s" */
             assert_nonnull(data[i].s_arg, "i:%d num_args:%d data[i].s_arg NULL", i, data[i].num_args);
-            ret = errtxtf(data[i].error_number, symbol, data[i].err_id, data[i].fmt, 2100000001, 2100000002, 3333, data[i].i_arg, data[i].s_arg, 2100000006, 2100000007, 2100000008, 2100000009);
+            ret = z_errtxtf(data[i].error_number, symbol, data[i].err_id, data[i].fmt, 2100000001, 2100000002, 3333,
+                            data[i].i_arg, data[i].s_arg, 2100000006, 2100000007, 2100000008, 2100000009);
         } else {
             assert_nonnull(NULL, "i:%d num_args:%d > 3 && != 9\n", i, data[i].num_args);
         }
         if (data[i].ret == -1) {
-            assert_equal(ret, data[i].error_number, "i:%d ret %d != %d (%s)\n", i, ret, data[i].error_number, symbol->errtxt);
+            assert_equal(ret, data[i].error_number, "i:%d ret %d != %d (%s)\n",
+                        i, ret, data[i].error_number, symbol->errtxt);
         } else {
             assert_equal(ret, data[i].ret, "i:%d ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
         }
-        assert_zero(strcmp(symbol->errtxt, data[i].expected), "i:%d strcmp(%s, %s) != 0\n", i, symbol->errtxt, data[i].expected);
+        assert_zero(strcmp(symbol->errtxt, data[i].expected), "i:%d strcmp(%s, %s) != 0\n",
+                    i, symbol->errtxt, data[i].expected);
     }
 
     testFinish();
@@ -588,7 +612,7 @@ static void test_cnt_digits(const testCtx *const p_ctx) {
     const int data_size = ARRAY_SIZE(data);
     int i, length, ret;
 
-    testStart("test_cnt_digits");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
 
@@ -596,7 +620,7 @@ static void test_cnt_digits(const testCtx *const p_ctx) {
 
         length = data[i].length == -1 ? (int) strlen(data[i].data) : data[i].length;
 
-        ret = cnt_digits((const unsigned char *) data[i].data, length, data[i].position, data[i].max);
+        ret = z_cnt_digits((const unsigned char *) data[i].data, length, data[i].position, data[i].max);
         assert_equal(ret, data[i].ret, "i:%d ret %d != %d\n", i, ret, data[i].ret);
     }
 
@@ -627,7 +651,7 @@ static void test_is_valid_utf8(const testCtx *const p_ctx) {
     const int data_size = ARRAY_SIZE(data);
     int i, length, ret;
 
-    testStart("test_is_valid_utf8");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
 
@@ -635,7 +659,7 @@ static void test_is_valid_utf8(const testCtx *const p_ctx) {
 
         length = data[i].length == -1 ? (int) strlen(data[i].data) : data[i].length;
 
-        ret = is_valid_utf8((const unsigned char *) data[i].data, length);
+        ret = z_is_valid_utf8((const unsigned char *) data[i].data, length);
         assert_equal(ret, data[i].ret, "i:%d ret %d != %d\n", i, ret, data[i].ret);
     }
 
@@ -670,7 +694,7 @@ static void test_utf8_to_unicode(const testCtx *const p_ctx) {
     struct zint_symbol s_symbol;
     struct zint_symbol *symbol = &s_symbol;
 
-    testStart("test_utf8_to_unicode");
+    testStart(p_ctx->func_name);
 
     symbol->debug = debug;
 
@@ -684,13 +708,15 @@ static void test_utf8_to_unicode(const testCtx *const p_ctx) {
         length = data[i].length == -1 ? (int) strlen(data[i].data) : data[i].length;
         ret_length = length;
 
-        ret = utf8_to_unicode(symbol, (unsigned char *) data[i].data, vals, &ret_length, data[i].disallow_4byte);
+        ret = z_utf8_to_unicode(symbol, (unsigned char *) data[i].data, vals, &ret_length, data[i].disallow_4byte);
         assert_equal(ret, data[i].ret, "i:%d ret %d != %d\n", i, ret, data[i].ret);
         if (ret == 0) {
             int j;
-            assert_equal(ret_length, data[i].ret_length, "i:%d ret_length %d != %d\n", i, ret_length, data[i].ret_length);
+            assert_equal(ret_length, data[i].ret_length, "i:%d ret_length %d != %d\n",
+                        i, ret_length, data[i].ret_length);
             for (j = 0; j < ret_length; j++) {
-                assert_equal(vals[j], data[i].expected_vals[j], "i:%d vals[%d] %04X != %04X\n", i, j, vals[j], data[i].expected_vals[j]);
+                assert_equal(vals[j], data[i].expected_vals[j], "i:%d vals[%d] %04X != %04X\n",
+                            i, j, vals[j], data[i].expected_vals[j]);
             }
         }
         assert_zero(strcmp(symbol->errtxt, data[i].expected_errtxt), "i:%d strcmp(%s, %s) != 0\n",
@@ -709,8 +735,6 @@ static void test_hrt_cpy_iso8859_1(const testCtx *const p_ctx) {
         int length;
         int ret;
         const char *expected;
-        const char *expected_plain;
-        int expected_plain_length;
         const char *comment;
     };
     /*
@@ -720,28 +744,28 @@ static void test_hrt_cpy_iso8859_1(const testCtx *const p_ctx) {
     */
     /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
     static const struct item data[] = {
-        /*  0*/ { "", -1, 0, "", NULL, -1, "" },
-        /*  1*/ { "abc", -1, 0, "abc", NULL, -1, "" },
-        /*  2*/ { "\000A\001B\002\036\037C ~\177", 11, 0, " A B   C ~ ", "\000A\001B\002\036\037C ~\177", 11, "" },
-        /*  3*/ { "~\177\200\201\237\240", -1, 0, "~    \302\240", "~\177\302\200\302\201\302\237\302\240", -1, "" },
-        /*  4*/ { "\241\242\243\244\257\260", -1, 0, "¡¢£¤¯°", NULL, -1, "" },
-        /*  5*/ { "\276\277\300\337\377", -1, 0, "¾¿Àßÿ", NULL, -1, "" },
-        /*  6*/ { "\351", -1, 0, "é", NULL, -1, "" },
-        /*  7*/ { "\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241", -1, 0, "¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡", NULL, -1, "127 \241" },
-        /*  8*/ { "a\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241", -1, 0, "a¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡", NULL, -1, "a + 127 \241" },
-        /*  9*/ { "\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241a", -1, 0, "¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡a", NULL, -1, "127 \241 + a" },
-        /* 10*/ { "\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241", -1, 1, "¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡", NULL, -1, "128 \241 (truncated)" },
-        /* 11*/ { "a\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241", -1, 1, "a¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡", NULL, -1, "a + 128 \241 (truncated)" },
-        /* 12*/ { "\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241a", -1, 1, "¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡", NULL, -1, "128 \241 + a (truncated)" },
-        /* 13*/ { "\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241", -1, 1, "¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡", NULL, -1, "129 \241 (truncated)" },
-        /* 14*/ { "\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351", -1, 0, "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé", NULL, -1, "127 \351" },
-        /* 15*/ { "a\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351", -1, 0, "aééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé", NULL, -1, "a + 127 \351" },
-        /* 16*/ { "\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351a", -1, 0, "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééa", NULL, -1, "127 \351 + a" },
-        /* 17*/ { "\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351", -1, 1, "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé", NULL, -1, "128 \351 (truncated)" },
-        /* 18*/ { "a\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351", -1, 1, "aééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé", NULL, -1, "a + 128 \351 (truncated)" },
-        /* 19*/ { "\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351a", -1, 1, "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé", NULL, -1, "128 \351 + a (truncated)" },
-        /* 20*/ { "\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351", -1, 1, "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé", NULL, -1, "129 \351 (truncated)" },
-        /* 21*/ { "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", -1, 1, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", NULL, -1, "256 A (truncated)" },
+        /*  0*/ { "", -1, 0, "", "" },
+        /*  1*/ { "abc", -1, 0, "abc", "" },
+        /*  2*/ { "\000A\001B\002\036\037C ~\177", 11, 0, " A B   C ~ ", "" },
+        /*  3*/ { "~\177\200\201\237\240", -1, 0, "~    \302\240", "" },
+        /*  4*/ { "\241\242\243\244\257\260", -1, 0, "¡¢£¤¯°", "" },
+        /*  5*/ { "\276\277\300\337\377", -1, 0, "¾¿Àßÿ", "" },
+        /*  6*/ { "\351", -1, 0, "é", "" },
+        /*  7*/ { "\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241", -1, 0, "¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡", "127 \241" },
+        /*  8*/ { "a\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241", -1, 0, "a¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡", "a + 127 \241" },
+        /*  9*/ { "\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241a", -1, 0, "¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡a", "127 \241 + a" },
+        /* 10*/ { "\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241", -1, 1, "¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡", "128 \241 (truncated)" },
+        /* 11*/ { "a\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241", -1, 1, "a¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡", "a + 128 \241 (truncated)" },
+        /* 12*/ { "\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241a", -1, 1, "¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡", "128 \241 + a (truncated)" },
+        /* 13*/ { "\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241\241", -1, 1, "¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡", "129 \241 (truncated)" },
+        /* 14*/ { "\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351", -1, 0, "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé", "127 \351" },
+        /* 15*/ { "a\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351", -1, 0, "aééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé", "a + 127 \351" },
+        /* 16*/ { "\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351a", -1, 0, "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééa", "127 \351 + a" },
+        /* 17*/ { "\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351", -1, 1, "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé", "128 \351 (truncated)" },
+        /* 18*/ { "a\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351", -1, 1, "aééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé", "a + 128 \351 (truncated)" },
+        /* 19*/ { "\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351a", -1, 1, "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé", "128 \351 + a (truncated)" },
+        /* 20*/ { "\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351\351", -1, 1, "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé", "129 \351 (truncated)" },
+        /* 21*/ { "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", -1, 1, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "256 A (truncated)" },
     };
     const int data_size = ARRAY_SIZE(data);
     int i, length, ret;
@@ -749,9 +773,8 @@ static void test_hrt_cpy_iso8859_1(const testCtx *const p_ctx) {
     struct zint_symbol s_symbol;
     struct zint_symbol *symbol = &s_symbol;
     int expected_length;
-    const char *expected;
 
-    testStart("test_hrt_cpy_iso8859_1");
+    testStart(p_ctx->func_name);
 
     symbol->debug = debug;
 
@@ -765,42 +788,19 @@ static void test_hrt_cpy_iso8859_1(const testCtx *const p_ctx) {
         length = data[i].length == -1 ? (int) strlen(data[i].data) : data[i].length;
         expected_length = (int) strlen(data[i].expected);
 
-        ret = hrt_cpy_iso8859_1(symbol, (unsigned char *) data[i].data, length);
+        ret = z_hrt_cpy_iso8859_1(symbol, (unsigned char *) data[i].data, length);
         if (p_ctx->index != -1 && (debug & ZINT_DEBUG_TEST_PRINT)) {
             for (j = 0; j < symbol->text_length; j++) {
                 fprintf(stderr, "symbol->text[%d] %2X\n", j, symbol->text[j]);
             }
         }
         assert_equal(ret, data[i].ret, "i:%d ret %d != %d\n", i, ret, data[i].ret);
-        assert_nonzero(testUtilIsValidUTF8(symbol->text, symbol->text_length), "i:%d testUtilIsValidUTF8(%s) != 1\n",
-                    i, symbol->text);
+        assert_nonzero(testUtilIsValidUTF8(symbol->text, (int) z_ustrlen(symbol->text)),
+                        "i:%d testUtilIsValidUTF8(%s) != 1\n", i, symbol->text);
         assert_equal(symbol->text_length, expected_length, "i:%d text_length %d != expected_length %d\n",
                     i, symbol->text_length, expected_length);
         assert_zero(strcmp((char *) symbol->text, data[i].expected), "i:%d symbol->text (%s) != expected (%s)\n",
                     i, symbol->text, data[i].expected);
-
-        #if 1 /* BARCODE_RAW_TEXT temporarily disabled */
-        (void)expected;
-        #else
-        memset(symbol, 0, sizeof(*symbol));
-        symbol->output_options = BARCODE_RAW_TEXT;
-
-        if (data[i].expected_plain == NULL) {
-            expected = data[i].expected;
-            expected_length = (int) strlen(expected);
-        } else {
-            expected = data[i].expected_plain;
-            expected_length = data[i].expected_plain_length == -1 ? (int) strlen(expected) : data[i].expected_plain_length;
-        }
-
-        ret = hrt_cpy_iso8859_1(symbol, (unsigned char *) data[i].data, length);
-        assert_equal(ret, data[i].ret, "i:%d ret %d != %d\n", i, ret, data[i].ret);
-        assert_nonzero(testUtilIsValidUTF8(symbol->text, symbol->text_length), "i:%d testUtilIsValidUTF8(%s) != 1\n",
-                    i, symbol->text);
-        assert_equal(symbol->text_length, expected_length, "i:%d text_length %d != expected_length %d\n",
-                    i, symbol->text_length, expected_length);
-        assert_zero(memcmp(symbol->text, expected, symbol->text_length), "i:%d symbol->text (%s) != expected (%s)\n", i, symbol->text, expected);
-        #endif
     }
 
     testFinish();
@@ -810,16 +810,16 @@ static void test_hrt_cpy_nochk(const testCtx *const p_ctx) {
     int debug = p_ctx->debug;
 
     struct item {
-        const char *cpy; /* hrt_cpy_nochk() */
+        const char *cpy; /* z_hrt_cpy_nochk() */
         int cpy_length;
 
-        const char cpy_chr; /* hrt_cpy_chr() */
+        const char cpy_chr; /* z_hrt_cpy_chr() */
         int cpy_chr_length;
 
-        const char *cat; /* hrt_cat_nochk() */
+        const char *cat; /* z_hrt_cat_nochk() */
         int cat_length;
 
-        char cat_chr; /* hrt_cat_chr_nochk() */
+        char cat_chr; /* z_hrt_cat_chr_nochk() */
         int cat_chr_length;
 
         const char *expected;
@@ -828,15 +828,15 @@ static void test_hrt_cpy_nochk(const testCtx *const p_ctx) {
     /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
     static const struct item data[] = {
         /*  0*/ { "", -1, 0, 0, "", -1, 0, 0, "", -1 }, /* All zero */
-        /*  1*/ { "AB\000C", 4, 0, 0, "", -1, 0, 0, "AB\000C", 4 }, /* hrt_cpy_nochk() */
-        /*  2*/ { "", -1, '\000', 1, "", -1, 0, 0, "\000", 1 }, /* hrt_chr() (NUL char) */
-        /*  3*/ { "", -1, '\000', 1, "XYZ", -1, 0, 0, "\000XYZ", 4 }, /* hrt_chr() + hrt_cat_nochk() */
-        /*  4*/ { "", -1, '\000', 1, "", -1, '\000', 1, "\000\000", 2 }, /* hrt_chr() + hrt_cat_chr_nochk() (both NULL char) */
-        /*  5*/ { "", -1, '\000', 1, "XYZ", -1, '\001', 1, "\000XYZ\001", 5 }, /* hrt_chr() + hrt_cat_chr_nochk() + hrt_cat_nochk() */
-        /*  6*/ { "ABC\000", 4, 0, 0, "\000XYZ\177", 5, 0, 0, "ABC\000\000XYZ\177", 9 }, /* hrt_cpy_nochk() + hrt_cat_nochk() */
-        /*  7*/ { "ABC\000", 4, 0, 0, "", -1, '\177', 1, "ABC\000\177", 5 }, /* hrt_cpy_nochk() + hrt_cat_chr_nochk() */
-        /*  8*/ { "ABC\000", 4, 0, 0, "X\001Y\002Z", 5, '\003', 1, "ABC\000X\001Y\002Z\003", 10 }, /* hrt_cpy_nochk() + hrt_cat_chr_nochk() + hrt_cat_chr_nochk() */
-        /*  9*/ { "1234567890123456789012345678901234567890123456789012345", -1, 0, 0, "12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890", -1, 0, 0, "123456789012345678901234567890123456789012345678901234512345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890", -1 }, /* hrt_cpy_nochk() + hrt_cat_nochk() - max 255 */
+        /*  1*/ { "AB\000C", 4, 0, 0, "", -1, 0, 0, "AB\000C", 4 }, /* z_hrt_cpy_nochk() */
+        /*  2*/ { "", -1, '\000', 1, "", -1, 0, 0, "\000", 1 }, /* z_hrt_chr() (NUL char) */
+        /*  3*/ { "", -1, '\000', 1, "XYZ", -1, 0, 0, "\000XYZ", 4 }, /* z_hrt_chr() + z_hrt_cat_nochk() */
+        /*  4*/ { "", -1, '\000', 1, "", -1, '\000', 1, "\000\000", 2 }, /* z_hrt_chr() + z_hrt_cat_chr_nochk() (both NULL char) */
+        /*  5*/ { "", -1, '\000', 1, "XYZ", -1, '\001', 1, "\000XYZ\001", 5 }, /* z_hrt_chr() + z_hrt_cat_chr_nochk() + z_hrt_cat_nochk() */
+        /*  6*/ { "ABC\000", 4, 0, 0, "\000XYZ\177", 5, 0, 0, "ABC\000\000XYZ\177", 9 }, /* z_hrt_cpy_nochk() + z_hrt_cat_nochk() */
+        /*  7*/ { "ABC\000", 4, 0, 0, "", -1, '\177', 1, "ABC\000\177", 5 }, /* z_hrt_cpy_nochk() + z_hrt_cat_chr_nochk() */
+        /*  8*/ { "ABC\000", 4, 0, 0, "X\001Y\002Z", 5, '\003', 1, "ABC\000X\001Y\002Z\003", 10 }, /* z_hrt_cpy_nochk() + z_hrt_cat_chr_nochk() + z_hrt_cat_chr_nochk() */
+        /*  9*/ { "1234567890123456789012345678901234567890123456789012345", -1, 0, 0, "12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890", -1, 0, 0, "123456789012345678901234567890123456789012345678901234512345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890", -1 }, /* z_hrt_cpy_nochk() + z_hrt_cat_nochk() - max 255 */
     };
     const int data_size = ARRAY_SIZE(data);
     int i, length;
@@ -845,7 +845,7 @@ static void test_hrt_cpy_nochk(const testCtx *const p_ctx) {
     struct zint_symbol *symbol = &s_symbol;
     int expected_length;
 
-    testStart("test_hrt_cpy_nochk");
+    testStart(p_ctx->func_name);
 
     symbol->debug = debug;
 
@@ -859,16 +859,16 @@ static void test_hrt_cpy_nochk(const testCtx *const p_ctx) {
         expected_length = data[i].expected_length == -1 ? (int) strlen(data[i].expected) : data[i].expected_length;
 
         if ((length = data[i].cpy_length == -1 ? (int) strlen(data[i].cpy) : data[i].cpy_length)) {
-            hrt_cpy_nochk(symbol, TCU(data[i].cpy), length);
+            z_hrt_cpy_nochk(symbol, TCU(data[i].cpy), length);
         }
         if (data[i].cpy_chr_length) {
-            hrt_cpy_chr(symbol, data[i].cpy_chr);
+            z_hrt_cpy_chr(symbol, data[i].cpy_chr);
         }
         if ((length = data[i].cat_length == -1 ? (int) strlen(data[i].cat) : data[i].cat_length)) {
-            hrt_cat_nochk(symbol, TCU(data[i].cat), length);
+            z_hrt_cat_nochk(symbol, TCU(data[i].cat), length);
         }
         if (data[i].cat_chr_length) {
-            hrt_cat_chr_nochk(symbol, data[i].cat_chr);
+            z_hrt_cat_chr_nochk(symbol, data[i].cat_chr);
         }
 
         if (p_ctx->index != -1 && (debug & ZINT_DEBUG_TEST_PRINT)) {
@@ -877,7 +877,73 @@ static void test_hrt_cpy_nochk(const testCtx *const p_ctx) {
             }
         }
 
-        assert_nonzero(testUtilIsValidUTF8(symbol->text, (int) ustrlen(symbol->text)),
+        assert_nonzero(testUtilIsValidUTF8(symbol->text, (int) z_ustrlen(symbol->text)),
+                    "i:%d testUtilIsValidUTF8(%s) != 1\n", i, symbol->text);
+        assert_equal(symbol->text_length, expected_length, "i:%d text_length %d != expected_length %d\n",
+                    i, symbol->text_length, expected_length);
+        assert_zero(memcmp(symbol->text, data[i].expected, expected_length), "i:%d memcmp(%s, %s, %d) != 0\n",
+                    i, symbol->text, data[i].expected, expected_length);
+    }
+
+    testFinish();
+}
+
+static void test_hrt_cpy_cat_nochk(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
+
+    struct item {
+        const char *source;
+        int length;
+        char separator;
+        const char *cat;
+        int cat_length;
+
+        const char *expected;
+        int expected_length;
+    };
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
+    static const struct item data[] = {
+        /*  0*/ { NULL, -1, '\xFF', NULL, -1, "", -1 },
+        /*  1*/ { "", 0, '\xFF', NULL, -1, "", -1 },
+        /*  2*/ { "", 0, '\xFF', "", 0, "", -1 },
+        /*  3*/ { NULL, 0, '\xFF', "", 0, "", -1 },
+        /*  4*/ { "ABC", 3, ':', "DEF", 3, "ABC:DEF", -1 },
+        /*  5*/ { "", 0, ':', "DEF", 3, ":DEF", -1 },
+        /*  6*/ { "", 0, '\xFF', "DEF", 3, "DEF", -1 },
+        /*  7*/ { "ABC", 3, ':', "", 0, "ABC:", -1 },
+        /*  8*/ { "ABC", 3, '\xFF', "", 0, "ABC", -1 },
+        /*  9*/ { "", 0, ':', "", 0, ":", -1 },
+    };
+    const int data_size = ARRAY_SIZE(data);
+    int i;
+
+    struct zint_symbol s_symbol;
+    struct zint_symbol *symbol = &s_symbol;
+    int expected_length;
+
+    testStart(p_ctx->func_name);
+
+    symbol->debug = debug;
+
+    for (i = 0; i < data_size; i++) {
+        int j;
+
+        if (testContinue(p_ctx, i)) continue;
+
+        memset(symbol, 0, sizeof(*symbol));
+
+        expected_length = data[i].expected_length == -1 ? (int) strlen(data[i].expected) : data[i].expected_length;
+
+        z_hrt_cpy_cat_nochk(symbol, TCU(data[i].source), data[i].length, data[i].separator, TCU(data[i].cat),
+                            data[i].cat_length);
+
+        if (p_ctx->index != -1 && (debug & ZINT_DEBUG_TEST_PRINT)) {
+            for (j = 0; j < symbol->text_length; j++) {
+                fprintf(stderr, "symbol->text[%d] %2X\n", j, symbol->text[j]);
+            }
+        }
+
+        assert_nonzero(testUtilIsValidUTF8(symbol->text, (int) z_ustrlen(symbol->text)),
                     "i:%d testUtilIsValidUTF8(%s) != 1\n", i, symbol->text);
         assert_equal(symbol->text_length, expected_length, "i:%d text_length %d != expected_length %d\n",
                     i, symbol->text_length, expected_length);
@@ -911,7 +977,7 @@ static void test_hrt_printf_nochk(const testCtx *const p_ctx) {
     struct zint_symbol s_symbol;
     struct zint_symbol *symbol = &s_symbol;
 
-    testStart("test_hrt_printf_nochk");
+    testStart(p_ctx->func_name);
 
     symbol->debug = debug;
 
@@ -922,9 +988,9 @@ static void test_hrt_printf_nochk(const testCtx *const p_ctx) {
         memset(symbol, 0, sizeof(*symbol));
 
         if (data[i].num_args == 1) {
-            hrt_printf_nochk(symbol, data[i].fmt, data[i].data1);
+            z_hrt_printf_nochk(symbol, data[i].fmt, data[i].data1);
         } else if (data[i].num_args == 2) {
-            hrt_printf_nochk(symbol, data[i].fmt, data[i].data1, data[i].data2);
+            z_hrt_printf_nochk(symbol, data[i].fmt, data[i].data1, data[i].data2);
         } else {
             assert_zero(1, "i:%d, bad num_args\n", i);
         }
@@ -966,7 +1032,7 @@ static void test_hrt_conv_gs1_brackets_nochk(const testCtx *const p_ctx) {
     struct zint_symbol s_symbol;
     struct zint_symbol *symbol = &s_symbol;
 
-    testStart("test_hrt_conv_gs1_brackets_nochk");
+    testStart(p_ctx->func_name);
 
     symbol->debug = debug;
 
@@ -978,10 +1044,286 @@ static void test_hrt_conv_gs1_brackets_nochk(const testCtx *const p_ctx) {
 
         length = (int) strlen(data[i].data);
 
-        hrt_conv_gs1_brackets_nochk(symbol, TCU(data[i].data), length);
+        z_hrt_conv_gs1_brackets_nochk(symbol, TCU(data[i].data), length);
 
         assert_zero(strcmp((const char *) symbol->text, data[i].expected), "i:%d strcmp(\"%s\", \"%s\") != 0\n",
                     i, symbol->text, data[i].expected);
+    }
+
+    testFinish();
+}
+
+static void test_ct_cpy_segs(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
+
+    struct item {
+        int seg_count;
+        struct zint_seg segs[3];
+
+        struct zint_seg expected_content_segs[3];
+        int expected_content_seg_count;
+    };
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
+    static const struct item data[] = {
+        /*  0*/ { 1, { { TU("A"), 0, 0 } }, { { TU("A"), 1, 3 } }, 1 },
+        /*  1*/ { 1, { { TU("B\377C\377\000D"), 6, 0 } }, { { TU("B\377C\377\000D"), 6, 3 } }, 1 },
+        /*  2*/ { 2, { { TU("A"), 0, 5 }, { TU("\000\355"), 2, 899 } }, { { TU("A"), 1, 5 }, { TU("\000\355"), 2, 899 } }, 2 },
+        /*  3*/ { 3, { { TU("A"), 1, 5 }, { TU("ABCD"), 0, 900 }, { TU("\000\355"), 2, 899 } }, { { TU("A"), 1, 5 }, { TU("ABCD"), 4, 900 }, { TU("\000\355"), 2, 899 } }, 3 },
+    };
+    const int data_size = ARRAY_SIZE(data);
+    int i, ret;
+
+    struct zint_symbol s_symbol = {0};
+    struct zint_symbol *symbol = &s_symbol;
+
+    char escaped[4096];
+    char escaped2[4096];
+
+    testStart(p_ctx->func_name);
+
+    symbol->debug = debug;
+
+    for (i = 0; i < data_size; i++) {
+        int expected_length;
+        unsigned char *expected_source;
+        int expected_eci;
+        int seg_idx;
+
+        if (testContinue(p_ctx, i)) continue;
+
+        assert_nonzero(data[i].seg_count, "i:%d seg_count zero\n", i);
+
+        ret = z_ct_cpy_segs(symbol, data[i].segs, data[i].seg_count);
+        assert_zero(ret, "i:%d z_ct_cpy_segs %d != 0\n", i, ret);
+
+        assert_nonnull(symbol->content_segs, "i:%d content_segs NULL\n", i);
+        assert_equal(symbol->content_seg_count, data[i].seg_count, "i:%d content_seg_count %d != %d\n",
+                    i, symbol->content_seg_count, data[i].seg_count);
+        for (seg_idx = 0; seg_idx < data[i].seg_count; seg_idx++) {
+            assert_nonnull(&symbol->content_segs[seg_idx], "i:%d content_segs[%d] NULL\n", i, seg_idx);
+            assert_nonnull(symbol->content_segs[seg_idx].source, "i:%d content_segs[%d].source NULL\n", i, seg_idx);
+
+            expected_length = data[i].expected_content_segs[seg_idx].length;
+            expected_source = data[i].expected_content_segs[seg_idx].source;
+            expected_eci = data[i].expected_content_segs[seg_idx].eci;
+
+            assert_equal(symbol->content_segs[seg_idx].length, expected_length,
+                        "i:%d content_segs[%d].length %d != expected_length %d\n",
+                        i, seg_idx, symbol->content_segs[seg_idx].length, expected_length);
+            assert_zero(memcmp(symbol->content_segs[seg_idx].source, expected_source, expected_length),
+                        "i:%d content_segs[%d].source memcmp(%s, %s, %d) != 0\n", i, seg_idx,
+                        testUtilEscape(ZCCP(symbol->content_segs[seg_idx].source), symbol->content_segs[seg_idx].length,
+                                        escaped, sizeof(escaped)),
+                        testUtilEscape(ZCCP(expected_source), expected_length, escaped2, sizeof(escaped2)),
+                                        expected_length);
+            assert_equal(symbol->content_segs[seg_idx].eci, expected_eci, "i:%d content_segs[%d].eci %d != expected_eci %d\n",
+                        i, seg_idx, symbol->content_segs[seg_idx].eci, expected_eci);
+        }
+
+        ZBarcode_Clear(symbol);
+    }
+
+    testFinish();
+}
+
+static void test_ct_cpy(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
+
+    struct item {
+        const char *source;
+        int length;
+        char separator;
+        const char *cat;
+        int cat_length;
+
+        const char *expected;
+        int expected_length;
+        int expected_eci;
+    };
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
+    static const struct item data[] = {
+        /*  0*/ { "A", -1, '\0', "", -1, "A", -1, 3 },
+        /*  1*/ { "A", -1, ':', "B", -1, "A:B", -1, 3 },
+        /*  2*/ { "A", -1, '\xFF', "B", -1, "AB", -1, 3 },
+        /*  3*/ { "A", -1, '\0', "B", -1, "A\000B", 3, 3 },
+    };
+    const int data_size = ARRAY_SIZE(data);
+    int i, length, ret;
+
+    struct zint_symbol s_symbol = {0};
+    struct zint_symbol *symbol = &s_symbol;
+    int expected_length;
+
+    char escaped[4096];
+    char escaped2[4096];
+
+    testStart(p_ctx->func_name);
+
+    symbol->debug = debug;
+
+    for (i = 0; i < data_size; i++) {
+        int cat_length;
+
+        if (testContinue(p_ctx, i)) continue;
+
+        expected_length = data[i].expected_length == -1 ? (int) strlen(data[i].expected) : data[i].expected_length;
+
+        length = data[i].length == -1 ? (int) strlen(data[i].source) : data[i].length;
+
+        if ((cat_length = data[i].cat_length == -1 ? (int) strlen(data[i].cat) : data[i].cat_length)) {
+            ret = z_ct_cpy_cat(symbol, TCU(data[i].source), length, data[i].separator, TCU(data[i].cat), cat_length);
+            assert_zero(ret, "i:%d z_ct_cpy_cat %d != 0\n", i, ret);
+        } else {
+            ret = z_ct_cpy(symbol, TCU(data[i].source), length);
+            assert_zero(ret, "i:%d z_ct_cpy %d != 0\n", i, ret);
+        }
+
+        assert_nonnull(symbol->content_segs, "i:%d content_segs NULL\n", i);
+        assert_nonnull(symbol->content_segs[0].source, "i:%d content_segs[0].source NULL\n", i);
+        assert_equal(symbol->content_segs[0].length, expected_length,
+                    "i:%d content_segs[0].length %d != expected_length %d\n",
+                    i, symbol->content_segs[0].length, expected_length);
+        assert_zero(memcmp(symbol->content_segs[0].source, data[i].expected, expected_length),
+                    "i:%d content_segs[0].source memcmp(%s, %s, %d) != 0\n", i,
+                    testUtilEscape((const char *) symbol->content_segs[0].source, symbol->content_segs[0].length,
+                                    escaped, sizeof(escaped)),
+                    testUtilEscape(data[i].expected, expected_length, escaped2, sizeof(escaped2)),
+                    expected_length);
+        assert_equal(symbol->content_segs[0].eci, data[i].expected_eci,
+                    "i:%d content_segs[0].eci %d != expected_eci %d\n",
+                    i, symbol->content_segs[0].eci, data[i].expected_eci);
+
+        ZBarcode_Clear(symbol);
+    }
+
+    testFinish();
+}
+
+static void test_ct_cpy_iso8859_1(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
+
+    struct item {
+        const char *source;
+        int length;
+
+        const char *expected;
+        int expected_length;
+        int expected_eci;
+    };
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
+    static const struct item data[] = {
+        /*  0*/ { "A", -1, "A", -1, 3 },
+        /*  1*/ { "\000AB\177", 4, "\000AB\177", 4, 3 },
+        /*  2*/ { "A\200", -1, "A\302\200", -1, 3 },
+        /*  3*/ { "A\237\240\277\300B\377C", -1, "A\302\237\302\240\302\277\303\200B\303\277C", -1, 3 },
+    };
+    const int data_size = ARRAY_SIZE(data);
+    int i, length, ret;
+
+    struct zint_symbol s_symbol = {0};
+    struct zint_symbol *symbol = &s_symbol;
+    int expected_length;
+
+    char escaped[4096];
+    char escaped2[4096];
+
+    testStart(p_ctx->func_name);
+
+    symbol->debug = debug;
+
+    for (i = 0; i < data_size; i++) {
+
+        if (testContinue(p_ctx, i)) continue;
+
+        expected_length = data[i].expected_length == -1 ? (int) strlen(data[i].expected) : data[i].expected_length;
+
+        length = data[i].length == -1 ? (int) strlen(data[i].source) : data[i].length;
+
+        ret = z_ct_cpy_iso8859_1(symbol, TCU(data[i].source), length);
+        assert_zero(ret, "i:%d z_ct_cpy_iso8859_1 %d != 0\n", i, ret);
+
+        assert_nonnull(symbol->content_segs, "i:%d content_segs NULL\n", i);
+        assert_nonnull(symbol->content_segs[0].source, "i:%d content_segs[0].source NULL\n", i);
+        assert_equal(symbol->content_segs[0].length, expected_length,
+                    "i:%d content_segs[0].length %d != expected_length %d\n",
+                    i, symbol->content_segs[0].length, expected_length);
+        assert_zero(memcmp(symbol->content_segs[0].source, data[i].expected, expected_length),
+                    "i:%d content_segs[0].source memcmp(%s, %s, %d) != 0\n", i,
+                    testUtilEscape((const char *) symbol->content_segs[0].source, symbol->content_segs[0].length,
+                                    escaped, sizeof(escaped)),
+                    testUtilEscape(data[i].expected, expected_length, escaped2, sizeof(escaped2)),
+                    expected_length);
+        assert_equal(symbol->content_segs[0].eci, data[i].expected_eci,
+                    "i:%d content_segs[0].eci %d != expected_eci %d\n",
+                    i, symbol->content_segs[0].eci, data[i].expected_eci);
+
+        ZBarcode_Clear(symbol);
+    }
+
+    testFinish();
+}
+
+static void test_ct_printf_256(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
+
+    struct item {
+        const char *fmt;
+        int num_args;
+        const char *data1;
+        const char *data2;
+        const char *expected;
+    };
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
+    static const struct item data[] = {
+        /*  0*/ { "", 1, "", "", "" },
+        /*  1*/ { "*%s*", 1, "gosh", "", "*gosh*" },
+        /*  2*/ { "%.1s.%.2s", 2, "gosh", "wow", "g.wo" },
+        /*  3*/ { "ABCDEFGHIJKLMNOPQRST%sABCDEFGHIJKLMNOPQRST%sABCDEFGHIJKLMNO", 2, "1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890", "1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890", "ABCDEFGHIJKLMNOPQRST1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890ABCDEFGHIJKLMNOPQRST1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890ABCDEFGHIJKLMNO" }, /* Max 255 - 1 more and overflow */
+    };
+    const int data_size = ARRAY_SIZE(data);
+    int i, ret;
+
+    struct zint_symbol s_symbol = {0};
+    struct zint_symbol *symbol = &s_symbol;
+    int expected_length;
+
+    char escaped[4096];
+    char escaped2[4096];
+
+    testStart(p_ctx->func_name);
+
+    symbol->debug = debug;
+
+    for (i = 0; i < data_size; i++) {
+
+        if (testContinue(p_ctx, i)) continue;
+
+        expected_length = (int) strlen(data[i].expected);
+
+        if (data[i].num_args == 1) {
+            ret = z_ct_printf_256(symbol, data[i].fmt, data[i].data1);
+            assert_zero(ret, "i:%d z_ct_printf_256 1 arg ret %d != 0\n", i, ret);
+        } else if (data[i].num_args == 2) {
+            ret = z_ct_printf_256(symbol, data[i].fmt, data[i].data1, data[i].data2);
+            assert_zero(ret, "i:%d z_ct_printf_256 2 args ret %d != 0\n", i, ret);
+        } else {
+            assert_zero(1, "i:%d, bad num_args\n", i);
+        }
+
+        assert_nonnull(symbol->content_segs, "i:%d content_segs NULL\n", i);
+        assert_nonnull(symbol->content_segs[0].source, "i:%d content_segs[0].source NULL\n", i);
+        assert_equal(symbol->content_segs[0].length, expected_length,
+                    "i:%d content_segs[0].length %d != expected_length %d\n",
+                    i, symbol->content_segs[0].length, expected_length);
+        assert_zero(memcmp(symbol->content_segs[0].source, data[i].expected, expected_length),
+                    "i:%d content_segs[0].source memcmp(%s, %s, %d) != 0\n", i,
+                    testUtilEscape((const char *) symbol->content_segs[0].source, symbol->content_segs[0].length,
+                                    escaped, sizeof(escaped)),
+                    testUtilEscape(data[i].expected, expected_length, escaped2, sizeof(escaped2)),
+                    expected_length);
+        assert_equal(symbol->content_segs[0].eci, 3, "i:%d content_segs[0].eci %d != 3\n", i, symbol->content_segs[0].eci);
+
+        ZBarcode_Clear(symbol);
     }
 
     testFinish();
@@ -994,12 +1336,10 @@ static void test_set_height(const testCtx *const p_ctx) {
         int rows;
         int row_height[20];
         float height;
-
         float min_row_height;
         float default_height;
         float max_height;
         int no_errtxt;
-
         int ret;
         float expected_height;
         const char *expected_errtxt;
@@ -1010,13 +1350,17 @@ static void test_set_height(const testCtx *const p_ctx) {
         /*  0*/ { 0, { 0 }, 0, 0, 0, 0, 0, 0, 0.5, "", "" },
         /*  1*/ { 2, { 1, 1 }, 2, 0, 0, 0, 0, 0, 2, "", "zero_count == 0, fixed height only" },
         /*  2*/ { 2, { 1, 1 }, 2, 0, 0, 1, 1, ZINT_WARN_NONCOMPLIANT, 2, "", "zero_count == 0, height < max height" },
-        /*  3*/ { 2, { 1, 1 }, 2, 0, 0, 1, 0, ZINT_WARN_NONCOMPLIANT, 2, "248: Height not compliant with standards", "zero_count == 0, height < max height" },
+        /*  3*/ { 2, { 1, 1 }, 2, 0, 0, 1, 0, ZINT_WARN_NONCOMPLIANT, 2, "248: Height not compliant with standards (maximum 1)", "zero_count == 0, height < max height" },
         /*  4*/ { 2, { 2, 0 }, 2, 0, 0, 0, 0, 0, 2.5, "", "zero_count != 0, height 2" },
         /*  5*/ { 2, { 2, 0 }, 2, 1, 0, 0, 1, ZINT_WARN_NONCOMPLIANT, 2.5, "", "zero_count != 0, row_height < min_row_height" },
-        /*  6*/ { 2, { 2, 0 }, 2, 1, 0, 0, 0, ZINT_WARN_NONCOMPLIANT, 2.5, "247: Height not compliant with standards", "zero_count != 0, row_height < min_row_height" },
+        /*  6*/ { 2, { 2, 0 }, 2, 1, 0, 0, 0, ZINT_WARN_NONCOMPLIANT, 2.5, "247: Height not compliant with standards (too small)", "zero_count != 0, row_height < min_row_height" },
         /*  7*/ { 2, { 2, 0 }, 0, 0, 20, 0, 0, 0, 22, "", "zero_count != 0, default_height 20" },
         /*  8*/ { 2, { 2, 0 }, 20, 0, 20, 0, 0, 0, 20, "", "zero_count != 0, height 20" },
         /*  9*/ { 2, { 2, 0 }, 0, 2, 0, 0, 0, 0, 4, "", "zero_count != 0, min_row_height 2" },
+        /* 10*/ { 20, { 0 }, 0, 12.9000006, 258, 0, 0, 0, 258, "", "Was non-compliant before use of epsilson (CODABLOCKF)" },
+        /* 11*/ { 1, { 0 }, 9.9, 9.90000057, 40, 0, 0, 0, 9.9, "", "Was non-compliant before use of epsilson (CODE93)" },
+        /* 12*/ { 1, { 0 }, 9.89, 9.90000057, 40, 0, 0, ZINT_WARN_NONCOMPLIANT, 9.89, "247: Height not compliant with standards (too small)", "" },
+        /* 13*/ { 1, { 0 }, 40.02, 10, 40, 40.01, 0, ZINT_WARN_NONCOMPLIANT, 40.02, "248: Height not compliant with standards (maximum 40.01)", "" },
     };
     const int data_size = ARRAY_SIZE(data);
     int i, ret;
@@ -1024,7 +1368,7 @@ static void test_set_height(const testCtx *const p_ctx) {
     struct zint_symbol s_symbol;
     struct zint_symbol *symbol = &s_symbol;
 
-    testStart("set_height");
+    testStart(p_ctx->func_name);
 
     symbol->debug = debug;
 
@@ -1040,16 +1384,19 @@ static void test_set_height(const testCtx *const p_ctx) {
         }
         symbol->height = data[i].height;
 
-        ret = set_height(symbol, data[i].min_row_height, data[i].default_height, data[i].max_height, data[i].no_errtxt);
+        ret = z_set_height(symbol, data[i].min_row_height, data[i].default_height, data[i].max_height,
+                            data[i].no_errtxt);
         assert_equal(ret, data[i].ret, "i:%d ret %d != %d\n", i, ret, data[i].ret);
-        assert_equal(symbol->height, data[i].expected_height, "i:%d symbol->height %g != %g\n", i, symbol->height, data[i].expected_height);
-        assert_zero(strcmp(symbol->errtxt, data[i].expected_errtxt), "i:%d errtxt %s != %s\n", i, symbol->errtxt, data[i].expected_errtxt);
+        assert_equal(symbol->height, data[i].expected_height, "i:%d symbol->height %g != %g\n",
+                    i, symbol->height, data[i].expected_height);
+        assert_zero(strcmp(symbol->errtxt, data[i].expected_errtxt), "i:%d errtxt %s != %s\n",
+                    i, symbol->errtxt, data[i].expected_errtxt);
     }
 
     testFinish();
 }
 
-INTERNAL void debug_test_codeword_dump_int(struct zint_symbol *symbol, const int *codewords, const int length);
+INTERNAL void z_debug_test_codeword_dump_int(struct zint_symbol *symbol, const int *codewords, const int length);
 
 static void test_debug_test_codeword_dump_int(const testCtx *const p_ctx) {
     int debug = p_ctx->debug;
@@ -1067,10 +1414,10 @@ static void test_debug_test_codeword_dump_int(const testCtx *const p_ctx) {
     const int data_size = ARRAY_SIZE(data);
     int i;
 
-    struct zint_symbol s_symbol;
+    struct zint_symbol s_symbol = {0};
     struct zint_symbol *symbol = &s_symbol;
 
-    testStart("test_debug_test_codeword_dump_int");
+    testStart(p_ctx->func_name);
 
     symbol->debug = debug;
 
@@ -1078,9 +1425,12 @@ static void test_debug_test_codeword_dump_int(const testCtx *const p_ctx) {
 
         if (testContinue(p_ctx, i)) continue;
 
-        debug_test_codeword_dump_int(symbol, data[i].codewords, data[i].length);
-        assert_nonzero(strlen(symbol->errtxt) < 92, "i:%d strlen(%s) >= 92 (%d)\n", i, symbol->errtxt, (int) strlen(symbol->errtxt));
-        assert_zero(strcmp(symbol->errtxt, data[i].expected), "i:%d strcmp(%s, %s) != 0 (%d, %d)\n", i, symbol->errtxt, data[i].expected, (int) strlen(symbol->errtxt), (int) strlen(data[i].expected));
+        z_debug_test_codeword_dump_int(symbol, data[i].codewords, data[i].length);
+        assert_nonzero(strlen(symbol->errtxt) < 92, "i:%d strlen(%s) >= 92 (%d)\n",
+                    i, symbol->errtxt, (int) strlen(symbol->errtxt));
+        assert_zero(strcmp(symbol->errtxt, data[i].expected), "i:%d strcmp(%s, %s) != 0 (%d, %d)\n",
+                    i, symbol->errtxt, data[i].expected, (int) strlen(symbol->errtxt),
+                    (int) strlen(data[i].expected));
     }
 
     testFinish();
@@ -1102,8 +1452,13 @@ int main(int argc, char *argv[]) {
         { "test_utf8_to_unicode", test_utf8_to_unicode },
         { "test_hrt_cpy_iso8859_1", test_hrt_cpy_iso8859_1 },
         { "test_hrt_cpy_nochk", test_hrt_cpy_nochk },
+        { "test_hrt_cpy_cat_nochk", test_hrt_cpy_cat_nochk },
         { "test_hrt_printf_nochk", test_hrt_printf_nochk },
         { "test_hrt_conv_gs1_brackets_nochk", test_hrt_conv_gs1_brackets_nochk },
+        { "test_ct_cpy_segs", test_ct_cpy_segs },
+        { "test_ct_cpy", test_ct_cpy },
+        { "test_ct_cpy_iso8859_1", test_ct_cpy_iso8859_1 },
+        { "test_ct_printf_256", test_ct_printf_256 },
         { "test_set_height", test_set_height },
         { "test_debug_test_codeword_dump_int", test_debug_test_codeword_dump_int },
     };

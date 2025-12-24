@@ -65,7 +65,7 @@ static void test_bom(const testCtx *const p_ctx) {
 
     int width, height;
 
-    testStart("test_bom");
+    testStart(p_ctx->func_name);
 
     symbol = ZBarcode_Create();
     assert_nonnull(symbol, "Symbol not created\n");
@@ -98,7 +98,7 @@ static void test_iso_8859_16(const testCtx *const p_ctx) {
     int length, ret;
     struct zint_symbol *symbol;
 
-    testStart("test_iso_8859_16");
+    testStart(p_ctx->func_name);
 
     symbol = ZBarcode_Create();
     assert_nonnull(symbol, "Symbol not created\n");
@@ -385,7 +385,7 @@ static void test_reduced_charset_input(const testCtx *const p_ctx) {
     int i, length, ret;
     struct zint_symbol *symbol;
 
-    testStart("test_reduced_charset_input");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
 
@@ -394,13 +394,17 @@ static void test_reduced_charset_input(const testCtx *const p_ctx) {
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
 
-        length = testUtilSetSymbol(symbol, data[i].symbology, data[i].input_mode, data[i].eci, -1 /*option_1*/, -1, -1, -1 /*output_options*/, data[i].data, -1, debug);
+        length = testUtilSetSymbol(symbol, data[i].symbology, data[i].input_mode, data[i].eci,
+                                    -1 /*option_1*/, -1, -1, -1 /*output_options*/,
+                                    data[i].data, -1, debug);
 
         ret = ZBarcode_Encode(symbol, TCU(data[i].data), length);
-        assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n", i, ret, data[i].ret, symbol->errtxt);
+        assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n",
+                    i, ret, data[i].ret, symbol->errtxt);
 
         if (data[i].expected_eci != -1) {
-            assert_equal(symbol->eci, data[i].expected_eci, "i:%d eci %d != %d\n", i, symbol->eci, data[i].expected_eci);
+            assert_equal(symbol->eci, data[i].expected_eci, "i:%d eci %d != %d\n",
+                        i, symbol->eci, data[i].expected_eci);
         }
 
         ZBarcode_Delete(symbol);
@@ -647,6 +651,19 @@ static const unsigned short int windows_1256[] = {
     0x064b, 0x064c, 0x064d, 0x064e, 0x00f4, 0x064f, 0x0650, 0x00f7, 0x0651, 0x00f9, 0x0652, 0x00fb, 0x00fc, 0x200e, 0x200f, 0x06d2
 };
 
+/* Taken from https://unicode.org/Public/MAPPINGS/VENDORS/MICSFT/PC/CP437.TXT */
+
+static const unsigned short int cp437[] = {
+    0x00c7, 0x00fc, 0x00e9, 0x00e2, 0x00e4, 0x00e0, 0x00e5, 0x00e7, 0x00ea, 0x00eb, 0x00e8, 0x00ef, 0x00ee, 0x00ec, 0x00c4, 0x00c5,
+    0x00c9, 0x00e6, 0x00c6, 0x00f4, 0x00f6, 0x00f2, 0x00fb, 0x00f9, 0x00ff, 0x00d6, 0x00dc, 0x00a2, 0x00a3, 0x00a5, 0x20a7, 0x0192,
+    0x00e1, 0x00ed, 0x00f3, 0x00fa, 0x00f1, 0x00d1, 0x00aa, 0x00ba, 0x00bf, 0x2310, 0x00ac, 0x00bd, 0x00bc, 0x00a1, 0x00ab, 0x00bb,
+    0x2591, 0x2592, 0x2593, 0x2502, 0x2524, 0x2561, 0x2562, 0x2556, 0x2555, 0x2563, 0x2551, 0x2557, 0x255d, 0x255c, 0x255b, 0x2510,
+    0x2514, 0x2534, 0x252c, 0x251c, 0x2500, 0x253c, 0x255e, 0x255f, 0x255a, 0x2554, 0x2569, 0x2566, 0x2560, 0x2550, 0x256c, 0x2567,
+    0x2568, 0x2564, 0x2565, 0x2559, 0x2558, 0x2552, 0x2553, 0x256b, 0x256a, 0x2518, 0x250c, 0x2588, 0x2584, 0x258c, 0x2590, 0x2580,
+    0x03b1, 0x00df, 0x0393, 0x03c0, 0x03a3, 0x03c3, 0x00b5, 0x03c4, 0x03a6, 0x0398, 0x03a9, 0x03b4, 0x221e, 0x03c6, 0x03b5, 0x2229,
+    0x2261, 0x00b1, 0x2265, 0x2264, 0x2320, 0x2321, 0x00f7, 0x2248, 0x00b0, 0x2219, 0x00b7, 0x221a, 0x207f, 0x00b2, 0x25a0, 0x00a0
+};
+
 static void test_utf8_to_eci_sb(const testCtx *const p_ctx) {
 
     struct item {
@@ -674,6 +691,7 @@ static void test_utf8_to_eci_sb(const testCtx *const p_ctx) {
         /* 16*/ { 22, windows_1251 },
         /* 17*/ { 23, windows_1252 },
         /* 18*/ { 24, windows_1256 },
+        /* 19*/ { 2, cp437 },
     };
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
@@ -681,7 +699,7 @@ static void test_utf8_to_eci_sb(const testCtx *const p_ctx) {
     unsigned char source[5];
     unsigned char dest[2] = {0};
 
-    testStart("test_utf8_to_eci_sb");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
         int j;
@@ -693,13 +711,14 @@ static void test_utf8_to_eci_sb(const testCtx *const p_ctx) {
             if (data[i].tab[j]) {
                 length = to_utf8(data[i].tab[j], source);
                 assert_nonzero(length, "i:%d to_utf8 length %d == 0\n", i, length);
-                ret = utf8_to_eci(data[i].eci, source, dest, &length);
-                assert_zero(ret, "i:%d utf8_to_eci ret %d != 0\n", i, ret);
-                assert_equal(*dest, k, "i:%d j:%d eci:%d codepoint:0x%x *dest 0x%X (%d) != 0x%X (%d)\n", i, j, data[i].eci, data[i].tab[j], *dest, *dest, k, k);
+                ret = zint_utf8_to_eci(data[i].eci, source, dest, &length);
+                assert_zero(ret, "i:%d zint_utf8_to_eci ret %d != 0\n", i, ret);
+                assert_equal(*dest, k, "i:%d j:%d eci:%d codepoint:0x%x *dest 0x%X (%d) != 0x%X (%d)\n",
+                            i, j, data[i].eci, data[i].tab[j], *dest, *dest, k, k);
             } else {
                 length = to_utf8(k, source);
                 assert_nonzero(length, "i:%d to_utf8 length %d == 0\n", i, length);
-                ret = utf8_to_eci(data[i].eci, source, dest, &length);
+                ret = zint_utf8_to_eci(data[i].eci, source, dest, &length);
                 if (ret == 0) { /* Should be mapping for this codepoint in another entry */
                     int found = 0;
                     int m;
@@ -709,9 +728,13 @@ static void test_utf8_to_eci_sb(const testCtx *const p_ctx) {
                             break;
                         }
                     }
-                    assert_nonzero(found, "i:%d j:%d eci:%d codepoint:0x%x source:%s not found utf8_to_eci ret %d == 0\n", i, j, data[i].eci, k, source, ret);
+                    assert_nonzero(found,
+                                "i:%d j:%d eci:%d codepoint:0x%x source:%s not found zint_utf8_to_eci ret %d == 0\n",
+                                i, j, data[i].eci, k, source, ret);
                 } else {
-                    assert_equal(ret, ZINT_ERROR_INVALID_DATA, "i:%d j:%d eci:%d codepoint:0x%x source:%s utf8_to_eci ret %d != ZINT_ERROR_INVALID_DATA\n", i, j, data[i].eci, k, source, ret);
+                    assert_equal(ret, ZINT_ERROR_INVALID_DATA,
+                        "i:%d j:%d eci:%d codepoint:0x%x source:%s zint_utf8_to_eci ret %d != ZINT_ERROR_INVALID_DATA\n",
+                        i, j, data[i].eci, k, source, ret);
                 }
             }
         }
@@ -749,8 +772,8 @@ static void test_utf8_to_eci_ascii(const testCtx *const p_ctx) {
         /* 16*/ { 170, "~", -1, ZINT_ERROR_INVALID_DATA },
         /* 17*/ { 170, "\302\200", -1, ZINT_ERROR_INVALID_DATA },
         /* 18*/ { 170, "~", -1, ZINT_ERROR_INVALID_DATA },
-        /* 19*/ { 1, "A", -1, ZINT_ERROR_INVALID_DATA },
-        /* 20*/ { 2, "A", -1, ZINT_ERROR_INVALID_DATA },
+        /* 19*/ { 1, "A", -1, 0 }, /* Now succeeds (maps to ISO/ECI 8859-1 for libzueci compatibility) */
+        /* 20*/ { 2, "A", -1, 0 }, /* Now succeeds (maps to CP437 for libzueci compatibility) */
         /* 21*/ { 14, "A", -1, ZINT_ERROR_INVALID_DATA },
         /* 22*/ { 19, "A", -1, ZINT_ERROR_INVALID_DATA },
         /* 23*/ { 26, "A", -1, ZINT_ERROR_INVALID_DATA },
@@ -760,7 +783,7 @@ static void test_utf8_to_eci_ascii(const testCtx *const p_ctx) {
 
     char dest[128] = {0}; /* Suppress clang -fsanitize=memory false positive */
 
-    testStart("test_utf8_to_eci_ascii");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
         int out_length;
@@ -769,8 +792,8 @@ static void test_utf8_to_eci_ascii(const testCtx *const p_ctx) {
 
         length = data[i].length != -1 ? data[i].length : (int) strlen(data[i].data);
         out_length = length;
-        ret = utf8_to_eci(data[i].eci, (const unsigned char *) data[i].data, (unsigned char *) dest, &out_length);
-        assert_equal(ret, data[i].ret, "i:%d utf8_to_eci ret %d != %d\n", i, ret, data[i].ret);
+        ret = zint_utf8_to_eci(data[i].eci, ZCUCP(data[i].data), ZUCP(dest), &out_length);
+        assert_equal(ret, data[i].ret, "i:%d zint_utf8_to_eci ret %d != %d\n", i, ret, data[i].ret);
         if (ret == 0) {
             assert_equal(length, out_length, "i:%d length %d != %d\n", i, length, out_length);
             assert_zero(memcmp(data[i].data, dest, length), "i:%d memcmp != 0\n", i);
@@ -811,7 +834,7 @@ static void test_utf8_to_eci_utf16be(const testCtx *const p_ctx) {
     int i, length, ret;
     const int eci = 25;
 
-    testStart("test_utf8_to_eci_utf16be");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
         int out_length, eci_length;
@@ -821,14 +844,17 @@ static void test_utf8_to_eci_utf16be(const testCtx *const p_ctx) {
 
         length = data[i].length != -1 ? data[i].length : (int) strlen(data[i].data);
         out_length = length;
-        eci_length = get_eci_length(eci, (const unsigned char *) data[i].data, length);
+        eci_length = zint_get_eci_length(eci, ZCUCP(data[i].data), length);
 
-        assert_nonzero(eci_length + 1 <= 1024, "i:%d eci_length %d + 1 > 1024\n", i, eci_length);
-        ret = utf8_to_eci(eci, (const unsigned char *) data[i].data, (unsigned char *) dest, &out_length);
-        assert_equal(ret, data[i].ret, "i:%d utf8_to_eci ret %d != %d\n", i, ret, data[i].ret);
+        assert_nonzero(eci_length + 1 <= ARRAY_SIZE(dest), "i:%d eci_length %d + 1 > %d\n", i, eci_length,
+                        ARRAY_SIZE(dest));
+        ret = zint_utf8_to_eci(eci, ZCUCP(data[i].data), ZUCP(dest), &out_length);
+        assert_equal(ret, data[i].ret, "i:%d zint_utf8_to_eci ret %d != %d\n", i, ret, data[i].ret);
         if (ret == 0) {
-            assert_equal(out_length, data[i].expected_length, "i:%d length %d != %d\n", i, out_length, data[i].expected_length);
-            assert_nonzero(out_length <= eci_length, "i:%d out_length %d > eci_length %d\n", i, out_length, eci_length);
+            assert_equal(out_length, data[i].expected_length, "i:%d length %d != %d\n",
+                        i, out_length, data[i].expected_length);
+            assert_nonzero(out_length <= eci_length, "i:%d out_length %d > eci_length %d\n",
+                        i, out_length, eci_length);
             if (data[i].expected) {
                 ret = memcmp(dest, data[i].expected, data[i].expected_length);
                 assert_zero(ret, "i:%d memcmp() %d != 0\n", i, ret);
@@ -836,7 +862,8 @@ static void test_utf8_to_eci_utf16be(const testCtx *const p_ctx) {
                 int j;
                 for (j = 0; j < length; j++) {
                     assert_zero(dest[j * 2], "i:%d dest[%d] %d != 0\n", i, j * 2, dest[j * 2]);
-                    assert_equal(dest[j * 2 + 1], data[i].data[j], "i:%d dest[%d] %d != data[%d] %d\n", i, j * 2 + 1, dest[j * 2 + 1], j, data[i].data[j]);
+                    assert_equal(dest[j * 2 + 1], data[i].data[j], "i:%d dest[%d] %d != data[%d] %d\n",
+                                i, j * 2 + 1, dest[j * 2 + 1], j, data[i].data[j]);
                 }
             }
         }
@@ -876,7 +903,7 @@ static void test_utf8_to_eci_utf16le(const testCtx *const p_ctx) {
     int i, length, ret;
     const int eci = 33;
 
-    testStart("test_utf8_to_eci_utf16le");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
         int out_length, eci_length;
@@ -886,21 +913,25 @@ static void test_utf8_to_eci_utf16le(const testCtx *const p_ctx) {
 
         length = data[i].length != -1 ? data[i].length : (int) strlen(data[i].data);
         out_length = length;
-        eci_length = get_eci_length(eci, (const unsigned char *) data[i].data, length);
+        eci_length = zint_get_eci_length(eci, ZCUCP(data[i].data), length);
 
-        assert_nonzero(eci_length + 1 <= 1024, "i:%d eci_length %d + 1 > 1024\n", i, eci_length);
-        ret = utf8_to_eci(eci, (const unsigned char *) data[i].data, (unsigned char *) dest, &out_length);
-        assert_equal(ret, data[i].ret, "i:%d utf8_to_eci ret %d != %d\n", i, ret, data[i].ret);
+        assert_nonzero(eci_length + 1 <= ARRAY_SIZE(dest), "i:%d eci_length %d + 1 > %d\n", i, eci_length,
+                        ARRAY_SIZE(dest));
+        ret = zint_utf8_to_eci(eci, ZCUCP(data[i].data), ZUCP(dest), &out_length);
+        assert_equal(ret, data[i].ret, "i:%d zint_utf8_to_eci ret %d != %d\n", i, ret, data[i].ret);
         if (ret == 0) {
-            assert_equal(out_length, data[i].expected_length, "i:%d length %d != %d\n", i, out_length, data[i].expected_length);
-            assert_nonzero(out_length <= eci_length, "i:%d out_length %d > eci_length %d\n", i, out_length, eci_length);
+            assert_equal(out_length, data[i].expected_length, "i:%d length %d != %d\n",
+                        i, out_length, data[i].expected_length);
+            assert_nonzero(out_length <= eci_length, "i:%d out_length %d > eci_length %d\n",
+                        i, out_length, eci_length);
             if (data[i].expected) {
                 ret = memcmp(dest, data[i].expected, data[i].expected_length);
                 assert_zero(ret, "i:%d memcmp() %d != 0\n", i, ret);
             } else {
                 int j;
                 for (j = 0; j < length; j++) {
-                    assert_equal(dest[j * 2], data[i].data[j], "i:%d dest[%d] %d != data[%d] %d\n", i, j * 2, dest[j * 2], j, data[i].data[j]);
+                    assert_equal(dest[j * 2], data[i].data[j], "i:%d dest[%d] %d != data[%d] %d\n",
+                                i, j * 2, dest[j * 2], j, data[i].data[j]);
                     assert_zero(dest[j * 2 + 1], "i:%d dest[%d] %d != 0\n", i, j * 2 + 1, dest[j * 2 + 1]);
                 }
             }
@@ -938,7 +969,7 @@ static void test_utf8_to_eci_utf32be(const testCtx *const p_ctx) {
     int i, length, ret;
     const int eci = 34;
 
-    testStart("test_utf8_to_eci_utf32be");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
         int out_length, eci_length;
@@ -948,14 +979,17 @@ static void test_utf8_to_eci_utf32be(const testCtx *const p_ctx) {
 
         length = data[i].length != -1 ? data[i].length : (int) strlen(data[i].data);
         out_length = length;
-        eci_length = get_eci_length(eci, (const unsigned char *) data[i].data, length);
+        eci_length = zint_get_eci_length(eci, ZCUCP(data[i].data), length);
 
-        assert_nonzero(eci_length + 1 <= 1024, "i:%d eci_length %d + 1 > 1024\n", i, eci_length);
-        ret = utf8_to_eci(eci, (const unsigned char *) data[i].data, (unsigned char *) dest, &out_length);
-        assert_equal(ret, data[i].ret, "i:%d utf8_to_eci ret %d != %d\n", i, ret, data[i].ret);
+        assert_nonzero(eci_length + 1 <= ARRAY_SIZE(dest), "i:%d eci_length %d + 1 > %d\n", i, eci_length,
+                        ARRAY_SIZE(dest));
+        ret = zint_utf8_to_eci(eci, ZCUCP(data[i].data), ZUCP(dest), &out_length);
+        assert_equal(ret, data[i].ret, "i:%d zint_utf8_to_eci ret %d != %d\n", i, ret, data[i].ret);
         if (ret == 0) {
-            assert_equal(out_length, data[i].expected_length, "i:%d length %d != %d\n", i, out_length, data[i].expected_length);
-            assert_nonzero(out_length <= eci_length, "i:%d out_length %d > eci_length %d\n", i, out_length, eci_length);
+            assert_equal(out_length, data[i].expected_length, "i:%d length %d != %d\n",
+                        i, out_length, data[i].expected_length);
+            assert_nonzero(out_length <= eci_length, "i:%d out_length %d > eci_length %d\n",
+                        i, out_length, eci_length);
             if (data[i].expected) {
                 ret = memcmp(dest, data[i].expected, data[i].expected_length);
                 assert_zero(ret, "i:%d memcmp() %d != 0\n", i, ret);
@@ -965,7 +999,8 @@ static void test_utf8_to_eci_utf32be(const testCtx *const p_ctx) {
                     assert_zero(dest[j * 4], "i:%d dest[%d] %d != 0\n", i, j * 4, dest[j * 4]);
                     assert_zero(dest[j * 4 + 1], "i:%d dest[%d] %d != 0\n", i, j * 4 + 1, dest[j * 4 + 1]);
                     assert_zero(dest[j * 4 + 2], "i:%d dest[%d] %d != 0\n", i, j * 4 + 2, dest[j * 4 + 2]);
-                    assert_equal(dest[j * 4 + 3], data[i].data[j], "i:%d dest[%d] %d != data[%d] %d\n", i, j * 4 + 3, dest[j * 4 + 3], j, data[i].data[j]);
+                    assert_equal(dest[j * 4 + 3], data[i].data[j], "i:%d dest[%d] %d != data[%d] %d\n",
+                                i, j * 4 + 3, dest[j * 4 + 3], j, data[i].data[j]);
                 }
             }
         }
@@ -1002,7 +1037,7 @@ static void test_utf8_to_eci_utf32le(const testCtx *const p_ctx) {
     int i, length, ret;
     const int eci = 35;
 
-    testStart("test_utf8_to_eci_utf32le");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
         int out_length, eci_length;
@@ -1012,21 +1047,25 @@ static void test_utf8_to_eci_utf32le(const testCtx *const p_ctx) {
 
         length = data[i].length != -1 ? data[i].length : (int) strlen(data[i].data);
         out_length = length;
-        eci_length = get_eci_length(eci, (const unsigned char *) data[i].data, length);
+        eci_length = zint_get_eci_length(eci, ZCUCP(data[i].data), length);
 
-        assert_nonzero(eci_length + 1 <= 1024, "i:%d eci_length %d + 1 > 1024\n", i, eci_length);
-        ret = utf8_to_eci(eci, (const unsigned char *) data[i].data, (unsigned char *) dest, &out_length);
-        assert_equal(ret, data[i].ret, "i:%d utf8_to_eci ret %d != %d\n", i, ret, data[i].ret);
+        assert_nonzero(eci_length + 1 <= ARRAY_SIZE(dest), "i:%d eci_length %d + 1 > %d\n", i, eci_length,
+                        ARRAY_SIZE(dest));
+        ret = zint_utf8_to_eci(eci, ZCUCP(data[i].data), ZUCP(dest), &out_length);
+        assert_equal(ret, data[i].ret, "i:%d zint_utf8_to_eci ret %d != %d\n", i, ret, data[i].ret);
         if (ret == 0) {
-            assert_equal(out_length, data[i].expected_length, "i:%d length %d != %d\n", i, out_length, data[i].expected_length);
-            assert_nonzero(out_length <= eci_length, "i:%d out_length %d > eci_length %d\n", i, out_length, eci_length);
+            assert_equal(out_length, data[i].expected_length, "i:%d length %d != %d\n",
+                        i, out_length, data[i].expected_length);
+            assert_nonzero(out_length <= eci_length, "i:%d out_length %d > eci_length %d\n",
+                        i, out_length, eci_length);
             if (data[i].expected) {
                 ret = memcmp(dest, data[i].expected, data[i].expected_length);
                 assert_zero(ret, "i:%d memcmp() %d != 0\n", i, ret);
             } else {
                 int j;
                 for (j = 0; j < length; j++) {
-                    assert_equal(dest[j * 4], data[i].data[j], "i:%d dest[%d] %d != data[%d] %d\n", i, j * 4, dest[j * 4], j, data[i].data[j]);
+                    assert_equal(dest[j * 4], data[i].data[j], "i:%d dest[%d] %d != data[%d] %d\n",
+                                i, j * 4, dest[j * 4], j, data[i].data[j]);
                     assert_zero(dest[j * 4 + 1], "i:%d dest[%d] %d != 0\n", i, j * 4 + 1, dest[j * 4 + 1]);
                     assert_zero(dest[j * 4 + 2], "i:%d dest[%d] %d != 0\n", i, j * 4 + 2, dest[j * 4 + 2]);
                     assert_zero(dest[j * 4 + 3], "i:%d dest[%d] %d != 0\n", i, j * 4 + 3, dest[j * 4 + 3]);
@@ -1070,7 +1109,7 @@ static void test_utf8_to_eci_sjis(const testCtx *const p_ctx) {
     int i, length, ret;
     const int eci = 20;
 
-    testStart("test_utf8_to_eci_sjis");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
         int out_length, eci_length;
@@ -1080,14 +1119,17 @@ static void test_utf8_to_eci_sjis(const testCtx *const p_ctx) {
 
         length = data[i].length != -1 ? data[i].length : (int) strlen(data[i].data);
         out_length = length;
-        eci_length = get_eci_length(eci, (const unsigned char *) data[i].data, length);
+        eci_length = zint_get_eci_length(eci, ZCUCP(data[i].data), length);
 
-        assert_nonzero(eci_length + 1 <= 1024, "i:%d eci_length %d + 1 > 1024\n", i, eci_length);
-        ret = utf8_to_eci(eci, (const unsigned char *) data[i].data, (unsigned char *) dest, &out_length);
-        assert_equal(ret, data[i].ret, "i:%d utf8_to_eci ret %d != %d\n", i, ret, data[i].ret);
+        assert_nonzero(eci_length + 1 <= ARRAY_SIZE(dest), "i:%d eci_length %d + 1 > %d\n", i, eci_length,
+                        ARRAY_SIZE(dest));
+        ret = zint_utf8_to_eci(eci, ZCUCP(data[i].data), ZUCP(dest), &out_length);
+        assert_equal(ret, data[i].ret, "i:%d zint_utf8_to_eci ret %d != %d\n", i, ret, data[i].ret);
         if (ret == 0) {
-            assert_equal(out_length, data[i].expected_length, "i:%d length %d != %d\n", i, out_length, data[i].expected_length);
-            assert_nonzero(out_length <= eci_length, "i:%d out_length %d > eci_length %d\n", i, out_length, eci_length);
+            assert_equal(out_length, data[i].expected_length, "i:%d length %d != %d\n",
+                        i, out_length, data[i].expected_length);
+            assert_nonzero(out_length <= eci_length, "i:%d out_length %d > eci_length %d\n",
+                        i, out_length, eci_length);
         }
     }
 
@@ -1116,7 +1158,7 @@ static void test_utf8_to_eci_big5(const testCtx *const p_ctx) {
     int i, length, ret;
     const int eci = 28;
 
-    testStart("test_utf8_to_eci_big5");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
         int out_length, eci_length;
@@ -1126,14 +1168,17 @@ static void test_utf8_to_eci_big5(const testCtx *const p_ctx) {
 
         length = data[i].length != -1 ? data[i].length : (int) strlen(data[i].data);
         out_length = length;
-        eci_length = get_eci_length(eci, (const unsigned char *) data[i].data, length);
+        eci_length = zint_get_eci_length(eci, ZCUCP(data[i].data), length);
 
-        assert_nonzero(eci_length + 1 <= 1024, "i:%d eci_length %d + 1 > 1024\n", i, eci_length);
-        ret = utf8_to_eci(eci, (const unsigned char *) data[i].data, (unsigned char *) dest, &out_length);
-        assert_equal(ret, data[i].ret, "i:%d utf8_to_eci ret %d != %d\n", i, ret, data[i].ret);
+        assert_nonzero(eci_length + 1 <= ARRAY_SIZE(dest), "i:%d eci_length %d + 1 > %d\n", i, eci_length,
+                        ARRAY_SIZE(dest));
+        ret = zint_utf8_to_eci(eci, ZCUCP(data[i].data), ZUCP(dest), &out_length);
+        assert_equal(ret, data[i].ret, "i:%d zint_utf8_to_eci ret %d != %d\n", i, ret, data[i].ret);
         if (ret == 0) {
-            assert_equal(out_length, data[i].expected_length, "i:%d length %d != %d\n", i, out_length, data[i].expected_length);
-            assert_nonzero(out_length <= eci_length, "i:%d out_length %d > eci_length %d\n", i, out_length, eci_length);
+            assert_equal(out_length, data[i].expected_length, "i:%d length %d != %d\n",
+                        i, out_length, data[i].expected_length);
+            assert_nonzero(out_length <= eci_length, "i:%d out_length %d > eci_length %d\n",
+                        i, out_length, eci_length);
         }
     }
 
@@ -1162,7 +1207,7 @@ static void test_utf8_to_eci_gb2312(const testCtx *const p_ctx) {
     int i, length, ret;
     const int eci = 29;
 
-    testStart("test_utf8_to_eci_gb2312");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
         int out_length, eci_length;
@@ -1172,14 +1217,17 @@ static void test_utf8_to_eci_gb2312(const testCtx *const p_ctx) {
 
         length = data[i].length != -1 ? data[i].length : (int) strlen(data[i].data);
         out_length = length;
-        eci_length = get_eci_length(eci, (const unsigned char *) data[i].data, length);
+        eci_length = zint_get_eci_length(eci, ZCUCP(data[i].data), length);
 
-        assert_nonzero(eci_length + 1 <= 1024, "i:%d eci_length %d + 1 > 1024\n", i, eci_length);
-        ret = utf8_to_eci(eci, (const unsigned char *) data[i].data, (unsigned char *) dest, &out_length);
-        assert_equal(ret, data[i].ret, "i:%d utf8_to_eci ret %d != %d\n", i, ret, data[i].ret);
+        assert_nonzero(eci_length + 1 <= ARRAY_SIZE(dest), "i:%d eci_length %d + 1 > %d\n", i, eci_length,
+                        ARRAY_SIZE(dest));
+        ret = zint_utf8_to_eci(eci, ZCUCP(data[i].data), ZUCP(dest), &out_length);
+        assert_equal(ret, data[i].ret, "i:%d zint_utf8_to_eci ret %d != %d\n", i, ret, data[i].ret);
         if (ret == 0) {
-            assert_equal(out_length, data[i].expected_length, "i:%d length %d != %d\n", i, out_length, data[i].expected_length);
-            assert_nonzero(out_length <= eci_length, "i:%d out_length %d > eci_length %d\n", i, out_length, eci_length);
+            assert_equal(out_length, data[i].expected_length, "i:%d length %d != %d\n",
+                        i, out_length, data[i].expected_length);
+            assert_nonzero(out_length <= eci_length, "i:%d out_length %d > eci_length %d\n",
+                        i, out_length, eci_length);
         }
     }
 
@@ -1208,7 +1256,7 @@ static void test_utf8_to_eci_euc_kr(const testCtx *const p_ctx) {
     int i, length, ret;
     const int eci = 30;
 
-    testStart("test_utf8_to_eci_euc_kr");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
         int out_length, eci_length;
@@ -1218,14 +1266,17 @@ static void test_utf8_to_eci_euc_kr(const testCtx *const p_ctx) {
 
         length = data[i].length != -1 ? data[i].length : (int) strlen(data[i].data);
         out_length = length;
-        eci_length = get_eci_length(eci, (const unsigned char *) data[i].data, length);
+        eci_length = zint_get_eci_length(eci, ZCUCP(data[i].data), length);
 
-        assert_nonzero(eci_length + 1 <= 1024, "i:%d eci_length %d + 1 > 1024\n", i, eci_length);
-        ret = utf8_to_eci(eci, (const unsigned char *) data[i].data, (unsigned char *) dest, &out_length);
-        assert_equal(ret, data[i].ret, "i:%d utf8_to_eci ret %d != %d\n", i, ret, data[i].ret);
+        assert_nonzero(eci_length + 1 <= ARRAY_SIZE(dest), "i:%d eci_length %d + 1 > %d\n", i, eci_length,
+                        ARRAY_SIZE(dest));
+        ret = zint_utf8_to_eci(eci, ZCUCP(data[i].data), ZUCP(dest), &out_length);
+        assert_equal(ret, data[i].ret, "i:%d zint_utf8_to_eci ret %d != %d\n", i, ret, data[i].ret);
         if (ret == 0) {
-            assert_equal(out_length, data[i].expected_length, "i:%d length %d != %d\n", i, out_length, data[i].expected_length);
-            assert_nonzero(out_length <= eci_length, "i:%d out_length %d > eci_length %d\n", i, out_length, eci_length);
+            assert_equal(out_length, data[i].expected_length, "i:%d length %d != %d\n",
+                        i, out_length, data[i].expected_length);
+            assert_nonzero(out_length <= eci_length, "i:%d out_length %d > eci_length %d\n",
+                        i, out_length, eci_length);
         }
     }
 
@@ -1254,7 +1305,7 @@ static void test_utf8_to_eci_gbk(const testCtx *const p_ctx) {
     int i, length, ret;
     const int eci = 31;
 
-    testStart("test_utf8_to_eci_gbk");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
         int out_length, eci_length;
@@ -1264,14 +1315,17 @@ static void test_utf8_to_eci_gbk(const testCtx *const p_ctx) {
 
         length = data[i].length != -1 ? data[i].length : (int) strlen(data[i].data);
         out_length = length;
-        eci_length = get_eci_length(eci, (const unsigned char *) data[i].data, length);
+        eci_length = zint_get_eci_length(eci, ZCUCP(data[i].data), length);
 
-        assert_nonzero(eci_length + 1 <= 1024, "i:%d eci_length %d + 1 > 1024\n", i, eci_length);
-        ret = utf8_to_eci(eci, (const unsigned char *) data[i].data, (unsigned char *) dest, &out_length);
-        assert_equal(ret, data[i].ret, "i:%d utf8_to_eci ret %d != %d\n", i, ret, data[i].ret);
+        assert_nonzero(eci_length + 1 <= ARRAY_SIZE(dest), "i:%d eci_length %d + 1 > %d\n", i, eci_length,
+                        ARRAY_SIZE(dest));
+        ret = zint_utf8_to_eci(eci, ZCUCP(data[i].data), ZUCP(dest), &out_length);
+        assert_equal(ret, data[i].ret, "i:%d zint_utf8_to_eci ret %d != %d\n", i, ret, data[i].ret);
         if (ret == 0) {
-            assert_equal(out_length, data[i].expected_length, "i:%d length %d != %d\n", i, out_length, data[i].expected_length);
-            assert_nonzero(out_length <= eci_length, "i:%d out_length %d > eci_length %d\n", i, out_length, eci_length);
+            assert_equal(out_length, data[i].expected_length, "i:%d length %d != %d\n",
+                        i, out_length, data[i].expected_length);
+            assert_nonzero(out_length <= eci_length, "i:%d out_length %d > eci_length %d\n",
+                        i, out_length, eci_length);
         }
     }
 
@@ -1300,7 +1354,7 @@ static void test_utf8_to_eci_gb18030(const testCtx *const p_ctx) {
     int i, length, ret;
     const int eci = 32;
 
-    testStart("test_utf8_to_eci_gb18030");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
         int out_length, eci_length;
@@ -1310,14 +1364,66 @@ static void test_utf8_to_eci_gb18030(const testCtx *const p_ctx) {
 
         length = data[i].length != -1 ? data[i].length : (int) strlen(data[i].data);
         out_length = length;
-        eci_length = get_eci_length(eci, (const unsigned char *) data[i].data, length);
+        eci_length = zint_get_eci_length(eci, ZCUCP(data[i].data), length);
 
-        assert_nonzero(eci_length + 1 <= 1024, "i:%d eci_length %d + 1 > 1024\n", i, eci_length);
-        ret = utf8_to_eci(eci, (const unsigned char *) data[i].data, (unsigned char *) dest, &out_length);
-        assert_equal(ret, data[i].ret, "i:%d utf8_to_eci ret %d != %d\n", i, ret, data[i].ret);
+        assert_nonzero(eci_length + 1 <= ARRAY_SIZE(dest), "i:%d eci_length %d + 1 > %d\n", i, eci_length,
+                        ARRAY_SIZE(dest));
+        ret = zint_utf8_to_eci(eci, ZCUCP(data[i].data), ZUCP(dest), &out_length);
+        assert_equal(ret, data[i].ret, "i:%d zint_utf8_to_eci ret %d != %d\n", i, ret, data[i].ret);
         if (ret == 0) {
-            assert_equal(out_length, data[i].expected_length, "i:%d length %d != %d\n", i, out_length, data[i].expected_length);
-            assert_nonzero(out_length <= eci_length, "i:%d out_length %d > eci_length %d\n", i, out_length, eci_length);
+            assert_equal(out_length, data[i].expected_length, "i:%d length %d != %d\n",
+                        i, out_length, data[i].expected_length);
+            assert_nonzero(out_length <= eci_length, "i:%d out_length %d > eci_length %d\n",
+                        i, out_length, eci_length);
+        }
+    }
+
+    testFinish();
+}
+
+static void test_utf8_to_eci_binary(const testCtx *const p_ctx) {
+
+    struct item {
+        const char *data;
+        int length;
+        int ret;
+        int expected_length;
+    };
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
+    struct item data[] = {
+        /*  0*/ { "\000\001\002\003\004\005\006\007\010\011\012\013\014\015\016\017\020\021\022\023\024\025\026\027\030\031\032\033\034\035\036\037", 32, 0, 32 },
+        /*  1*/ { " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\177", 96, 0, 96 },
+        /*  2*/ { "\302\200\302\201\302\202\302\203\302\204\302\205\302\206\302\207\302\210\302\211\302\212\302\213\302\214\302\215\302\216\302\217", 32, 0, 16 },
+        /*  3*/ { "\302\220\302\221\302\222\302\223\302\224\302\225\302\226\302\227\302\230\302\231\302\232\302\233\302\234\302\235\302\236\302\237", 32, 0, 16 },
+        /*  4*/ { "\303\200\303\201\303\202\303\203\303\204\303\205\303\206\303\207\303\210\303\211\303\212\303\213\303\214\303\215\303\216\303\217", 32, 0, 16 },
+        /*  5*/ { "\303\220\303\221\303\222\303\223\303\224\303\225\303\226\303\227\303\230\303\231\303\232\303\233\303\234\303\235\303\236\303\237", 32, 0, 16 },
+    };
+    int data_size = ARRAY_SIZE(data);
+    int i, length, ret;
+    const int eci = 899;
+
+    char dest[128] = {0}; /* Suppress clang -fsanitize=memory false positive */
+
+    testStart(p_ctx->func_name);
+
+    for (i = 0; i < data_size; i++) {
+        int out_length, eci_length;
+
+        if (testContinue(p_ctx, i)) continue;
+
+        length = data[i].length != -1 ? data[i].length : (int) strlen(data[i].data);
+        out_length = length;
+        eci_length = zint_get_eci_length(eci, ZCUCP(data[i].data), length);
+
+        assert_nonzero(eci_length + 1 <= ARRAY_SIZE(dest), "i:%d eci_length %d + 1 > %d\n", i, eci_length,
+                        ARRAY_SIZE(dest));
+        ret = zint_utf8_to_eci(eci, ZCUCP(data[i].data), ZUCP(dest), &out_length);
+        assert_equal(ret, data[i].ret, "i:%d zint_utf8_to_eci ret %d != %d\n", i, ret, data[i].ret);
+        if (ret == 0) {
+            assert_equal(out_length, data[i].expected_length, "i:%d length %d != %d\n",
+                        i, out_length, data[i].expected_length);
+            assert_nonzero(out_length <= eci_length, "i:%d out_length %d > eci_length %d\n",
+                        i, out_length, eci_length);
         }
     }
 
@@ -1337,22 +1443,29 @@ static void test_is_eci_convertible_segs(const testCtx *const p_ctx) {
         /*  1*/ { { { TU("A"), -1, 26 }, { TU(""), 0, 0 }, { TU(""), 0, 0 } }, 0, { 0, -1, -1 } },
         /*  2*/ { { { TU("A"), -1, 36 }, { TU(""), 0, 0 }, { TU(""), 0, 0 } }, 0, { 0, -1, -1 } },
         /*  3*/ { { { TU("A"), -1, 170 }, { TU(""), 0, 0 }, { TU(""), 0, 0 } }, 1, { 1, -1, -1 } },
-        /*  4*/ { { { TU("A"), -1, 899 }, { TU(""), 0, 0 }, { TU(""), 0, 0 } }, 0, { 0, -1, -1 } },
-        /*  5*/ { { { TU("A"), -1, 3 }, { TU(""), 0, 0 }, { TU(""), 0, 0 } }, 1, { 1, -1, -1 } },
-        /*  6*/ { { { TU("A"), -1, 899 }, { TU("A"), -1, 0 }, { TU(""), 0, 0 } }, 1, { 0, 1, -1 } },
-        /*  7*/ { { { TU("A"), -1, 0 }, { TU("A"), -1, 899 }, { TU(""), 0, 0 } }, 1, { 1, 0, -1 } },
-        /*  8*/ { { { TU("A"), -1, 3 }, { TU("A"), -1, 4 }, { TU("A"), -1, 35 } }, 1, { 1, 1, 1 } },
-        /*  9*/ { { { TU("A"), -1, 3 }, { TU("A"), -1, 899 }, { TU("A"), -1, 0 } }, 1, { 1, 0, 1 } },
-        /* 10*/ { { { TU("A"), -1, 899 }, { TU("A"), -1, 899 }, { TU("A"), -1, 0 } }, 1, { 0, 0, 1 } },
-        /* 11*/ { { { TU("A"), -1, 899 }, { TU("A"), -1, 0 }, { TU("A"), -1, 899 } }, 1, { 0, 1, 0 } },
-        /* 12*/ { { { TU("A"), -1, 899 }, { TU("A"), -1, 899 }, { TU("A"), -1, 899 } }, 0, { 0, 0, 0 } },
+        /*  4*/ { { { TU("A"), -1, 899 }, { TU(""), 0, 0 }, { TU(""), 0, 0 } }, 1, { 1, -1, -1 } },
+        /*  5*/ { { { TU("A"), -1, 900 }, { TU(""), 0, 0 }, { TU(""), 0, 0 } }, 0, { 0, -1, -1 } },
+        /*  6*/ { { { TU("A"), -1, 3 }, { TU(""), 0, 0 }, { TU(""), 0, 0 } }, 1, { 1, -1, -1 } },
+        /*  7*/ { { { TU("A"), -1, 899 }, { TU("A"), -1, 0 }, { TU(""), 0, 0 } }, 1, { 1, 1, -1 } },
+        /*  8*/ { { { TU("A"), -1, 900 }, { TU("A"), -1, 0 }, { TU(""), 0, 0 } }, 1, { 0, 1, -1 } },
+        /*  9*/ { { { TU("A"), -1, 0 }, { TU("A"), -1, 899 }, { TU(""), 0, 0 } }, 1, { 1, 1, -1 } },
+        /* 10*/ { { { TU("A"), -1, 0 }, { TU("A"), -1, 900 }, { TU(""), 0, 0 } }, 1, { 1, 0, -1 } },
+        /* 11*/ { { { TU("A"), -1, 3 }, { TU("A"), -1, 4 }, { TU("A"), -1, 35 } }, 1, { 1, 1, 1 } },
+        /* 12*/ { { { TU("A"), -1, 3 }, { TU("A"), -1, 899 }, { TU("A"), -1, 0 } }, 1, { 1, 1, 1 } },
+        /* 13*/ { { { TU("A"), -1, 3 }, { TU("A"), -1, 900 }, { TU("A"), -1, 0 } }, 1, { 1, 0, 1 } },
+        /* 14*/ { { { TU("A"), -1, 899 }, { TU("A"), -1, 899 }, { TU("A"), -1, 0 } }, 1, { 1, 1, 1 } },
+        /* 15*/ { { { TU("A"), -1, 900 }, { TU("A"), -1, 900 }, { TU("A"), -1, 0 } }, 1, { 0, 0, 1 } },
+        /* 16*/ { { { TU("A"), -1, 899 }, { TU("A"), -1, 0 }, { TU("A"), -1, 899 } }, 1, { 1, 1, 1 } },
+        /* 17*/ { { { TU("A"), -1, 900 }, { TU("A"), -1, 0 }, { TU("A"), -1, 900 } }, 1, { 0, 1, 0 } },
+        /* 18*/ { { { TU("A"), -1, 899 }, { TU("A"), -1, 899 }, { TU("A"), -1, 899 } }, 1, { 1, 1, 1 } },
+        /* 19*/ { { { TU("A"), -1, 900 }, { TU("A"), -1, 900 }, { TU("A"), -1, 900 } }, 0, { 0, 0, 0 } },
     };
     int data_size = ARRAY_SIZE(data);
     int i, j, seg_count, ret;
 
     int convertible[3];
 
-    testStart("test_is_eci_convertible_segs");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
 
@@ -1362,10 +1475,12 @@ static void test_is_eci_convertible_segs(const testCtx *const p_ctx) {
 
         for (j = 0; j < 3; j++) convertible[j] = -1;
 
-        ret = is_eci_convertible_segs(data[i].segs, seg_count, convertible);
-        assert_equal(ret, data[i].ret, "i:%d is_eci_convertible_segs ret %d != %d\n", i, ret, data[i].ret);
+        ret = zint_is_eci_convertible_segs(data[i].segs, seg_count, convertible);
+        assert_equal(ret, data[i].ret, "i:%d zint_is_eci_convertible_segs ret %d != %d\n", i, ret, data[i].ret);
         for (j = 0; j < 3; j++) {
-            assert_equal(convertible[j], data[i].expected_convertible[j], "i:%d is_eci_convertible_segs convertible[%d] %d != %d\n", i, j, convertible[j], data[i].expected_convertible[j]);
+            assert_equal(convertible[j], data[i].expected_convertible[j],
+                        "i:%d zint_is_eci_convertible_segs convertible[%d] %d != %d\n",
+                        i, j, convertible[j], data[i].expected_convertible[j]);
         }
     }
 
@@ -1391,7 +1506,7 @@ static void test_get_best_eci(const testCtx *const p_ctx) {
     int data_size = ARRAY_SIZE(data);
     int i, length, ret;
 
-    testStart("test_get_best_eci");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
 
@@ -1399,8 +1514,8 @@ static void test_get_best_eci(const testCtx *const p_ctx) {
 
         length = data[i].length == -1 ? (int) strlen(data[i].data) : data[i].length;
 
-        ret = get_best_eci((const unsigned char *) data[i].data, length);
-        assert_equal(ret, data[i].ret, "i:%d get_best_eci ret %d != %d\n", i, ret, data[i].ret);
+        ret = zint_get_best_eci(ZCUCP(data[i].data), length);
+        assert_equal(ret, data[i].ret, "i:%d zint_get_best_eci ret %d != %d\n", i, ret, data[i].ret);
     }
 
     testFinish();
@@ -1429,7 +1544,7 @@ static void test_get_best_eci_segs(const testCtx *const p_ctx) {
     int i, j, seg_count, ret;
     struct zint_symbol *symbol;
 
-    testStart("test_get_best_eci_segs");
+    testStart(p_ctx->func_name);
 
     for (i = 0; i < data_size; i++) {
 
@@ -1440,12 +1555,13 @@ static void test_get_best_eci_segs(const testCtx *const p_ctx) {
 
         for (j = 0, seg_count = 0; j < 3 && data[i].segs[j].length; j++, seg_count++);
         for (j = 0; j < seg_count; j++) {
-            if (data[i].segs[j].length < 0) data[i].segs[j].length = (int) ustrlen(data[i].segs[j].source);
+            if (data[i].segs[j].length < 0) data[i].segs[j].length = (int) z_ustrlen(data[i].segs[j].source);
         }
 
-        ret = get_best_eci_segs(symbol, data[i].segs, seg_count);
-        assert_equal(ret, data[i].ret, "i:%d get_best_eci_segs ret %d != %d\n", i, ret, data[i].ret);
-        assert_equal(symbol->eci, data[i].expected_symbol_eci, "i:%d get_best_eci_segs symbol->eci %d != %d\n", i, symbol->eci, data[i].expected_symbol_eci);
+        ret = zint_get_best_eci_segs(symbol, data[i].segs, seg_count);
+        assert_equal(ret, data[i].ret, "i:%d zint_get_best_eci_segs ret %d != %d\n", i, ret, data[i].ret);
+        assert_equal(symbol->eci, data[i].expected_symbol_eci, "i:%d zint_get_best_eci_segs symbol->eci %d != %d\n",
+                    i, symbol->eci, data[i].expected_symbol_eci);
 
         ZBarcode_Delete(symbol);
     }
@@ -1471,6 +1587,7 @@ int main(int argc, char *argv[]) {
         { "test_utf8_to_eci_euc_kr", test_utf8_to_eci_euc_kr },
         { "test_utf8_to_eci_gbk", test_utf8_to_eci_gbk },
         { "test_utf8_to_eci_gb18030", test_utf8_to_eci_gb18030 },
+        { "test_utf8_to_eci_binary", test_utf8_to_eci_binary },
         { "test_is_eci_convertible_segs", test_is_eci_convertible_segs },
         { "test_get_best_eci", test_get_best_eci },
         { "test_get_best_eci_segs", test_get_best_eci_segs },

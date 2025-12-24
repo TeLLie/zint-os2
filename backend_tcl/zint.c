@@ -182,6 +182,10 @@
 - MSVC: suppress warning 4996 (_CRT_SECURE_NO_WARNINGS)
 2025-02-15 GL
 - strcpy() -> memcpy(); sizeof(primary); tabs -> spaces
+2025-04-16 GL
+- Added: EAN8, EAN_2ADDON, EAN_5ADDON, EAN13, EAN8_CC, EAN13_CC, DMFILMEDGE
+2025-12-17 HaO
+- Added -gs1strict switch, copied from CLI program.
 */
 
 #if defined(__WIN32__) || defined(_WIN32) || defined(WIN32)
@@ -221,6 +225,10 @@ typedef int Tcl_Size;
 # define Tcl_NewSizeIntObj Tcl_NewIntObj
 # define TCL_SIZE_MAX      INT_MAX
 # define TCL_SIZE_MODIFIER ""
+#endif
+
+#ifndef CONST
+#define CONST const
 #endif
 
 #undef EXPORT
@@ -269,8 +277,12 @@ static const char *s_code_list[] = {
     "Ind2of5",
     "Code39",
     "Code39Extended",
+    "EAN8",
+    "EAN-2AddOn",
+    "EAN-5AddOn",
     "EAN",
     "EAN+Check",
+    "EAN13",
     "GS1-128",
     "Codabar",
     "Code128",
@@ -361,6 +373,9 @@ static const char *s_code_list[] = {
     "UltraCode",
     "rMQR",
     "BC412",
+    "DMFilmEdge",
+    "EAN8-CC",
+    "EAN13-CC",
     NULL};
 
 static const int s_code_number[] = {
@@ -372,8 +387,12 @@ static const int s_code_number[] = {
     BARCODE_C25IND,
     BARCODE_CODE39,
     BARCODE_EXCODE39,
+    BARCODE_EAN8,
+    BARCODE_EAN_2ADDON,
+    BARCODE_EAN_5ADDON,
     BARCODE_EANX,
     BARCODE_EANX_CHK,
+    BARCODE_EAN13,
     BARCODE_GS1_128,
     BARCODE_CODABAR,
     BARCODE_CODE128,
@@ -464,6 +483,9 @@ static const int s_code_number[] = {
     BARCODE_ULTRA,
     BARCODE_RMQR,
     BARCODE_BC412,
+    BARCODE_DXFILMEDGE,
+    BARCODE_EAN8_CC,
+    BARCODE_EAN13_CC,
     0};
 
 /* ECI TCL encoding names.
@@ -538,7 +560,7 @@ static const char help_message[] = "zint tcl(stub,obj) dll\n"
     /* cli option --data is standard parameter */
     "   -dmiso144 bool: Use ISO format for 144x144 Data Matrix symbols\n"
     "   -dmre bool: Allow Data Matrix Rectangular Extended\n"
-    "   -dotsize number: radius ratio of dots from 0.01 to 1.0\n" 
+    "   -dotsize number: radius ratio of dots from 0.01 to 1.0\n"
     "   -dotty bool: use dots instead of boxes for matrix codes\n"
     /* cli option --dump not supported */
     /* cli option --ecinos not supported */
@@ -554,6 +576,11 @@ static const char help_message[] = "zint tcl(stub,obj) dll\n"
     /* cli option --gs1 replaced by -format */
     "   -gs1nocheck bool: for gs1, do not check validity of data (allows non-standard symbols)\n"
     "   -gs1parens bool: for gs1, AIs enclosed in parentheses instead of square brackets\n"
+#ifdef ZINT_HAVE_GS1SE
+    "   -gs1strict bool: use GS1 Syntax Engine to strictly validate GS1 data\n"
+#else
+    "   -gs1strict 0: GS1 syntax engine not compiled in, may not be activated.\n"
+#endif
     "   -gssep bool: for gs1, use gs as separator instead fnc1 (Datamatrix only)\n"
     "   -guarddescent double: Height of guard bar descent in modules (EAN/UPC only)\n"
     "   -guardwhitespace bool: add quiet zone indicators (EAN/UPC only)\n"
@@ -597,7 +624,7 @@ static const char help_message[] = "zint tcl(stub,obj) dll\n"
     "zint help\n"
     "zint version\n"
     ;
-    
+
 /*----------------------------------------------------------------------------*/
 /* Exported symbols */
 #if defined(__WIN32__) || defined(_WIN32) || defined(WIN32)
@@ -680,7 +707,7 @@ DLLEXPORT int Zint_Init (Tcl_Interp *interp)
     /*------------------------------------------------------------------------*/
     /* This procedure is called once per thread and any thread local data     */
     /* should be allocated and initialized here (and not in static variables) */
-    
+
     /* Create a flag if Tk is loaded */
     tkFlagPtr = (int *)ckalloc(sizeof(int));
     *tkFlagPtr = 0;
@@ -878,8 +905,10 @@ static int Encode(Tcl_Interp *interp, int objc,
             "-addongap", "-barcode", "-bg", "-bind", "-bindtop", "-bold", "-border", "-box",
             "-cols", "-compliantheight", "-dmiso144", "-dmre", "-dotsize", "-dotty",
             "-eci", "-esc", "-extraesc", "-fast", "-fg", "-format", "-fullmultibyte",
-            "-gs1nocheck", "-gs1parens", "-gssep", "-guarddescent", "-guardwhitespace",
-            "-height", "-heightperrow", "-init", "-mask", "-mode",
+            "-gs1nocheck", "-gs1parens",
+            "-gs1strict",
+            "-gssep", "-guarddescent",
+            "-guardwhitespace", "-height", "-heightperrow", "-init", "-mask", "-mode",
             "-nobackground", "-noquietzones", "-notext", "-primary", "-quietzones",
             "-reverse", "-rotate", "-rows", "-scale", "-scalexdimdp", "-scmvv", "-secure",
             "-seg1", "-seg2", "-seg3", "-seg4", "-seg5", "-seg6", "-seg7", "-seg8", "-seg9",
@@ -890,8 +919,10 @@ static int Encode(Tcl_Interp *interp, int objc,
             iAddonGap, iBarcode, iBG, iBind, iBindTop, iBold, iBorder, iBox,
             iCols, iCompliantHeight, iDMISO144, iDMRE, iDotSize, iDotty,
             iECI, iEsc, iExtraEsc, iFast, iFG, iFormat, iFullMultiByte,
-            iGS1NoCheck, iGS1Parens, iGSSep, iGuardDescent, iGuardWhitespace,
-            iHeight, iHeightPerRow, iInit, iMask, iMode,
+            iGS1NoCheck, iGS1Parens,
+            iGS1Strict,
+            iGSSep, iGuardDescent,
+            iGuardWhitespace, iHeight, iHeightPerRow, iInit, iMask, iMode,
             iNoBackground, iNoQuietZones, iNoText, iPrimary, iQuietZones,
             iReverse, iRotate, iRows, iScale, iScaleXdimDp, iSCMvv, iSecure,
             iSeg1, iSeg2, iSeg3, iSeg4, iSeg5, iSeg6, iSeg7, iSeg8, iSeg9,
@@ -926,6 +957,7 @@ static int Encode(Tcl_Interp *interp, int objc,
         case iFast:
         case iGS1NoCheck:
         case iGS1Parens:
+        case iGS1Strict:
         case iGSSep:
         case iGuardWhitespace:
         case iHeightPerRow:
@@ -1121,6 +1153,7 @@ static int Encode(Tcl_Interp *interp, int objc,
         case iGS1NoCheck:
             if (intValue) {
                 my_symbol->input_mode |= GS1NOCHECK_MODE;
+                my_symbol->input_mode = (my_symbol->input_mode & ~0x07) | GS1_MODE; /* Now sets GS1_MODE also */
             } else {
                 my_symbol->input_mode &= ~GS1NOCHECK_MODE;
             }
@@ -1128,8 +1161,23 @@ static int Encode(Tcl_Interp *interp, int objc,
         case iGS1Parens:
             if (intValue) {
                 my_symbol->input_mode |= GS1PARENS_MODE;
+                my_symbol->input_mode = (my_symbol->input_mode & ~0x07) | GS1_MODE; /* Now sets GS1_MODE also */
             } else {
                 my_symbol->input_mode &= ~GS1PARENS_MODE;
+            }
+            break;
+        case iGS1Strict:
+            if (intValue) {
+#ifdef ZINT_HAVE_GS1SE
+                my_symbol->input_mode |= GS1SYNTAXENGINE_MODE;
+                my_symbol->input_mode = (my_symbol->input_mode & ~0x07) | GS1_MODE; /* Now sets GS1_MODE also */
+#else
+                Tcl_SetObjResult(interp,
+                    Tcl_NewStringObj("GS1 syntax engine not compiled in", -1));
+                fError = 1;
+#endif
+            } else {
+                my_symbol->input_mode &= ~GS1SYNTAXENGINE_MODE;
             }
             break;
         case iGSSep:
@@ -1640,7 +1688,7 @@ static int Encode(Tcl_Interp *interp, int objc,
         if( 0 != ErrorNumber )
         {
             Tcl_SetObjResult(interp, Tcl_NewStringObj(my_symbol->errtxt, -1));
-        }        
+        }
         if( ZINT_ERROR <= ErrorNumber )
         {
             /* >> Encode error */

@@ -19,7 +19,7 @@ dnl	to configure the system for the local environment.
 # so that we create the export library with the dll.
 #-----------------------------------------------------------------------
 
-AC_INIT([zint],[2.15.0])
+AC_INIT([zint],[2.16.0])
 
 #--------------------------------------------------------------------
 # Call TEA_INIT as the first TEA_ macro to set up initial vars.
@@ -42,8 +42,8 @@ TEA_LOAD_TCLCONFIG
 # Load the tkConfig.sh file if necessary (Tk extension)
 #--------------------------------------------------------------------
 
-#TEA_PATH_TKCONFIG
-#TEA_LOAD_TKCONFIG
+TEA_PATH_TKCONFIG
+TEA_LOAD_TKCONFIG
 
 #-----------------------------------------------------------------------
 # Handle the --prefix=... option by defaulting to what Tcl gave.
@@ -130,8 +130,8 @@ TEA_ADD_SOURCES([
 ])
 TEA_ADD_HEADERS([])
 TEA_ADD_INCLUDES([])
-TEA_ADD_LIBS()
-TEA_ADD_CFLAGS([-I../backend -DZINT_NO_PNG=1 -DZINT_VERSION=PACKAGE_VERSION])
+TEA_ADD_LIBS(-lgs1encoders)
+TEA_ADD_CFLAGS([-I../backend -DZINT_NO_PNG=1 -DZINT_HAVE_GS1SE=1 -DZINT_VERSION=PACKAGE_VERSION])
 TEA_ADD_STUB_SOURCES([])
 TEA_ADD_TCL_SOURCES([demo/demo.tcl])
 
@@ -172,7 +172,7 @@ fi
 TEA_PUBLIC_TCL_HEADERS
 #TEA_PRIVATE_TCL_HEADERS
 
-#TEA_PUBLIC_TK_HEADERS
+TEA_PUBLIC_TK_HEADERS
 #TEA_PRIVATE_TK_HEADERS
 #TEA_PATH_X
 

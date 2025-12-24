@@ -200,7 +200,7 @@ static void test_large(const testCtx *const p_ctx) {
 
     char data_buf[4096];
 
-    testStartSymbol("test_large", &symbol);
+    testStartSymbol(p_ctx->func_name, &symbol);
 
     for (i = 0; i < data_size; i++) {
 
@@ -247,53 +247,55 @@ static void test_input(const testCtx *const p_ctx) {
         int expected_rows;
         int expected_width;
         const char *expected_errtxt;
+        int expected_option_2;
     };
     /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
     static const struct item data[] = {
-        /*  0*/ { -1, -1, -1, { 0, 0, "" }, "123456789012ABCDEFGHI", -1, 0, 22, 22, "", },
-        /*  1*/ { -1, -1, -1, { 0, 0, "" }, "123456789012ABCDEFGHIJ", -1, 0, 22, 22, "", },
-        /*  2*/ { -1, -1, -1, { 0, 0, "" }, "1", -1, 0, 16, 18, "", },
-        /*  3*/ { -1, -1, 0, { 0, 0, "" }, "1", -1, 0, 16, 18, "", },
-        /*  4*/ { -1, -1, 1, { 0, 0, "" }, "1", -1, 0, 16, 18, "", },
-        /*  5*/ { -1, -1, 1, { 0, 0, "" }, "ABCDEFGHIJKLMN", -1, ZINT_ERROR_TOO_LONG, -1, -1, "Error 518: Input too long for Version A, requires 12 codewords (maximum 10)", },
-        /*  6*/ { GS1_MODE, -1, 1, { 0, 0, "" }, "[01]12345678901231", -1, 0, 16, 18, "", },
-        /*  7*/ { GS1_MODE | GS1PARENS_MODE, -1, 1, { 0, 0, "" }, "(01)12345678901231", -1, 0, 16, 18, "", },
-        /*  8*/ { -1, 3, 1, { 0, 0, "" }, "1", -1, 0, 16, 18, "", },
-        /*  9*/ { UNICODE_MODE, 3, 1, { 0, 0, "" }, "é", -1, 0, 16, 18, "", },
-        /* 10*/ { GS1_MODE, 3, 1, { 0, 0, "" }, "[01]12345678901231", -1, ZINT_WARN_INVALID_OPTION, 16, 18, "Warning 512: ECI ignored for GS1 mode", },
-        /* 11*/ { -1, -1, 9, { 0, 0, "" }, "123456789012345678", -1, 0, 8, 31, "", },
-        /* 12*/ { -1, -1, 9, { 0, 0, "" }, "12345678901234567A", -1, ZINT_ERROR_INVALID_DATA, -1, -1, "Error 515: Invalid character at position 18 in input (Version S encodes digits only)", },
-        /* 13*/ { -1, -1, 9, { 0, 0, "" }, "1234567890123456789", -1, ZINT_ERROR_TOO_LONG, -1, -1, "Error 514: Input length 19 too long for Version S (maximum 18)", },
-        /* 14*/ { GS1_MODE, -1, 9, { 0, 0, "" }, "[01]12345678901231", -1, ZINT_WARN_INVALID_OPTION, 8, 31, "Warning 511: GS1 mode ignored for Version S", },
-        /* 15*/ { -1, 3, 9, { 0, 0, "" }, "1", -1, ZINT_WARN_INVALID_OPTION, 8, 11, "Warning 511: ECI ignored for Version S", },
-        /* 16*/ { GS1_MODE, 3, 9, { 0, 0, "" }, "[01]12345678901231", -1, ZINT_WARN_INVALID_OPTION, 8, 31, "Warning 511: ECI and GS1 mode ignored for Version S", },
-        /* 17*/ { -1, -1, 10, { 0, 0, "" }, "123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890", -1, 0, 16, 49, "", },
-        /* 18*/ { -1, -1, 10, { 0, 0, "" }, "1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901", -1, ZINT_ERROR_TOO_LONG, -1, -1, "Error 519: Input length 91 too long for Version T (maximum 90)", },
-        /* 19*/ { -1, -1, 10, { 0, 0, "" }, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", -1, 0, 16, 49, "", },
-        /* 20*/ { -1, -1, 10, { 0, 0, "" }, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", -1, ZINT_ERROR_TOO_LONG, -1, -1, "Error 516: Input too long for Version T, requires 55 codewords (maximum 38)", },
-        /* 21*/ { -1, -1, 10, { 0, 0, "" }, "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000", 38, 0, 16, 49, "", },
-        /* 22*/ { -1, 3, 10, { 0, 0, "" }, "1234567890123456789012345678901234567890123456789012345678901234567890123456", -1, 0, 16, 49, "", },
-        /* 23*/ { -1, 3, 10, { 0, 0, "" }, "12345678901234567890123456789012345678901234567890123456789012345678901234567", -1, ZINT_ERROR_TOO_LONG, -1, -1, "Error 516: Input too long for Version T, requires 39 codewords (maximum 38)", },
-        /* 24*/ { -1, 3, 10, { 0, 0, "" }, "123456789012345678901234567890123456789012345678901234567890123456789012345678901234", -1, ZINT_ERROR_TOO_LONG, -1, -1, "Error 519: Input length 91 too long for Version T (maximum 90)", },
-        /* 25*/ { GS1_MODE, -1, 10, { 0, 0, "" }, "[01]12345678901231", -1, 0, 16, 17, "", },
-        /* 26*/ { GS1_MODE, 3, 10, { 0, 0, "" }, "[01]12345678901231", -1, ZINT_WARN_INVALID_OPTION, 16, 17, "Warning 512: ECI ignored for GS1 mode", },
-        /* 27*/ { -1, -1, 11, { 0, 0, "" }, "1", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 513: Version '11' out of range (1 to 10)", },
-        /* 28*/ { -1, -1, -2, { 0, 0, "" }, "1", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 513: Version '-2' out of range (1 to 10)", },
-        /* 29*/ { GS1_MODE, -1, -1, { 1, 2, "" }, "[01]12345678901231", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 710: Cannot have Structured Append and GS1 mode at the same time", },
-        /* 30*/ { -1, -1, -1, { 1, 1, "" }, "123456789012ABCDEFGHI", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 711: Structured Append count '1' out of range (2 to 128)", },
-        /* 31*/ { -1, -1, -1, { 1, -1, "" }, "123456789012ABCDEFGHI", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 711: Structured Append count '-1' out of range (2 to 128)", },
-        /* 32*/ { -1, -1, -1, { 1, 129, "" }, "123456789012ABCDEFGHI", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 711: Structured Append count '129' out of range (2 to 128)", },
-        /* 33*/ { -1, -1, -1, { 0, 2, "" }, "123456789012ABCDEFGHI", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 712: Structured Append index '0' out of range (1 to count 2)", },
-        /* 34*/ { -1, -1, -1, { 3, 2, "" }, "123456789012ABCDEFGHI", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 712: Structured Append index '3' out of range (1 to count 2)", },
-        /* 35*/ { -1, -1, -1, { 1, 2, "1" }, "123456789012ABCDEFGHI", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 713: Structured Append ID not available for Code One", },
-        /* 36*/ { -1, -1, 9, { 1, 2, "" }, "123456789012ABCDEFGHI", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 714: Structured Append not available for Version S", },
-        /* 37*/ { -1, -1, 9, { 3, 2, "" }, "123456789012ABCDEFGHI", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 714: Structured Append not available for Version S", }, /* Trumps other checking */
+        /*  0*/ { -1, -1, -1, { 0, 0, "" }, "123456789012ABCDEFGHI", -1, 0, 22, 22, "", 2 },
+        /*  1*/ { -1, -1, -1, { 0, 0, "" }, "123456789012ABCDEFGHIJ", -1, 0, 22, 22, "", 2 },
+        /*  2*/ { -1, -1, -1, { 0, 0, "" }, "1", -1, 0, 16, 18, "", 1 },
+        /*  3*/ { -1, -1, 0, { 0, 0, "" }, "1", -1, 0, 16, 18, "", 1 },
+        /*  4*/ { -1, -1, 1, { 0, 0, "" }, "1", -1, 0, 16, 18, "", 1 },
+        /*  5*/ { -1, -1, 1, { 0, 0, "" }, "ABCDEFGHIJKLMN", -1, ZINT_ERROR_TOO_LONG, -1, -1, "Error 518: Input too long for Version A, requires 12 codewords (maximum 10)", 1 },
+        /*  6*/ { GS1_MODE, -1, 1, { 0, 0, "" }, "[01]12345678901231", -1, 0, 16, 18, "", 1 },
+        /*  7*/ { GS1_MODE | GS1PARENS_MODE, -1, 1, { 0, 0, "" }, "(01)12345678901231", -1, 0, 16, 18, "", 1 },
+        /*  8*/ { GS1_MODE | ESCAPE_MODE | GS1PARENS_MODE, -1, 1, { 0, 0, "" }, "(21)\\(12\\)4567890123", -1, 0, 16, 18, "", 1 },
+        /*  9*/ { -1, 3, 1, { 0, 0, "" }, "1", -1, 0, 16, 18, "", 1 },
+        /* 10*/ { UNICODE_MODE, 3, 1, { 0, 0, "" }, "é", -1, 0, 16, 18, "", 1 },
+        /* 11*/ { GS1_MODE, 3, 1, { 0, 0, "" }, "[01]12345678901231", -1, ZINT_WARN_INVALID_OPTION, 16, 18, "Warning 512: ECI ignored for GS1 mode", 1 },
+        /* 12*/ { -1, -1, 9, { 0, 0, "" }, "123456789012345678", -1, 0, 8, 31, "", 9 },
+        /* 13*/ { -1, -1, 9, { 0, 0, "" }, "12345678901234567A", -1, ZINT_ERROR_INVALID_DATA, -1, -1, "Error 515: Invalid character at position 18 in input (Version S encodes digits only)", 9 },
+        /* 14*/ { -1, -1, 9, { 0, 0, "" }, "1234567890123456789", -1, ZINT_ERROR_TOO_LONG, -1, -1, "Error 514: Input length 19 too long for Version S (maximum 18)", 9 },
+        /* 15*/ { GS1_MODE, -1, 9, { 0, 0, "" }, "[01]12345678901231", -1, ZINT_WARN_INVALID_OPTION, 8, 31, "Warning 511: GS1 mode ignored for Version S", 9 },
+        /* 16*/ { -1, 3, 9, { 0, 0, "" }, "1", -1, ZINT_WARN_INVALID_OPTION, 8, 11, "Warning 511: ECI ignored for Version S", 9 },
+        /* 17*/ { GS1_MODE, 3, 9, { 0, 0, "" }, "[01]12345678901231", -1, ZINT_WARN_INVALID_OPTION, 8, 31, "Warning 511: ECI and GS1 mode ignored for Version S", 9 },
+        /* 18*/ { -1, -1, 10, { 0, 0, "" }, "123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890", -1, 0, 16, 49, "", 10 },
+        /* 19*/ { -1, -1, 10, { 0, 0, "" }, "1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901", -1, ZINT_ERROR_TOO_LONG, -1, -1, "Error 519: Input length 91 too long for Version T (maximum 90)", 10 },
+        /* 20*/ { -1, -1, 10, { 0, 0, "" }, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", -1, 0, 16, 49, "", 10 },
+        /* 21*/ { -1, -1, 10, { 0, 0, "" }, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", -1, ZINT_ERROR_TOO_LONG, -1, -1, "Error 516: Input too long for Version T, requires 55 codewords (maximum 38)", 10 },
+        /* 22*/ { -1, -1, 10, { 0, 0, "" }, "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000", 38, 0, 16, 49, "", 10 },
+        /* 23*/ { -1, 3, 10, { 0, 0, "" }, "1234567890123456789012345678901234567890123456789012345678901234567890123456", -1, 0, 16, 49, "", 10 },
+        /* 24*/ { -1, 3, 10, { 0, 0, "" }, "12345678901234567890123456789012345678901234567890123456789012345678901234567", -1, ZINT_ERROR_TOO_LONG, -1, -1, "Error 516: Input too long for Version T, requires 39 codewords (maximum 38)", 10 },
+        /* 25*/ { -1, 3, 10, { 0, 0, "" }, "123456789012345678901234567890123456789012345678901234567890123456789012345678901234", -1, ZINT_ERROR_TOO_LONG, -1, -1, "Error 519: Input length 91 too long for Version T (maximum 90)", 10 },
+        /* 26*/ { GS1_MODE, -1, 10, { 0, 0, "" }, "[01]12345678901231", -1, 0, 16, 17, "", 10 },
+        /* 27*/ { GS1_MODE, 3, 10, { 0, 0, "" }, "[01]12345678901231", -1, ZINT_WARN_INVALID_OPTION, 16, 17, "Warning 512: ECI ignored for GS1 mode", 10 },
+        /* 28*/ { -1, -1, 11, { 0, 0, "" }, "1", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 513: Version '11' out of range (1 to 10)", 11 },
+        /* 29*/ { -1, -1, -2, { 0, 0, "" }, "1", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 513: Version '-2' out of range (1 to 10)", -2 },
+        /* 30*/ { GS1_MODE, -1, -1, { 1, 2, "" }, "[01]12345678901231", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 710: Cannot have Structured Append and GS1 mode at the same time", 0 },
+        /* 31*/ { -1, -1, -1, { 1, 1, "" }, "123456789012ABCDEFGHI", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 711: Structured Append count '1' out of range (2 to 128)", 0 },
+        /* 32*/ { -1, -1, -1, { 1, -1, "" }, "123456789012ABCDEFGHI", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 711: Structured Append count '-1' out of range (2 to 128)", 0 },
+        /* 33*/ { -1, -1, -1, { 1, 129, "" }, "123456789012ABCDEFGHI", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 711: Structured Append count '129' out of range (2 to 128)", 0 },
+        /* 34*/ { -1, -1, -1, { 0, 2, "" }, "123456789012ABCDEFGHI", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 712: Structured Append index '0' out of range (1 to count 2)", 0 },
+        /* 35*/ { -1, -1, -1, { 3, 2, "" }, "123456789012ABCDEFGHI", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 712: Structured Append index '3' out of range (1 to count 2)", 0 },
+        /* 36*/ { -1, -1, -1, { 1, 2, "1" }, "123456789012ABCDEFGHI", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 713: Structured Append ID not available for Code One", 0 },
+        /* 37*/ { -1, -1, 9, { 1, 2, "" }, "123456789012ABCDEFGHI", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 714: Structured Append not available for Version S", 9 },
+        /* 38*/ { -1, -1, 9, { 3, 2, "" }, "123456789012ABCDEFGHI", -1, ZINT_ERROR_INVALID_OPTION, -1, -1, "Error 714: Structured Append not available for Version S", 9 }, /* Trumps other checking */
     };
     const int data_size = ARRAY_SIZE(data);
     int i, length, ret;
     struct zint_symbol *symbol = NULL;
 
-    testStartSymbol("test_input", &symbol);
+    testStartSymbol(p_ctx->func_name, &symbol);
 
     for (i = 0; i < data_size; i++) {
 
@@ -302,7 +304,9 @@ static void test_input(const testCtx *const p_ctx) {
         symbol = ZBarcode_Create();
         assert_nonnull(symbol, "Symbol not created\n");
 
-        length = testUtilSetSymbol(symbol, BARCODE_CODEONE, data[i].input_mode, data[i].eci, -1 /*option_1*/, data[i].option_2, -1, -1 /*output_options*/, data[i].data, data[i].length, debug);
+        length = testUtilSetSymbol(symbol, BARCODE_CODEONE, data[i].input_mode, data[i].eci,
+                                    -1 /*option_1*/, data[i].option_2, -1 /*option_3*/, -1 /*output_options*/,
+                                    data[i].data, data[i].length, debug);
         if (data[i].structapp.count) {
             symbol->structapp = data[i].structapp;
         }
@@ -315,6 +319,8 @@ static void test_input(const testCtx *const p_ctx) {
             assert_equal(symbol->width, data[i].expected_width, "i:%d symbol->width %d != %d\n", i, symbol->width, data[i].expected_width);
         }
         assert_zero(strcmp(symbol->errtxt, data[i].expected_errtxt), "i:%d symbol->errtxt %s != %s\n", i, symbol->errtxt, data[i].expected_errtxt);
+        assert_equal(symbol->option_2, data[i].expected_option_2, "i:%d symbol->option_2 %d != %d\n",
+                    i, symbol->option_2, data[i].expected_option_2);
 
         ZBarcode_Delete(symbol);
     }
@@ -2896,7 +2902,7 @@ static void test_encode(const testCtx *const p_ctx) {
 
     int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
 
-    testStartSymbol("test_encode", &symbol);
+    testStartSymbol(p_ctx->func_name, &symbol);
 
     for (i = 0; i < data_size; i++) {
 
@@ -3271,7 +3277,7 @@ static void test_encode_segs(const testCtx *const p_ctx) {
                     "0000110101011010101000"
                     "0110000110100100110110"
                 },
-        /* 10*/ { UNICODE_MODE, 9, { 0, 0, "" }, { { TU("A"), -1, 3 }, { TU("B"), -1, 4 }, { TU("C"), -1, 5 } }, ZINT_ERROR_INVALID_OPTION, 0, 0, 1, "Multiple segments not suppoted for Version S",
+        /* 10*/ { UNICODE_MODE, 9, { 0, 0, "" }, { { TU("A"), -1, 3 }, { TU("B"), -1, 4 }, { TU("C"), -1, 5 } }, ZINT_ERROR_INVALID_OPTION, 0, 0, 1, "Multiple segments not supported for Version S",
                     ""
                 },
     };
@@ -3285,7 +3291,7 @@ static void test_encode_segs(const testCtx *const p_ctx) {
 
     int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
 
-    testStartSymbol("test_encode_segs", &symbol);
+    testStartSymbol(p_ctx->func_name, &symbol);
 
     for (i = 0; i < data_size; i++) {
 
@@ -3308,9 +3314,9 @@ static void test_encode_segs(const testCtx *const p_ctx) {
         if (p_ctx->generate) {
             char escaped1[4096];
             char escaped2[4096];
-            int length = data[i].segs[0].length == -1 ? (int) ustrlen(data[i].segs[0].source) : data[i].segs[0].length;
-            int length1 = data[i].segs[1].length == -1 ? (int) ustrlen(data[i].segs[1].source) : data[i].segs[1].length;
-            int length2 = data[i].segs[2].length == -1 ? (int) ustrlen(data[i].segs[2].source) : data[i].segs[2].length;
+            int length = data[i].segs[0].length == -1 ? (int) z_ustrlen(data[i].segs[0].source) : data[i].segs[0].length;
+            int length1 = data[i].segs[1].length == -1 ? (int) z_ustrlen(data[i].segs[1].source) : data[i].segs[1].length;
+            int length2 = data[i].segs[2].length == -1 ? (int) z_ustrlen(data[i].segs[2].source) : data[i].segs[2].length;
             printf("        /*%3d*/ { %s, %d, { %d, %d, \"%s\" }, { { TU(\"%s\"), %d, %d }, { TU(\"%s\"), %d, %d }, { TU(\"%s\"), %d, %d } }, %s, %d, %d, %d, \"%s\",\n",
                     i, testUtilInputModeName(data[i].input_mode), data[i].option_2,
                     data[i].structapp.index, data[i].structapp.count, data[i].structapp.id,
@@ -3358,6 +3364,192 @@ static void test_encode_segs(const testCtx *const p_ctx) {
     testFinish();
 }
 
+static void test_rt(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
+
+    struct item {
+        int input_mode;
+        int eci;
+        int option_2;
+        int output_options;
+        const char *data;
+        int length;
+        int ret;
+        int expected_eci;
+        const char *expected;
+        int expected_length;
+        int expected_content_eci;
+    };
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
+    static const struct item data[] = {
+        /*  0*/ { UNICODE_MODE, -1, -1, -1, "é", -1, 0, 0, "", -1, 0 },
+        /*  1*/ { UNICODE_MODE, -1, -1, BARCODE_CONTENT_SEGS, "é", -1, 0, 0, "é", -1, 3 }, /* Now UTF-8, not converted */
+        /*  2*/ { UNICODE_MODE, -1, -1, -1, "ก", -1, ZINT_WARN_USES_ECI, 13, "", -1, 0 },
+        /*  3*/ { UNICODE_MODE, -1, -1, BARCODE_CONTENT_SEGS, "ก", -1, ZINT_WARN_USES_ECI, 13, "ก", -1, 13 },
+        /*  4*/ { DATA_MODE, -1, -1, -1, "\351", -1, 0, 0, "", -1, 0 },
+        /*  5*/ { DATA_MODE, -1, -1, BARCODE_CONTENT_SEGS, "\351", -1, 0, 0, "\351", -1, 3 },
+        /*  6*/ { UNICODE_MODE, 26, -1, -1, "é", -1, 0, 26, "", -1, 0 },
+        /*  7*/ { UNICODE_MODE, 26, -1, BARCODE_CONTENT_SEGS, "é", -1, 0, 26, "é", -1, 26 },
+        /*  8*/ { UNICODE_MODE, 899, -1, -1, "é", -1, 0, 899, "", -1, 0 },
+        /*  9*/ { UNICODE_MODE, 899, -1, BARCODE_CONTENT_SEGS, "é", -1, 0, 899, "é", -1, 899 },
+        /* 10*/ { GS1_MODE, -1, -1, -1, "[01]04912345123459[15]970331[30]128[10]ABC12(", -1, 0, 0, "", -1, 0 },
+        /* 11*/ { GS1_MODE, -1, -1, BARCODE_CONTENT_SEGS, "[01]04912345123459[15]970331[30]128[10]ABC12(", -1, 0, 0, "01049123451234591597033130128\03510ABC12(", -1, 3 },
+        /* 12*/ { GS1_MODE, 4, -1, BARCODE_CONTENT_SEGS, "[01]04912345123459[15]970331[30]128[10]ABC12(", -1, ZINT_WARN_INVALID_OPTION, 4, "01049123451234591597033130128\03510ABC12(", -1, 3 }, /* Note content seg ECI remains at default 3 */
+        /* 13*/ { GS1_MODE, 4, 10, BARCODE_CONTENT_SEGS, "[01]04912345123459[15]970331[30]128[10]ABC12(", -1, ZINT_WARN_INVALID_OPTION, 4, "01049123451234591597033130128\03510ABC12(", -1, 3 }, /* Version T, ECI ignored */
+        /* 14*/ { GS1_MODE | ESCAPE_MODE | GS1PARENS_MODE, -1, -1, BARCODE_CONTENT_SEGS, "(01)04912345123459(15)970331(30)128(10)ABC12\\(", -1, 0, 0, "01049123451234591597033130128\03510ABC12(", -1, 3 },
+        /* 15*/ { UNICODE_MODE, -1, 9, -1, "12345", -1, 0, 0, "", -1, 0 }, /* Version S */
+        /* 16*/ { UNICODE_MODE, -1, 9, BARCODE_CONTENT_SEGS, "12345", -1, 0, 0, "12345", -1, 3 },
+        /* 17*/ { UNICODE_MODE, 4, 9, BARCODE_CONTENT_SEGS, "12345", -1, ZINT_WARN_INVALID_OPTION, 4, "12345", -1, 4 },
+    };
+    const int data_size = ARRAY_SIZE(data);
+    int i, length, ret;
+    struct zint_symbol *symbol = NULL;
+
+    int expected_length;
+
+    char escaped[4096];
+    char escaped2[4096];
+
+    testStartSymbol(p_ctx->func_name, &symbol);
+
+    for (i = 0; i < data_size; i++) {
+
+        if (testContinue(p_ctx, i)) continue;
+
+        symbol = ZBarcode_Create();
+        assert_nonnull(symbol, "Symbol not created\n");
+
+        length = testUtilSetSymbol(symbol, BARCODE_CODEONE, data[i].input_mode, data[i].eci,
+                                    -1 /*option_1*/, data[i].option_2, -1 /*option_3*/, data[i].output_options,
+                                    data[i].data, data[i].length, debug);
+        expected_length = data[i].expected_length == -1 ? (int) strlen(data[i].expected) : data[i].expected_length;
+
+        ret = ZBarcode_Encode(symbol, TCU(data[i].data), length);
+        assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode ret %d != %d (%s)\n",
+                    i, ret, data[i].ret, symbol->errtxt);
+
+        if (ret < ZINT_ERROR) {
+            assert_equal(symbol->eci, data[i].expected_eci, "i:%d eci %d != %d\n",
+                        i, symbol->eci, data[i].expected_eci);
+            if (symbol->output_options & BARCODE_CONTENT_SEGS) {
+                assert_nonnull(symbol->content_segs, "i:%d content_segs NULL\n", i);
+                assert_nonnull(symbol->content_segs[0].source, "i:%d content_segs[0].source NULL\n", i);
+                assert_equal(symbol->content_segs[0].length, expected_length,
+                            "i:%d content_segs[0].length %d != expected_length %d\n",
+                            i, symbol->content_segs[0].length, expected_length);
+                assert_zero(memcmp(symbol->content_segs[0].source, data[i].expected, expected_length),
+                            "i:%d content_segs[0].source memcmp(%s, %s, %d) != 0\n", i,
+                            testUtilEscape((const char *) symbol->content_segs[0].source, symbol->content_segs[0].length,
+                                            escaped, sizeof(escaped)),
+                            testUtilEscape(data[i].expected, expected_length, escaped2, sizeof(escaped2)),
+                            expected_length);
+                assert_equal(symbol->content_segs[0].eci, data[i].expected_content_eci,
+                            "i:%d content_segs[0].eci %d != expected_content_eci %d\n",
+                            i, symbol->content_segs[0].eci, data[i].expected_content_eci);
+            } else {
+                assert_null(symbol->content_segs, "i:%d content_segs not NULL\n", i);
+            }
+        }
+
+        ZBarcode_Delete(symbol);
+    }
+
+    testFinish();
+}
+
+static void test_rt_segs(const testCtx *const p_ctx) {
+    int debug = p_ctx->debug;
+
+    struct item {
+        int input_mode;
+        int option_2;
+        int output_options;
+        struct zint_seg segs[3];
+        int ret;
+
+        int expected_rows;
+        int expected_width;
+        struct zint_seg expected_content_segs[3];
+        int expected_content_seg_count;
+    };
+    /* s/\/\*[ 0-9]*\*\//\=printf("\/\*%3d*\/", line(".") - line("'<")): */
+    static const struct item data[] = {
+        /*  0*/ { UNICODE_MODE, -1, -1, { { TU("¶"), -1, 0 }, { TU("Ж"), -1, 7 }, {0} }, 0, 16, 18, {{0}}, 0 },
+        /*  1*/ { UNICODE_MODE, -1, BARCODE_CONTENT_SEGS, { { TU("¶"), -1, 0 }, { TU("Ж"), -1, 7 }, { TU(""), 0, 0 } }, 0, 16, 18, { { TU("¶"), 2, 3 }, { TU("Ж"), 2, 7 }, {0} }, 2 }, /* Now UTF-8, not converted */
+        /*  2*/ { UNICODE_MODE, -1, -1, { { TU("éé"), -1, 0 }, { TU("กขฯ"), -1, 0 }, { TU("βββ"), -1, 0 } }, ZINT_WARN_USES_ECI, 28, 32, {{0}}, 0 },
+        /*  3*/ { UNICODE_MODE, -1, BARCODE_CONTENT_SEGS, { { TU("éé"), -1, 0 }, { TU("กขฯ"), -1, 0 }, { TU("βββ"), -1, 0 } }, ZINT_WARN_USES_ECI, 28, 32, { { TU("éé"), 4, 3 }, { TU("กขฯ"), 9, 13 }, { TU("βββ"), 6, 9 } }, 3 },
+        /*  4*/ { DATA_MODE, -1, -1, { { TU("¶"), -1, 26 }, { TU("Ж"), -1, 0 }, { TU("\223\137"), -1, 20 } }, 0, 28, 32, {{0}}, 0 },
+        /*  5*/ { DATA_MODE, -1, BARCODE_CONTENT_SEGS, { { TU("¶"), -1, 26 }, { TU("Ж"), -1, 0 }, { TU("\223\137"), -1, 20 } }, 0, 28, 32, { { TU("¶"), 2, 26 }, { TU("\320\226"), 2, 3 }, { TU("\223\137"), 2, 20 } }, 3 },
+        /*  6*/ { UNICODE_MODE, 9, -1, { { TU("12"), -1, 0 }, {0}, {0} }, 0, 8, 11, {{0}}, 0 }, /* Version S */
+        /*  7*/ { UNICODE_MODE, 9, BARCODE_CONTENT_SEGS, { { TU("12"), -1, 0 }, {0}, {0} }, 0, 8, 11, { { TU("12"), 2, 3 }, {0}, {0} }, 1 },
+        /*  8*/ { UNICODE_MODE, 9, -1, { { TU("12"), -1, 20 }, {0}, {0} }, ZINT_WARN_INVALID_OPTION, 8, 11, {{0}}, 0 }, /* Version S */
+        /*  9*/ { UNICODE_MODE, 9, BARCODE_CONTENT_SEGS, { { TU("12"), -1, 20 }, {0}, {0} }, ZINT_WARN_INVALID_OPTION, 8, 11, { { TU("12"), 2, 20 }, {0}, {0} }, 1 },
+    };
+    const int data_size = ARRAY_SIZE(data);
+    int i, j, seg_count, ret;
+    struct zint_symbol *symbol = NULL;
+
+    int expected_length;
+
+    char escaped[4096];
+    char escaped2[4096];
+
+    testStartSymbol(p_ctx->func_name, &symbol);
+
+    for (i = 0; i < data_size; i++) {
+
+        if (testContinue(p_ctx, i)) continue;
+
+        symbol = ZBarcode_Create();
+        assert_nonnull(symbol, "Symbol not created\n");
+
+        testUtilSetSymbol(symbol, BARCODE_CODEONE, data[i].input_mode, -1 /*eci*/,
+                            -1 /*option_1*/, data[i].option_2, -1 /*option_3*/, data[i].output_options,
+                            NULL, 0, debug);
+        for (j = 0, seg_count = 0; j < 3 && data[i].segs[j].length; j++, seg_count++);
+
+        ret = ZBarcode_Encode_Segs(symbol, data[i].segs, seg_count);
+        assert_equal(ret, data[i].ret, "i:%d ZBarcode_Encode_Segs ret %d != %d (%s)\n",
+                    i, ret, data[i].ret, symbol->errtxt);
+
+        assert_equal(symbol->rows, data[i].expected_rows, "i:%d symbol->rows %d != %d (width %d)\n",
+                    i, symbol->rows, data[i].expected_rows, symbol->width);
+        assert_equal(symbol->width, data[i].expected_width, "i:%d symbol->width %d != %d\n",
+                    i, symbol->width, data[i].expected_width);
+
+        assert_equal(symbol->content_seg_count, data[i].expected_content_seg_count, "i:%d symbol->content_seg_count %d != %d\n",
+                    i, symbol->content_seg_count, data[i].expected_content_seg_count);
+        if (symbol->output_options & BARCODE_CONTENT_SEGS) {
+            assert_nonnull(symbol->content_segs, "i:%d content_segs NULL\n", i);
+            for (j = 0; j < symbol->content_seg_count; j++) {
+                assert_nonnull(symbol->content_segs[j].source, "i:%d content_segs[%d].source NULL\n", i, j);
+
+                expected_length = data[i].expected_content_segs[j].length;
+
+                assert_equal(symbol->content_segs[j].length, expected_length,
+                            "i:%d content_segs[%d].length %d != expected_length %d\n",
+                            i, j, symbol->content_segs[j].length, expected_length);
+                assert_zero(memcmp(symbol->content_segs[j].source, data[i].expected_content_segs[j].source, expected_length),
+                            "i:%d content_segs[%d].source memcmp(%s, %s, %d) != 0\n", i, j,
+                            testUtilEscape((const char *) symbol->content_segs[j].source, expected_length, escaped,
+                                            sizeof(escaped)),
+                            testUtilEscape((const char *) data[i].expected_content_segs[j].source, expected_length,
+                                            escaped2, sizeof(escaped2)),
+                            expected_length);
+                assert_equal(symbol->content_segs[j].eci, data[i].expected_content_segs[j].eci,
+                            "i:%d content_segs[%d].eci %d != expected_content_segs.eci %d\n",
+                            i, j, symbol->content_segs[j].eci, data[i].expected_content_segs[j].eci);
+            }
+        } else {
+            assert_null(symbol->content_segs, "i:%d content_segs not NULL\n", i);
+        }
+
+        ZBarcode_Delete(symbol);
+    }
+
+    testFinish();
+}
+
 static void test_fuzz(const testCtx *const p_ctx) {
     int debug = p_ctx->debug;
 
@@ -3387,7 +3579,7 @@ static void test_fuzz(const testCtx *const p_ctx) {
 
     int do_bwipp = (debug & ZINT_DEBUG_TEST_BWIPP) && testUtilHaveGhostscript(); /* Only do BWIPP test if asked, too slow otherwise */
 
-    testStartSymbol("test_fuzz", &symbol);
+    testStartSymbol(p_ctx->func_name, &symbol);
 
     for (i = 0; i < data_size; i++) {
 
@@ -3431,6 +3623,8 @@ int main(int argc, char *argv[]) {
         { "test_input", test_input },
         { "test_encode", test_encode },
         { "test_encode_segs", test_encode_segs },
+        { "test_rt", test_rt },
+        { "test_rt_segs", test_rt_segs },
         { "test_fuzz", test_fuzz },
     };
 
