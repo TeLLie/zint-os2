@@ -124,7 +124,7 @@ if(NOT MSVC)
     zint_target_link_libraries(m)
 endif()
 
-if(MSVC)
+if(MSVC OR OS2)
     if(ZINT_SHARED)
         target_compile_definitions(zint PRIVATE DLL_EXPORT)
     endif()
