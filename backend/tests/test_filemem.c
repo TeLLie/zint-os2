@@ -116,7 +116,7 @@ static void test_file(const testCtx *const p_ctx) {
     testFinish();
 }
 
-#if defined(_WIN32) || (defined(__sun) && defined(__SVR4))
+#if defined(_WIN32) || defined(__OS2__) || (defined(__sun) && defined(__SVR4))
 #define ZINT_TEST_NO_FMEMOPEN
 #endif
 
